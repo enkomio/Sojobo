@@ -1,0 +1,3 @@
+[submodule "ThirdPart/B2R2"]
+	path = ThirdPart/B2R2
+	url = https://github.com/B2R2-org/B2R2
