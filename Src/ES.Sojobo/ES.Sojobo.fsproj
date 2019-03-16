@@ -64,32 +64,32 @@
   <ItemGroup>
     <ProjectReference Include="..\ThirdPart\B2R2\src\BinAnalysis\B2R2.BinAnalysis.fsproj">
       <Name>B2R2.BinAnalysis</Name>
-      <Project>{62538150-880c-4711-8c10-3ac2224728ed}</Project>
+      <Project>{4dfa5c02-9d11-4f67-88dd-14480f766b2e}</Project>
       <Private>True</Private>
     </ProjectReference>
     <ProjectReference Include="..\ThirdPart\B2R2\src\BinFile\B2R2.BinFile.fsproj">
       <Name>B2R2.BinFile</Name>
-      <Project>{2b55b11c-d04a-4451-b8d2-0cda632940ee}</Project>
+      <Project>{815d72b9-c83f-4ef2-9fcb-1b1cabf29026}</Project>
       <Private>True</Private>
     </ProjectReference>
     <ProjectReference Include="..\ThirdPart\B2R2\src\BinIR\B2R2.BinIR.fsproj">
       <Name>B2R2.BinIR</Name>
-      <Project>{7ae36e18-182e-4e36-ad0e-08f326b381b2}</Project>
+      <Project>{3b620c49-b570-4a68-bfbe-44f1ff2c03f6}</Project>
       <Private>True</Private>
     </ProjectReference>
     <ProjectReference Include="..\ThirdPart\B2R2\src\Core\B2R2.Core.fsproj">
       <Name>B2R2.Core</Name>
-      <Project>{92a41f1c-8b77-4479-8cd3-fb8987269c60}</Project>
+      <Project>{dcb290b6-b373-42be-81cc-12431957721b}</Project>
       <Private>True</Private>
     </ProjectReference>
     <ProjectReference Include="..\ThirdPart\B2R2\src\FrontEnd\Core\B2R2.FrontEnd.Core.fsproj">
       <Name>B2R2.FrontEnd.Core</Name>
-      <Project>{f5ad1150-9b7b-4112-9e08-c5542119750e}</Project>
+      <Project>{1b240a8a-a3f5-4bc2-8e39-63bb42af0a4a}</Project>
       <Private>True</Private>
     </ProjectReference>
     <ProjectReference Include="..\ThirdPart\B2R2\src\FrontEnd\Library\B2R2.FrontEnd.Library.fsproj">
       <Name>B2R2.FrontEnd.Library</Name>
-      <Project>{6b1c5eb5-e729-4bd8-b55e-bb4cbfc84658}</Project>
+      <Project>{a08b64d4-60ab-47fd-95ec-32fbfe6853d7}</Project>
       <Private>True</Private>
     </ProjectReference>
   </ItemGroup>
