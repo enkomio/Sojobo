@@ -1,3 +1,6 @@
 [submodule "Src/ThirdPart/B2R2"]
 	path = Src/ThirdPart/B2R2
 	url = https://github.com/B2R2-org/B2R2
+[submodule "Src/ThirdPart/--force"]
+	path = Src/ThirdPart/--force
+	url = https://github.com/B2R2-org/B2R2
