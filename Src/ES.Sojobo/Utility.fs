@@ -15,7 +15,7 @@ module Utility =
         | 64 -> BitConverter.GetBytes(uint64 value)
         | _ -> failwith("Unexpected size: " + string size)
 
-    let getSize(regType: RegType) =
+    let getType(regType: RegType) =
         match (RegType.toBitWidth regType) with
         | 8 -> EmulatedType.Byte
         | 16 -> EmulatedType.Word
@@ -23,7 +23,7 @@ module Utility =
         | 64 -> EmulatedType.QuadWord
         | _ -> failwith("Invalid reg type size: " + regType.ToString())
 
-    let getTypeSize(emuType: EmulatedType) =
+    let getSize(emuType: EmulatedType) =
         match emuType with
         | EmulatedType.Byte -> 8
         | EmulatedType.Word -> 16

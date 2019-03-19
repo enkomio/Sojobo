@@ -6,19 +6,21 @@ open B2R2.FrontEnd
 open B2R2.BinIR.LowUIR
 open ES.Sojobo.Model
 open B2R2.BinIR.LowUIR.AST
+open B2R2.FrontEnd.Intel
 
 module LowUIREmulator =
     let rec emulateExpr(win32Process: Win32ProcessContainer) (expr: Expr) =
         match expr with
         | TempVar (regType, index) ->
-            win32Process.GetOrCreateTemporaryVariable(index, Utility.getSize(regType))
+            win32Process.GetOrCreateTemporaryVariable(string index, Utility.getType(regType))
 
         | Num number ->
-            let size = Utility.getSize(BitVector.getType number)
+            let size = Utility.getType(BitVector.getType number)
             createVariableWithValue(String.Empty, size, number)
 
         | Var (regType, registerId, _, _) ->
-            win32Process.GetVariable(int32 registerId, Utility.getSize(regType))
+            let register = Register.ofRegID registerId            
+            win32Process.GetVariable(string register, Utility.getType(regType))
 
         | BinOp (binOpType, regType, firstOp, secondOp, _, _) ->
             let firstValue = emulateExpr win32Process firstOp
@@ -43,7 +45,25 @@ module LowUIREmulator =
                 | _ -> failwith("Wrong or unsupported operation: " + binOpType.ToString())
             
             let resultValue = operation firstValue.Value secondValue.Value
-            createVariableWithValue(String.Empty,  Utility.getSize(regType), resultValue)
+            createVariableWithValue(String.Empty, Utility.getType(regType), resultValue)
+
+        | Load (_, regType, expr, _, _) -> 
+            let memAddressValue = (emulateExpr win32Process expr).Value
+            let memAddress = BitVector.toUInt64 memAddressValue
+            let emuType = Utility.getType(regType)
+            let size = Utility.getSize(emuType)
+
+            let memRegion = win32Process.GetMemoryRegion(memAddress)
+            let handler = memRegion.Handler
+            let bytes = BinHandler.ReadBytes(handler, memAddress, size)
+                        
+            // convert the readed bytes to emulated value
+            match emuType with
+            | Byte -> uint32 bytes.[0] |> bigint
+            | Word -> uint32(BitConverter.ToUInt16(bytes, 0)) |> bigint
+            | DoubleWord -> uint32(BitConverter.ToUInt32(bytes, 0)) |> bigint
+            | QuadWord -> uint64(BitConverter.ToUInt64(bytes, 0)) |> bigint
+            |> fun bi -> createVariableWithValue(String.Empty,  Utility.getType(regType), BitVector.ofUBInt bi regType)
 
         | _ -> failwith("Expression not yet emulated: " + expr.ToString())
 

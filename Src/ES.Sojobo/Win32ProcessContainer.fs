@@ -36,9 +36,9 @@ type Win32ProcessContainer() =
             |> Some
 
         // save the EIP registry value
-        let eipIndex = int32 Register.EIP
-        let eipValue = createVariableWithValue(string eipIndex, EmulatedType.DoubleWord, BitVector.ofUInt64 _programCounter 32<rt>)
-        _variables.Add(string eipIndex, eipValue)
+        let eip = string Register.EIP
+        let eipValue = createVariableWithValue(eip, EmulatedType.DoubleWord, BitVector.ofUInt64 _programCounter 32<rt>)
+        _variables.Add(eip, eipValue)
 
     let mapSections(handler: BinHandler) =
         handler.FileInfo.GetSections()
@@ -54,12 +54,31 @@ type Win32ProcessContainer() =
 
     let setupRegisters() =
         [
-            createVariableWithValue(string (int32 Register.EAX), EmulatedType.DoubleWord, BitVector.ofInt32 0 32<rt>)
-            createVariableWithValue(string (int32 Register.EBX), EmulatedType.DoubleWord, BitVector.ofInt32 0 32<rt>)
-            createVariableWithValue(string (int32 Register.ECX), EmulatedType.DoubleWord, BitVector.ofInt32 0 32<rt>)
-            createVariableWithValue(string (int32 Register.EDX), EmulatedType.DoubleWord, BitVector.ofInt32 0 32<rt>)
-            createVariableWithValue(string (int32 Register.ESI), EmulatedType.DoubleWord, BitVector.ofInt32 0 32<rt>)
-            createVariableWithValue(string (int32 Register.EDI), EmulatedType.DoubleWord, BitVector.ofInt32 0 32<rt>)
+            // 32 bits
+            createVariableWithValue(string Register.EAX, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 32<rt>)
+            createVariableWithValue(string Register.EBX, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 32<rt>)
+            createVariableWithValue(string Register.ECX, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 32<rt>)
+            createVariableWithValue(string Register.EDX, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 32<rt>)
+            createVariableWithValue(string Register.ESI, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 32<rt>)
+            createVariableWithValue(string Register.EDI, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 32<rt>)
+
+            // 16 bits
+            createVariableWithValue(string Register.AX, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 16<rt>)
+            createVariableWithValue(string Register.BX, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 16<rt>)
+            createVariableWithValue(string Register.CX, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 16<rt>)
+            createVariableWithValue(string Register.DX, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 16<rt>)
+            createVariableWithValue(string Register.SI, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 16<rt>)
+            createVariableWithValue(string Register.DI, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 16<rt>)
+
+            // 8 bits
+            createVariableWithValue(string Register.AH, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 8<rt>)
+            createVariableWithValue(string Register.AL, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 8<rt>)
+            createVariableWithValue(string Register.BH, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 8<rt>)
+            createVariableWithValue(string Register.BL, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 8<rt>)
+            createVariableWithValue(string Register.CH, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 8<rt>)
+            createVariableWithValue(string Register.CL, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 8<rt>)
+            createVariableWithValue(string Register.DH, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 8<rt>)
+            createVariableWithValue(string Register.DL, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 8<rt>)
         ] |> List.iter(fun register ->
             _variables.Add(register.Name, register)
         )
@@ -81,15 +100,15 @@ type Win32ProcessContainer() =
         addRegion(stack)
 
         // set ESP value
-        let espIndex = int32 Register.ESP
+        let esp = string Register.ESP
         let startAddress = int32 stack.BaseAddress + int32 (stack.Size / 2L)
-        let espValue = createVariableWithValue(string espIndex, EmulatedType.DoubleWord, BitVector.ofInt32 startAddress 32<rt>)
-        _variables.Add(string espIndex, espValue)
+        let espValue = createVariableWithValue(esp, EmulatedType.DoubleWord, BitVector.ofInt32 startAddress 32<rt>)
+        _variables.Add(esp, espValue)
 
         // set EBP value equals to ESP
-        let ebpIndex = int32 Register.EBP
-        let ebpValue = createVariableWithValue(string ebpIndex, EmulatedType.DoubleWord, espValue.Value)
-        _variables.Add(string ebpIndex, ebpValue)
+        let ebp = string Register.EBP
+        let ebpValue = createVariableWithValue(ebp, EmulatedType.DoubleWord, espValue.Value)
+        _variables.Add(ebp, ebpValue)
 
     let initialize(handler: BinHandler) =
         mapSections(handler)
@@ -97,11 +116,11 @@ type Win32ProcessContainer() =
         setEntryPoint(handler)
         setupRegisters()
 
-    let getTempName(index: Int32, emuType: EmulatedType) =
-        let size =  Utility.getTypeSize(emuType)
+    let getTempName(index: String, emuType: EmulatedType) =
+        let size =  Utility.getSize(emuType)
         String.Format("T_{0}:{1}", index, size)
 
-    member this.GetOrCreateTemporaryVariable(index: Int32, emuType: EmulatedType) =
+    member this.GetOrCreateTemporaryVariable(index: String, emuType: EmulatedType) =
         let name = getTempName(index, emuType)
         match _tempVariables.TryGetValue(name) with
         | (true, value) -> value
@@ -110,11 +129,11 @@ type Win32ProcessContainer() =
             _tempVariables.[name] <- variable
             variable
             
-    member this.GetVariable(index: Int32, emuType: EmulatedType) =        
-        match _variables.TryGetValue(string index) with
+    member this.GetVariable(name: String, emuType: EmulatedType) =        
+        match _variables.TryGetValue(name) with
         | (true, value) -> value
         | _ ->
-            let name = getTempName(index, emuType)
+            let name = getTempName(name, emuType)
             _tempVariables.[name]
 
     member this.SetVariable(value: EmulatedValue) =
