@@ -8,59 +8,49 @@ open B2R2
 open B2R2.BinIR
 open B2R2.BinIR.LowUIR
 
-type SandboxSettings = {
-    PrintAssembly: Boolean
-    PrintIR: Boolean
-}
+module Win32Sandbox =
+    type SandboxSettings = {
+        PrintAssembly: Boolean
+        PrintIR: Boolean
+    }
 
-type Win32Sandbox(settings: SandboxSettings) =
-    let prinAssembly(win32Process: Win32ProcessContainer, instruction: Instruction) =
-        if settings.PrintAssembly then
-            let handler = win32Process.GetProcessHandler()
-            let disassembledInstruction = BinHandler.DisasmInstr handler true true instruction 
-            Console.WriteLine(disassembledInstruction)
-
-    let printIR(win32Process: Win32ProcessContainer, statements: Stmt array) =
-        statements
-        |> Array.iter(fun statement ->
-            let statementString = LowUIR.Pp.stmtToString statement
-            Console.WriteLine(statementString)
-        )
-
-    let runSection(win32Process: Win32ProcessContainer) (section: Section) =  
-        let handler = win32Process.GetProcessHandler()
-        let sectionRange = section.ToAddrRange()
-        let mutable progCounter = handler.FileInfo.EntryPoint
-        let endAddress = AddrRange.GetMax(sectionRange)
-
-        while progCounter < endAddress do
-            match BinHandler.LiftIRBBlock handler progCounter with
-            | Ok (instrIR, newxtAddress) -> 
-                instrIR
-                |> List.iter(fun (instruction, statements) ->
-                    prinAssembly(win32Process, instruction)
-                    printIR(win32Process, statements)
-                    LowUIREmulator.emulateStmts win32Process statements
-                )
-            | Error statements -> 
-                ()
-
-    let runProcess(win32Process: Win32ProcessContainer) =
-        win32Process.GetProcessHandler().FileInfo.GetExecutableSections()
-        |> Seq.iter(runSection win32Process)
-
-    // run with default settings
-    new() = new Win32Sandbox({
+    let defaultSandboxConfig = {
         PrintAssembly = false
         PrintIR = false
-    })
-        
-    member this.Run(filename: String) =
-        let win32Process = new Win32ProcessContainer()
-        win32Process.Initialize(filename)
-        runProcess(win32Process)
+    }
 
-    member this.Run(buffer: Byte array) =
-        let win32Process = new Win32ProcessContainer()
-        win32Process.Initialize(buffer)
-        runProcess(win32Process)
+    type Win32Sandbox(settings: SandboxSettings) =
+        let prinAssembly(handler: BinHandler, instruction: Instruction) =
+            if settings.PrintAssembly then
+                let disassembledInstruction = BinHandler.DisasmInstr handler true true instruction 
+                Console.WriteLine(disassembledInstruction)
+
+        let printIR(statement: Stmt) =
+            let statementString = LowUIR.Pp.stmtToString statement
+            Console.WriteLine(statementString)
+
+        let runProcess(win32Process: Win32ProcessContainer) =
+            while true do
+                let instruction = win32Process.GetInstruction()
+                let handler = win32Process.GetActiveMemoryRegion().Handler
+                prinAssembly(handler, instruction)
+                
+                // emulate instruction
+                BinHandler.LiftInstr handler instruction
+                |> Array.iter(fun statement ->
+                    printIR(statement)
+                    LowUIREmulator.emulateStmt win32Process statement
+                )
+
+        // run with default settings
+        new() = new Win32Sandbox(defaultSandboxConfig)
+        
+        member this.Run(filename: String) =
+            let win32Process = new Win32ProcessContainer()
+            win32Process.Initialize(filename)
+            runProcess(win32Process)
+
+        member this.Run(buffer: Byte array) =
+            let win32Process = new Win32ProcessContainer()
+            win32Process.Initialize(buffer)
+            runProcess(win32Process)

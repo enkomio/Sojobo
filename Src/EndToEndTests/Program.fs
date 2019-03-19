@@ -2,7 +2,7 @@
 
 open System
 open System.IO
-open ES.Sojobo
+open ES.Sojobo.Win32Sandbox
 
 module Program =    
     let getBytes() =
@@ -25,7 +25,12 @@ module Program =
 
     [<EntryPoint>]
     let main argv =    
-        let sandbox = new Win32Sandbox()
+        let settings = 
+            {defaultSandboxConfig with
+                PrintAssembly = true
+                PrintIR = true
+            }
+        let sandbox = new Win32Sandbox(settings)
         sandbox.Run(getBytes())
         //sandbox.Run(@"c:\install.exe")
         0
