@@ -63,8 +63,46 @@ module LowUIREmulator =
             | Word -> uint32(BitConverter.ToUInt16(bytes, 0)) |> bigint
             | DoubleWord -> uint32(BitConverter.ToUInt32(bytes, 0)) |> bigint
             | QuadWord -> uint64(BitConverter.ToUInt64(bytes, 0)) |> bigint
+            | _ -> failwith("Unexpected emu type: " + emuType.ToString())
             |> fun bi -> createVariableWithValue(String.Empty,  Utility.getType(regType), BitVector.ofUBInt bi regType)
 
+        | PCVar (regType, regName) ->
+            win32Process.GetVariable(regName, Utility.getType(regType))
+
+        | RelOp (relOpType, firstExpr, secondExpr, exprInfo, consInfo) ->
+            let firstValue = emulateExpr win32Process firstExpr
+            let secondValue = emulateExpr win32Process secondExpr 
+            
+            let operation =
+                match relOpType with
+                | RelOpType.EQ -> BitVector.eq
+                | RelOpType.NEQ -> BitVector.neq
+                | RelOpType.GT -> BitVector.gt
+                | RelOpType.GE -> BitVector.ge
+                | RelOpType.SGT -> BitVector.sgt
+                | RelOpType.SGE -> BitVector.sge
+                | RelOpType.LT -> BitVector.lt
+                | RelOpType.LE -> BitVector.le
+                | RelOpType.SLT -> BitVector.slt
+                | RelOpType.SLE -> BitVector.sle
+                | _ -> failwith("Wrong or unsupported operation: " + relOpType.ToString())
+
+            let resultValue = operation firstValue.Value secondValue.Value
+            createVariableWithValue(String.Empty, firstValue.Type, resultValue)
+
+        | Extract(targetExpr, regType, startPos, _, _) ->
+            let targetValue = emulateExpr win32Process targetExpr
+            let extractionResult = BitVector.extract targetValue.Value regType startPos
+            createVariableWithValue(String.Empty, Utility.getType(regType), extractionResult)
+
+        | UnOp (a,b,c,d) ->
+            failwith("Expression not yet emulated: " + expr.ToString())
+
+        // | Name of Symbol
+        // | FuncName of string
+        // | Ite of Expr * Expr * Expr * ExprInfo * ConsInfo option
+        // | Cast of CastKind * RegType * Expr * ExprInfo * ConsInfo option
+        // | Undefined of RegType * string
         | _ -> failwith("Expression not yet emulated: " + expr.ToString())
 
     and emulateStmt(win32Process: Win32ProcessContainer) (stmt: Stmt) =
@@ -96,11 +134,18 @@ module LowUIREmulator =
             let newRegion = {memRegion with Handler = newHandler}
             win32Process.UpdateMemoryRegion(memRegion, newRegion)
             
+        | InterJmp (programCounterExpr, destAddrExpr) ->
+            let destAddr = emulateExpr win32Process destAddrExpr
+            let programCounter = 
+                {emulateExpr win32Process programCounterExpr with
+                    Value = destAddr.Value
+                }
+            win32Process.SetVariable(programCounter)
+
         (*
         | LMark of Symbol
         | Jmp of Expr
-        | CJmp of Expr * Expr * Expr
-        | InterJmp of Expr * Expr
+        | CJmp of Expr * Expr * Expr        
         | InterCJmp of Expr * Expr * Expr * Expr
         | SideEffect of SideEffect
         *)

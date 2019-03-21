@@ -31,6 +31,6 @@ module Program =
                 PrintIR = true
             }
         let sandbox = new Win32Sandbox(settings)
-        sandbox.Run(getBytes())
-        //sandbox.Run(@"c:\install.exe")
+        //sandbox.Run(getBytes())
+        sandbox.Run(@"C:\Workspace\MealyObfuscator\Baseline\Src\Debug\MealyDeObfuscator.exe")
         0

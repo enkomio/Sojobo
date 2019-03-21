@@ -8,7 +8,7 @@ module Utility =
     let toArray(bitVector: BitVector) =
         let size = int32 <| BitVector.getType bitVector
         let value = BitVector.getValue bitVector
-        match size with
+        match size with        
         | 8 -> [|byte value|]
         | 16 -> BitConverter.GetBytes(uint16 value)
         | 32 -> BitConverter.GetBytes(uint32 value)
@@ -17,6 +17,7 @@ module Utility =
 
     let getType(regType: RegType) =
         match (RegType.toBitWidth regType) with
+        | 1 -> EmulatedType.Bit
         | 8 -> EmulatedType.Byte
         | 16 -> EmulatedType.Word
         | 32 -> EmulatedType.DoubleWord
@@ -25,8 +26,11 @@ module Utility =
 
     let getSize(emuType: EmulatedType) =
         match emuType with
+        | EmulatedType.Bit -> 1
         | EmulatedType.Byte -> 8
         | EmulatedType.Word -> 16
         | EmulatedType.DoubleWord -> 32
         | EmulatedType.QuadWord -> 64
 
+    let getTypeSize =
+        getType >> getSize

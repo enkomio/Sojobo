@@ -14,8 +14,7 @@ open B2R2.FrontEnd.Intel
 type Win32ProcessContainer() =    
     let _va = new Dictionary<UInt64, MemoryRegion>()    
     let _tempVariables = new Dictionary<String, EmulatedValue>()
-    let _variables = new Dictionary<String, EmulatedValue>()    
-    let mutable _programCounter = 0UL
+    let _variables = new Dictionary<String, EmulatedValue>()
     let mutable _activeRegion: MemoryRegion option = None
     
     let addRegion(memRegion: MemoryRegion) =        
@@ -30,14 +29,13 @@ type Win32ProcessContainer() =
         )
 
     let setEntryPoint(handler: BinHandler) =
-        _programCounter <- handler.FileInfo.EntryPoint
         _activeRegion <- 
-            getMemoryRegion(_programCounter)
+            getMemoryRegion(handler.FileInfo.EntryPoint)
             |> Some
 
         // save the EIP registry value
         let eip = string Register.EIP
-        let eipValue = createVariableWithValue(eip, EmulatedType.DoubleWord, BitVector.ofUInt64 _programCounter 32<rt>)
+        let eipValue = createVariableWithValue(eip, EmulatedType.DoubleWord, BitVector.ofUInt64 handler.FileInfo.EntryPoint 32<rt>)
         _variables.Add(eip, eipValue)
 
     let mapSections(handler: BinHandler) =
@@ -79,6 +77,17 @@ type Win32ProcessContainer() =
             createVariableWithValue(string Register.CL, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 8<rt>)
             createVariableWithValue(string Register.DH, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 8<rt>)
             createVariableWithValue(string Register.DL, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 8<rt>)
+
+            // Flags bit register
+            createVariableWithValue(string Register.OF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
+            createVariableWithValue(string Register.DF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
+            createVariableWithValue(string Register.IF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
+            createVariableWithValue(string Register.TF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
+            createVariableWithValue(string Register.SF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
+            createVariableWithValue(string Register.ZF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
+            createVariableWithValue(string Register.AF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
+            createVariableWithValue(string Register.PF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
+            createVariableWithValue(string Register.CF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
         ] |> List.iter(fun register ->
             _variables.Add(register.Name, register)
         )
@@ -164,6 +173,10 @@ type Win32ProcessContainer() =
         _va.[oldRegion.BaseAddress] <- newRegion
 
     member this.GetInstruction() =
-        let instruction = BinHandler.ParseInstr (this.GetActiveMemoryRegion().Handler) _programCounter
-        _programCounter <- _programCounter + uint64 instruction.Length
+        let programCounter = _variables.["EIP"]
+        let instruction = BinHandler.ParseInstr (this.GetActiveMemoryRegion().Handler) (programCounter.Value |> BitVector.toUInt64)
+        _variables.["EIP"] <- 
+            {programCounter with
+                Value = BitVector.add programCounter.Value (BitVector.ofUInt32 instruction.Length 32<rt>)
+            }
         instruction

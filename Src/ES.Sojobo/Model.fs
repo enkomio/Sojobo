@@ -8,6 +8,7 @@ open B2R2.BinFile
 
 module Model =
     type EmulatedType =
+        | Bit
         | Byte
         | Word
         | DoubleWord
@@ -23,7 +24,7 @@ module Model =
     let createVariableWithValue(name: String, t: EmulatedType, v: BitVector) = {
         Name = name
         Value = v
-        IsTemp = false
+        IsTemp = String.IsNullOrEmpty(name)
         Type = t
     }
 

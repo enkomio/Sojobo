@@ -26,8 +26,9 @@ module Win32Sandbox =
                 Console.WriteLine(disassembledInstruction)
 
         let printIR(statement: Stmt) =
-            let statementString = LowUIR.Pp.stmtToString statement
-            Console.WriteLine(statementString)
+            if settings.PrintIR then
+                let statementString = LowUIR.Pp.stmtToString statement
+                Console.WriteLine(statementString)
 
         let runProcess(win32Process: Win32ProcessContainer) =
             while true do
