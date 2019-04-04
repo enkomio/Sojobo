@@ -6,7 +6,7 @@ void copy_code(void *buffer)
 	__asm 
 	{
 		jmp start
-		code:
+	code:
 		push ebp;
 		mov ebp, esp
 		xor eax, eax;
