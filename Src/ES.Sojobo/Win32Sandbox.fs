@@ -35,7 +35,7 @@ module Win32Sandbox =
 
         let runProcess(win32Process: Win32ProcessContainer) =
             let activeRegion = win32Process.GetActiveMemoryRegion()
-            let endAddress = activeRegion.BaseAddress + uint64 activeRegion.Size
+            let endAddress = activeRegion.BaseAddress + uint64 activeRegion.Content.Length
             let mutable completed = false
 
             while not completed do

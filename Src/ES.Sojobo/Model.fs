@@ -33,13 +33,9 @@ module Model =
 
     type MemoryRegion = {
         BaseAddress: UInt64
-        Size: Int64
+        Content: Byte array
         Protection: SectionKind
         Handler: BinHandler
-  
-        // if it is reserver/commit/etc...
         Type: String
-  
-        // contains additional information, like the name of the file mapped
         Info: String
     }

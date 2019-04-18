@@ -2,12 +2,9 @@
 
 open System
 open System.Collections.Generic
-open System.IO
 open B2R2
 open B2R2.FrontEnd
-open B2R2.BinIR
 open B2R2.BinFile
-open B2R2.BinIR.LowUIR
 open ES.Sojobo.Model
 open B2R2.FrontEnd.Intel
 
@@ -24,13 +21,18 @@ type Win32ProcessContainer() =
         _va.Values
         |> Seq.find(fun memRegion -> 
             let startAddr = memRegion.BaseAddress
-            let endAddr = memRegion.BaseAddress + uint64 memRegion.Size
+            let endAddr = memRegion.BaseAddress + uint64 memRegion.Content.Length
             programCounter >= startAddr && programCounter <= endAddr
         )
 
     let writeMemory(address: UInt64, value: Byte array) =
+        // copy the memory
         let region = getMemoryRegion(address)
-        let newHandler = BinHandler.UpdateCode region.Handler address value
+        let offset = address - region.BaseAddress |> int32
+        Array.Copy(value, 0, region.Content, offset, value.Length)
+
+        // create a new handler and modify region
+        let newHandler = BinHandler.UpdateCode region.Handler address region.Content
         let newRegion = {region with Handler = newHandler}
         _va.[region.BaseAddress] <- newRegion
 
@@ -44,23 +46,16 @@ type Win32ProcessContainer() =
         let eipValue = createVariableWithValue(eip, EmulatedType.DoubleWord, BitVector.ofUInt64 handler.FileInfo.EntryPoint 32<rt>)
         _variables.Add(eip, eipValue)
 
-    let mapSections(handler: BinHandler) =
+    let mapSections(handler: BinHandler) =            
         handler.FileInfo.GetSections()
-        |> Seq.map(fun section -> 
-            // create a new section handler of Raw type
-            let sectionBuffer = BinHandler.ReadBytes(handler, section.Address, int32 section.Size)
-            let isa = ISA.OfString "x86"
-            let sectionHandler = BinHandler.Init(isa, ArchOperationMode.NoMode, FileFormat.RawBinary, Addr.MinValue, sectionBuffer)
-            
-            {
+        |> Seq.map(fun section -> {
                 BaseAddress = section.Address
-                Size = int64 section.Size
-                Handler = sectionHandler
+                Content = handler.BinReader.Bytes
+                Handler = handler
                 Protection = section.Kind
                 Type = section.Name
                 Info = handler.FileInfo.FilePath
-            }
-        )
+        })
         |> Seq.iter(addRegion)
 
     let setupRegisters() =
@@ -113,7 +108,7 @@ type Win32ProcessContainer() =
 
         let stack = {
             BaseAddress = 0x1000UL
-            Size = 0x1000L
+            Content = stackBuffer
             Handler = stackHandler
             Protection = SectionKind.WritableSection ||| SectionKind.ExecutableSection
             Type = "Stack"
@@ -123,7 +118,7 @@ type Win32ProcessContainer() =
 
         // set ESP value
         let esp = string Register.ESP
-        let startAddress = int32 stack.BaseAddress + int32 (stack.Size / 2L)
+        let startAddress = int32 stack.BaseAddress + int32 (stackBuffer.Length / 2)
         let espValue = createVariableWithValue(esp, EmulatedType.DoubleWord, BitVector.ofInt32 startAddress 32<rt>)
         _variables.Add(esp, espValue)
 
@@ -135,9 +130,9 @@ type Win32ProcessContainer() =
     let mapIAT(handler: BinHandler) =
         handler.FileInfo.GetSymbols()
         |> Seq.iter(fun symbol ->
-            if symbol.Kind = SymbolKind.ExternFunctionType || symbol.Kind = SymbolKind.FunctionType then
-                writeMemory(symbol.Address, [|1uy; 2uy; 3uy; 4uy|])
-                Console.WriteLine("[{0}] {1} from {2}", symbol.Address.ToString("X"), symbol.Name, symbol.LibraryName)
+            if symbol.Kind = SymbolKind.ExternFunctionType || symbol.Kind = SymbolKind.FunctionType 
+            then writeMemory(symbol.Address, [|1uy; 2uy; 3uy; 4uy|])
+            Console.WriteLine("[0x{0}] {1} from {2}", symbol.Address.ToString("X"), symbol.Name, symbol.LibraryName)
         )
 
     let initialize(handler: BinHandler) =

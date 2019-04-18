@@ -134,16 +134,13 @@ module LowUIREmulator =
             let destinationValue = emulateExpr win32Process destination
 
             // extract info
-            let memAddress = BitVector.toUInt64 destinationValue.Value
-            let memRegion = win32Process.GetMemoryRegion(memAddress)            
+            let memAddress = BitVector.toUInt64 destinationValue.Value          
             let bytes = Utility.toArray(sourceValue.Value)
             
             // write value
-            let newHandler = BinHandler.UpdateCode memRegion.Handler memAddress bytes
-            let newRegion = {memRegion with Handler = newHandler}
-            win32Process.UpdateMemoryRegion(memRegion, newRegion)
+            win32Process.WriteMemory(memAddress, bytes)
             
-        | InterJmp (programCounterExpr, destAddrExpr, interJmpInfo) ->
+        | InterJmp (programCounterExpr, destAddrExpr) ->
             let destAddr = emulateExpr win32Process destAddrExpr
             let programCounter = 
                 {emulateExpr win32Process programCounterExpr with
