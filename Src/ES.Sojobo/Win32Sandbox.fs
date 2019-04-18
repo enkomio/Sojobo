@@ -22,8 +22,11 @@ module Win32Sandbox =
     type Win32Sandbox(settings: SandboxSettings) =
         let prinAssembly(handler: BinHandler, instruction: Instruction) =
             if settings.PrintAssembly then
-                let disassembledInstruction = BinHandler.DisasmInstr handler true true instruction 
-                Console.WriteLine(disassembledInstruction)
+                let disassembledInstruction = BinHandler.DisasmInstr handler false true instruction 
+                let instructionBytes = BinHandler.ReadBytes(handler , instruction.Address, int32 instruction.Length)                
+                let hexBytes = BitConverter.ToString(instructionBytes).Replace("-"," ")
+                let text = String.Format("0x{0,-10} {1, -30} {2}", instruction.Address.ToString("X") + ":", hexBytes, disassembledInstruction)
+                Console.WriteLine(text)
 
         let printIR(statement: Stmt) =
             if settings.PrintIR then
@@ -31,11 +34,17 @@ module Win32Sandbox =
                 Console.WriteLine(statementString)
 
         let runProcess(win32Process: Win32ProcessContainer) =
-            while true do
+            let activeRegion = win32Process.GetActiveMemoryRegion()
+            let endAddress = activeRegion.BaseAddress + uint64 activeRegion.Size
+            let mutable completed = false
+
+            while not completed do
                 let instruction = win32Process.GetInstruction()
+                completed <- instruction.Address + uint64 instruction.Length >= endAddress
+
                 let handler = win32Process.GetActiveMemoryRegion().Handler
                 prinAssembly(handler, instruction)
-                
+                                
                 // emulate instruction
                 BinHandler.LiftInstr handler instruction
                 |> Array.iter(fun statement ->

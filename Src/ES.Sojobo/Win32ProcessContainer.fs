@@ -28,6 +28,12 @@ type Win32ProcessContainer() =
             programCounter >= startAddr && programCounter <= endAddr
         )
 
+    let writeMemory(address: UInt64, value: Byte array) =
+        let region = getMemoryRegion(address)
+        let newHandler = BinHandler.UpdateCode region.Handler address value
+        let newRegion = {region with Handler = newHandler}
+        _va.[region.BaseAddress] <- newRegion
+
     let setEntryPoint(handler: BinHandler) =
         _activeRegion <- 
             getMemoryRegion(handler.FileInfo.EntryPoint)
@@ -40,14 +46,21 @@ type Win32ProcessContainer() =
 
     let mapSections(handler: BinHandler) =
         handler.FileInfo.GetSections()
-        |> Seq.map(fun section -> {
-            BaseAddress = section.Address
-            Size = int64 section.Size
-            Handler = handler
-            Protection = section.Kind
-            Type = String.Empty
-            Info = handler.FileInfo.FilePath
-        })
+        |> Seq.map(fun section -> 
+            // create a new section handler of Raw type
+            let sectionBuffer = BinHandler.ReadBytes(handler, section.Address, int32 section.Size)
+            let isa = ISA.OfString "x86"
+            let sectionHandler = BinHandler.Init(isa, ArchOperationMode.NoMode, FileFormat.RawBinary, Addr.MinValue, sectionBuffer)
+            
+            {
+                BaseAddress = section.Address
+                Size = int64 section.Size
+                Handler = sectionHandler
+                Protection = section.Kind
+                Type = section.Name
+                Info = handler.FileInfo.FilePath
+            }
+        )
         |> Seq.iter(addRegion)
 
     let setupRegisters() =
@@ -119,11 +132,20 @@ type Win32ProcessContainer() =
         let ebpValue = createVariableWithValue(ebp, EmulatedType.DoubleWord, espValue.Value)
         _variables.Add(ebp, ebpValue)
 
+    let mapIAT(handler: BinHandler) =
+        handler.FileInfo.GetSymbols()
+        |> Seq.iter(fun symbol ->
+            if symbol.Kind = SymbolKind.ExternFunctionType || symbol.Kind = SymbolKind.FunctionType then
+                writeMemory(symbol.Address, [|1uy; 2uy; 3uy; 4uy|])
+                Console.WriteLine("[{0}] {1} from {2}", symbol.Address.ToString("X"), symbol.Name, symbol.LibraryName)
+        )
+
     let initialize(handler: BinHandler) =
         mapSections(handler)
         addStackRegion(handler)
         setEntryPoint(handler)
-        setupRegisters()
+        mapIAT(handler)
+        setupRegisters()        
 
     let getTempName(index: String, emuType: EmulatedType) =
         let size =  Utility.getSize(emuType)
@@ -137,7 +159,10 @@ type Win32ProcessContainer() =
             let variable = {createVariable(name, emuType) with IsTemp = true}
             _tempVariables.[name] <- variable
             variable
-            
+    
+    member this.GetVariable(name: String) =
+        _variables.[name]
+
     member this.GetVariable(name: String, emuType: EmulatedType) =        
         match _variables.TryGetValue(name) with
         | (true, value) -> value
@@ -160,7 +185,7 @@ type Win32ProcessContainer() =
 
     member this.Initialize(filename: String) =  
         let isa = ISA.OfString "x86"
-        let handler = BinHandler.Init(isa, ArchOperationMode.NoMode, FileFormat.PEBinary, Addr.MinValue, filename)
+        let handler = BinHandler.Init(isa, ArchOperationMode.NoMode, FileFormat.PEBinary, Addr.MinValue, filename)        
         initialize(handler)
 
     member this.GetMemoryRegion(address: UInt64) =
@@ -171,6 +196,9 @@ type Win32ProcessContainer() =
 
     member this.UpdateMemoryRegion(oldRegion: MemoryRegion, newRegion: MemoryRegion) =
         _va.[oldRegion.BaseAddress] <- newRegion
+
+    member this.WriteMemory(address: UInt64, value: Byte array) =
+        writeMemory(address, value)
 
     member this.GetInstruction() =
         let programCounter = _variables.["EIP"]
