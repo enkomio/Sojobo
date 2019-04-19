@@ -132,7 +132,7 @@ type Win32ProcessContainer() =
         |> Seq.iter(fun symbol ->
             if symbol.Kind = SymbolKind.ExternFunctionType || symbol.Kind = SymbolKind.FunctionType 
             then writeMemory(symbol.Address, [|1uy; 2uy; 3uy; 4uy|])
-            Console.WriteLine("[0x{0}] {1} from {2}", symbol.Address.ToString("X"), symbol.Name, symbol.LibraryName)
+            Console.WriteLine("[0x{0, -20}] {1} from {2}", symbol.Address.ToString("X"), symbol.Name, symbol.LibraryName)
         )
 
     let initialize(handler: BinHandler) =
