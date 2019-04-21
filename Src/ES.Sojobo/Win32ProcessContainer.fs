@@ -12,6 +12,7 @@ type Win32ProcessContainer() =
     let _va = new Dictionary<UInt64, MemoryRegion>()    
     let _tempVariables = new Dictionary<String, EmulatedValue>()
     let _variables = new Dictionary<String, EmulatedValue>()
+    let _iat = new List<Symbol>()
     let mutable _activeRegion: MemoryRegion option = None
     
     let addRegion(memRegion: MemoryRegion) =        
@@ -49,12 +50,12 @@ type Win32ProcessContainer() =
     let mapSections(handler: BinHandler) =            
         handler.FileInfo.GetSections()
         |> Seq.map(fun section -> {
-                BaseAddress = section.Address
-                Content = handler.BinReader.Bytes
-                Handler = handler
-                Protection = section.Kind
-                Type = section.Name
-                Info = handler.FileInfo.FilePath
+            BaseAddress = section.Address
+            Content = handler.BinReader.Bytes
+            Handler = handler
+            Protection = section.Kind
+            Type = section.Name
+            Info = handler.FileInfo.FilePath
         })
         |> Seq.iter(addRegion)
 
@@ -128,24 +129,26 @@ type Win32ProcessContainer() =
         let ebpValue = createVariableWithValue(ebp, EmulatedType.DoubleWord, espValue.Value)
         _variables.Add(ebp, ebpValue)
 
-    let mapIAT(handler: BinHandler) =
+    let resolveIATSymbols(handler: BinHandler) =
         handler.FileInfo.GetSymbols()
         |> Seq.iter(fun symbol ->
             if symbol.Kind = SymbolKind.ExternFunctionType || symbol.Kind = SymbolKind.FunctionType 
-            then writeMemory(symbol.Address, [|1uy; 2uy; 3uy; 4uy|])
-            Console.WriteLine("[0x{0, -20}] {1} ({2}) from {3}", symbol.Address.ToString("X"), symbol.Name, symbol.Kind, symbol.LibraryName)
+            then _iat.Add(symbol)
         )
 
     let initialize(handler: BinHandler) =
         mapSections(handler)
         addStackRegion(handler)
         setEntryPoint(handler)
-        mapIAT(handler)
+        resolveIATSymbols(handler)
         setupRegisters()        
 
     let getTempName(index: String, emuType: EmulatedType) =
         let size =  Utility.getSize(emuType)
         String.Format("T_{0}:{1}", index, size)
+
+    member this.GetImportedFunctions() =
+        _iat |> Seq.readonly
 
     member this.GetOrCreateTemporaryVariable(index: String, emuType: EmulatedType) =
         let name = getTempName(index, emuType)
@@ -204,3 +207,6 @@ type Win32ProcessContainer() =
                 Value = BitVector.add programCounter.Value (BitVector.ofUInt32 instruction.Length 32<rt>)
             }
         instruction
+
+    member this.GetProgramCounter() =
+        _variables.["EIP"].Value |> BitVector.toUInt64
