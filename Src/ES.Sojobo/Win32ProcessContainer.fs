@@ -28,11 +28,11 @@ type Win32ProcessContainer() =
     let writeMemory(address: UInt64, value: Byte array) =
         // copy the memory
         let region = getMemoryRegion(address)
-        let offset = address - region.BaseAddress |> int32
+        let offset = region.Handler.FileInfo.TranslateAddress address
         Array.Copy(value, 0, region.Content, offset, value.Length)
-
+        
         // create a new handler and modify region
-        let newHandler = BinHandler.UpdateCode region.Handler address region.Content
+        let newHandler = BinHandler.UpdateCode region.Handler region.BaseAddress region.Content
         let newRegion = {region with Handler = newHandler}
         _va.[region.BaseAddress] <- newRegion
 
@@ -104,10 +104,11 @@ type Win32ProcessContainer() =
         // must create a new handler for each newly created region
         let stackBuffer = Array.zeroCreate<Byte>(8192)
         let isa = ISA.OfString "x86"
-        let stackHandler = BinHandler.Init(isa, ArchOperationMode.NoMode, FileFormat.RawBinary, Addr.MinValue, stackBuffer)
+        let baseAddress = 0x1000UL
+        let stackHandler = BinHandler.Init(isa, ArchOperationMode.NoMode, FileFormat.RawBinary, baseAddress, stackBuffer)
 
         let stack = {
-            BaseAddress = 0x1000UL
+            BaseAddress = baseAddress
             Content = stackBuffer
             Handler = stackHandler
             Protection = SectionKind.WritableSection ||| SectionKind.ExecutableSection
@@ -132,7 +133,7 @@ type Win32ProcessContainer() =
         |> Seq.iter(fun symbol ->
             if symbol.Kind = SymbolKind.ExternFunctionType || symbol.Kind = SymbolKind.FunctionType 
             then writeMemory(symbol.Address, [|1uy; 2uy; 3uy; 4uy|])
-            Console.WriteLine("[0x{0, -20}] {1} from {2}", symbol.Address.ToString("X"), symbol.Name, symbol.LibraryName)
+            Console.WriteLine("[0x{0, -20}] {1} ({2}) from {3}", symbol.Address.ToString("X"), symbol.Name, symbol.Kind, symbol.LibraryName)
         )
 
     let initialize(handler: BinHandler) =
