@@ -51,9 +51,22 @@ module Win32Sandbox =
                 Console.WriteLine("[0x{0, -20}] {1} ({2}) from {3}", symbol.Address.ToString("X"), symbol.Name, symbol.Kind, symbol.LibraryName)
             )
 
+        let emulateInstruction(handler: BinHandler, instruction: Instruction, win32Process: Win32ProcessContainer) =
+            BinHandler.LiftInstr handler instruction
+            |> Array.iter(fun statement ->
+                printIR(statement)
+                LowUIREmulator.emulateStmt win32Process statement
+            )
+
+        let executeReturn =
+            let handler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, FileFormat.RawBinary, Addr.MinValue, [| 0xC3uy|])
+            let retInstruction = BinHandler.ParseInstr handler Addr.MinValue
+            fun (win32Process: Win32ProcessContainer) -> 
+                let handler = win32Process.GetActiveMemoryRegion().Handler
+                emulateInstruction(handler, retInstruction, win32Process)
+
         let runProcess(win32Process: Win32ProcessContainer) =
-            mapImportedFunctions(win32Process)
-            
+            mapImportedFunctions(win32Process)            
             let activeRegion = win32Process.GetActiveMemoryRegion()
             let endAddress = activeRegion.BaseAddress + uint64 activeRegion.Content.Length
             let mutable completed = false
@@ -64,8 +77,7 @@ module Win32Sandbox =
                     let keyName = _callbacks.[win32Process.GetProgramCounter()]
                     let callback = _emulatedCallbacks.[keyName]
                     callback(win32Process)
-
-                    // TODO: must execute a ret instruction in order to reset stack and EIP
+                    executeReturn(win32Process)
                 else
                     let instruction = win32Process.GetInstruction()
                     completed <- instruction.Address + uint64 instruction.Length >= endAddress
@@ -74,11 +86,7 @@ module Win32Sandbox =
                     prinAssembly(handler, instruction)
                                 
                     // emulate instruction
-                    BinHandler.LiftInstr handler instruction
-                    |> Array.iter(fun statement ->
-                        printIR(statement)
-                        LowUIREmulator.emulateStmt win32Process statement
-                    )
+                    emulateInstruction(handler, instruction, win32Process)
 
         // run with default settings
         new() = new Win32Sandbox(defaultSandboxConfig)
