@@ -59,7 +59,7 @@ module Win32Sandbox =
             )
 
         let executeReturn =
-            let handler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, FileFormat.RawBinary, Addr.MinValue, [| 0xC3uy|])
+            let handler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, true, Addr.MinValue, [| 0xC3uy|])
             let retInstruction = BinHandler.ParseInstr handler Addr.MinValue
             fun (win32Process: Win32ProcessContainer) -> 
                 let handler = win32Process.GetActiveMemoryRegion().Handler

@@ -140,7 +140,7 @@ module LowUIREmulator =
             // write value
             win32Process.WriteMemory(memAddress, bytes)
             
-        | InterJmp (programCounterExpr, destAddrExpr) ->
+        | InterJmp (programCounterExpr, destAddrExpr, interJumpInfo) ->
             let destAddr = emulateExpr win32Process destAddrExpr
             let programCounter = 
                 {emulateExpr win32Process programCounterExpr with
