@@ -30,12 +30,12 @@ type Win32ProcessContainer() =
         // copy the memory
         let region = getMemoryRegion(address)
         let offset = region.Handler.FileInfo.TranslateAddress address
-        Array.Copy(value, 0, region.Content, offset, value.Length)
+        Array.Copy(value, 0, region.Handler.FileInfo.BinReader.Bytes, offset, value.Length)
         
         // create a new handler and modify region
-        let newHandler = BinHandler.UpdateCode region.Handler region.BaseAddress region.Content
-        let newRegion = {region with Handler = newHandler}
-        _va.[region.BaseAddress] <- newRegion
+        //let newHandler = BinHandler.UpdateCode region.Handler region.BaseAddress region.Content
+        //let newRegion = {region with Handler = newHandler}
+        //_va.[region.BaseAddress] <- newRegion
 
     let setEntryPoint(handler: BinHandler) =
         _activeRegion <- 
@@ -51,7 +51,7 @@ type Win32ProcessContainer() =
         handler.FileInfo.GetSections()
         |> Seq.map(fun section -> {
             BaseAddress = section.Address
-            Content = handler.BinReader.Bytes
+            Content = handler.FileInfo.BinReader.Bytes
             Handler = handler
             Protection = section.Kind
             Type = section.Name
@@ -106,7 +106,7 @@ type Win32ProcessContainer() =
         let stackBuffer = Array.zeroCreate<Byte>(8192)
         let isa = ISA.OfString "x86"
         let baseAddress = 0x1000UL
-        let stackHandler = BinHandler.Init(isa, ArchOperationMode.NoMode, FileFormat.RawBinary, baseAddress, stackBuffer)
+        let stackHandler = BinHandler.Init(isa, ArchOperationMode.NoMode, true, baseAddress, stackBuffer)
 
         let stack = {
             BaseAddress = baseAddress
@@ -179,12 +179,12 @@ type Win32ProcessContainer() =
 
     member this.Initialize(buffer: Byte array) =
         let isa = ISA.OfString "x86"
-        let handler = BinHandler.Init(isa, ArchOperationMode.NoMode, FileFormat.RawBinary, Addr.MinValue, buffer)
+        let handler = BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
         initialize(handler)
 
     member this.Initialize(filename: String) =  
         let isa = ISA.OfString "x86"
-        let handler = BinHandler.Init(isa, ArchOperationMode.NoMode, FileFormat.PEBinary, Addr.MinValue, filename)        
+        let handler = BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, filename)        
         initialize(handler)
 
     member this.GetMemoryRegion(address: UInt64) =
