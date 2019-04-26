@@ -14,9 +14,17 @@ module Program =
         |]
         |> Array.map byte
 
-    let emulateGetSystemTimeAsFileTime(win32Process: Win32ProcessContainer) =
-        Console.WriteLine("AAAAA")
-        ()
+    let getSystemTimeAsFileTime(win32Process: Win32ProcessContainer) =
+        Console.WriteLine("getSystemTimeAsFileTime")
+
+    let getCurrentThreadId(win32Process: Win32ProcessContainer) =
+        Console.WriteLine("getCurrentThreadId")
+
+    let getCurrentProcessId(win32Process: Win32ProcessContainer) =
+        Console.WriteLine("getCurrentProcessId")
+
+    let queryPerformanceCounter(win32Process: Win32ProcessContainer) =
+        Console.WriteLine("queryPerformanceCounter")
 
     [<EntryPoint>]
     let main argv =
@@ -27,7 +35,12 @@ module Program =
             }
         let sandbox = new Win32Sandbox(settings)
         //sandbox.Run(getBytes())
-        sandbox.AddCallback("GetSystemTimeAsFileTime", "KERNEL32.dll", new Action<Win32ProcessContainer>(emulateGetSystemTimeAsFileTime))
+        
+        sandbox.AddCallback("GetSystemTimeAsFileTime", "KERNEL32.dll", new Action<Win32ProcessContainer>(getSystemTimeAsFileTime))
+        sandbox.AddCallback("GetCurrentThreadId", "KERNEL32.dll", new Action<Win32ProcessContainer>(getCurrentThreadId))
+        sandbox.AddCallback("GetCurrentProcessId", "KERNEL32.dll", new Action<Win32ProcessContainer>(getCurrentProcessId))
+        sandbox.AddCallback("QueryPerformanceCounter", "KERNEL32.dll", new Action<Win32ProcessContainer>(queryPerformanceCounter))
+                
         let unShellcodeWithVirtualAlloc = Path.Combine("..", "..", "..", "Debug", "RunShellcodeWithVirtualAlloc.exe")
         sandbox.Run(unShellcodeWithVirtualAlloc)
         0
