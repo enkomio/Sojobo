@@ -48,7 +48,6 @@ module Win32Sandbox =
                     _callbacks.[symbol.Address] <- keyName
                     let addressBytes = uint32 symbol.Address |> BitConverter.GetBytes
                     win32Process.WriteMemory(symbol.Address, addressBytes)
-                Console.WriteLine("[0x{0, -20}] {1} ({2}) from {3}", symbol.Address.ToString("X"), symbol.Name, symbol.Kind, symbol.LibraryName)
             )
 
         let emulateInstruction(handler: BinHandler, instruction: Instruction, win32Process: Win32ProcessContainer) =
@@ -59,7 +58,9 @@ module Win32Sandbox =
             )
 
         let executeReturn =
-            let handler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, true, Addr.MinValue, [| 0xC3uy|])
+            let arrayBuffer = Array.zeroCreate<Byte>(1)
+            arrayBuffer.[0] <- 0xC3uy
+            let handler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, true, Addr.MinValue, arrayBuffer)
             let retInstruction = BinHandler.ParseInstr handler Addr.MinValue
             fun (win32Process: Win32ProcessContainer) -> 
                 let handler = win32Process.GetActiveMemoryRegion().Handler
