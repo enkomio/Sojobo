@@ -132,8 +132,9 @@ type Win32ProcessContainer() =
     let resolveIATSymbols(handler: BinHandler) =
         handler.FileInfo.GetSymbols()
         |> Seq.iter(fun symbol ->
-            if symbol.Kind = SymbolKind.ExternFunctionType || symbol.Kind = SymbolKind.FunctionType 
-            then _iat.Add(symbol)
+            if not(String.IsNullOrEmpty(symbol.LibraryName)) && (symbol.Kind = SymbolKind.ExternFunctionType || symbol.Kind = SymbolKind.FunctionType) then 
+                _iat.Add(symbol)
+                Console.WriteLine("Import: [0x{0}] {1} ({2}) from {3}", symbol.Address.ToString("X"), symbol.Name, symbol.Kind, symbol.LibraryName)            
         )
 
     let initialize(handler: BinHandler) =
