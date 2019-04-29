@@ -41,14 +41,15 @@
   </PropertyGroup>
   <Import Project="$(FSharpTargetsPath)" />
   <ItemGroup>
-    <Compile Include="AssemblyInfo.fs" />
+    <None Include="paket.references" />
     <Content Include="packages.config" />
+    <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Model.fs" />
     <Compile Include="Utility.fs" />
+    <Compile Include="Win32.fs" />
     <Compile Include="Win32ProcessContainer.fs" />
     <Compile Include="LowUIREmulator.fs" />
     <Compile Include="Win32Sandbox.fs" />
-    <None Include="paket.references" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="FSharp.Core">

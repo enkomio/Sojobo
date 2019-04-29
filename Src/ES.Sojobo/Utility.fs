@@ -1,6 +1,7 @@
 ﻿namespace ES.Sojobo
 
 open System
+open System.Runtime.InteropServices
 open ES.Sojobo.Model
 open B2R2
 
@@ -34,3 +35,11 @@ module Utility =
 
     let getTypeSize =
         getType >> getSize
+
+    //let writeStructure<'T when 'T : struct>(s: 'T, offset: Int32, buffer: Byte array) =
+    let writeStructure(s: Object, offset: Int32, buffer: Byte array) =        
+        let size = Marshal.SizeOf(s)
+        let ptr = Marshal.AllocHGlobal(size)
+        Marshal.StructureToPtr(s, ptr, true)
+        Marshal.Copy(ptr, buffer, offset, size)
+        Marshal.FreeHGlobal(ptr)

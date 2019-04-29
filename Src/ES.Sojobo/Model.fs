@@ -39,3 +39,17 @@ module Model =
         Type: String
         Info: String
     }
+
+    let createMemoryRegion(baseAddr: UInt64, size: Int32, protection: SectionKind) = 
+        let content = Array.zeroCreate<Byte>(size)
+        let isa = ISA.OfString "x86"        
+        let handler = BinHandler.Init(isa, ArchOperationMode.NoMode, true, baseAddr, content)
+
+        {
+            BaseAddress = baseAddr
+            Content = content
+            Protection = protection
+            Handler = handler
+            Type = String.Empty
+            Info = String.Empty
+        }

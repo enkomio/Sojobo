@@ -7,6 +7,7 @@ open B2R2.FrontEnd
 open B2R2.BinFile
 open ES.Sojobo.Model
 open B2R2.FrontEnd.Intel
+open Win32
 
 type Win32ProcessContainer() =    
     let _va = new Dictionary<UInt64, MemoryRegion>()    
@@ -31,11 +32,6 @@ type Win32ProcessContainer() =
         let region = getMemoryRegion(address)
         let offset = region.Handler.FileInfo.TranslateAddress address
         Array.Copy(value, 0, region.Handler.FileInfo.BinReader.Bytes, offset, value.Length)
-        
-        // create a new handler and modify region
-        //let newHandler = BinHandler.UpdateCode region.Handler region.BaseAddress region.Content
-        //let newRegion = {region with Handler = newHandler}
-        //_va.[region.BaseAddress] <- newRegion
 
     let setEntryPoint(handler: BinHandler) =
         _activeRegion <- 
@@ -61,6 +57,10 @@ type Win32ProcessContainer() =
 
     let setupRegisters() =
         [
+            // 32 bits segments
+            createVariableWithValue(string Register.FS, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
+            createVariableWithValue(string Register.FSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
+
             // 32 bits
             createVariableWithValue(string Register.EAX, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 32<rt>)
             createVariableWithValue(string Register.EBX, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 32<rt>)
@@ -102,6 +102,7 @@ type Win32ProcessContainer() =
         )
 
     let addStackRegion(handler: BinHandler) =
+        // TODO: use createMemoryRegion function
         // must create a new handler for each newly created region
         let stackBuffer = Array.zeroCreate<Byte>(8192)
         let isa = ISA.OfString "x86"
@@ -137,12 +138,23 @@ type Win32ProcessContainer() =
                 Console.WriteLine("Import: [0x{0}] {1} ({2}) from {3}", symbol.Address.ToString("X"), symbol.Name, symbol.Kind, symbol.LibraryName)            
         )
 
+    let createStructures() =
+        let peb = createMemoryRegion(uint64 peb32Address, 0x1000, SectionKind.WritableSection ||| SectionKind.ExtraSection)        
+        addRegion(peb)
+        
+        let tib = createMemoryRegion(uint64 teb32Address, 0x1000, SectionKind.WritableSection ||| SectionKind.ExtraSection)
+        let teb32Struct = {Activator.CreateInstance<TEB32>() with ProcessEnvironmentBlock = peb32Address}        
+        Utility.writeStructure(teb32Struct, 0, tib.Content)
+        addRegion(tib)
+        
+
     let initialize(handler: BinHandler) =
         mapSections(handler)
         addStackRegion(handler)
         setEntryPoint(handler)
         resolveIATSymbols(handler)
-        setupRegisters()        
+        setupRegisters()    
+        createStructures()
 
     let getTempName(index: String, emuType: EmulatedType) =
         let size =  Utility.getSize(emuType)
