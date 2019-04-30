@@ -66,7 +66,7 @@ module LowUIREmulator =
             |> fun bi -> createVariableWithValue(String.Empty,  Utility.getType(regType), BitVector.ofUBInt bi regType)
 
         | PCVar (regType, regName) ->
-            win32Process.GetVariable(regName)
+            win32Process.GetVariable(regName, Utility.getType(regType))
 
         | RelOp (relOpType, firstExpr, secondExpr, exprInfo, consInfo) ->
             let firstValue = emulateExpr win32Process firstExpr
@@ -149,8 +149,8 @@ module LowUIREmulator =
             win32Process.SetVariable(programCounter)
 
         | InterCJmp (conditionExpr, currentProgramCounter, trueDestAddrExpr, falseDesAddrExpr) ->
-            let conditionValue = emulateExpr win32Process conditionExpr            
-            {win32Process.GetVariable("EIP") with
+            let conditionValue = emulateExpr win32Process conditionExpr
+            {win32Process.GetProgramCounter() with
                 Value =
                     if BitVector.isPositive conditionValue.Value
                     then (emulateExpr win32Process trueDestAddrExpr).Value
