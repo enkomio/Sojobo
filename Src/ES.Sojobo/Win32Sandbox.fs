@@ -21,7 +21,7 @@ module Win32Sandbox =
 
     type Win32Sandbox(settings: SandboxSettings) =
         let _callbacks = new Dictionary<UInt64, String>()
-        let _emulatedCallbacks = new Dictionary<String, Win32ProcessContainer -> unit>()
+        let _emulatedCallbacks = new Dictionary<String, IProcessContainer -> unit>()
 
         let prinAssembly(handler: BinHandler, instruction: Instruction) =
             if settings.PrintAssembly then
@@ -74,13 +74,13 @@ module Win32Sandbox =
 
             while not completed do
                 // check if called an emulated function
-                if win32Process.GetProgramCounter() |> _callbacks.ContainsKey then
-                    let keyName = _callbacks.[win32Process.GetProgramCounter()]
+                if win32Process.GetProgramCounterValue() |> _callbacks.ContainsKey then
+                    let keyName = _callbacks.[win32Process.GetProgramCounterValue()]
                     let callback = _emulatedCallbacks.[keyName]
                     callback(win32Process)
                     executeReturn(win32Process)
                 else
-                    let instruction = win32Process.GetInstruction()
+                    let instruction = win32Process.GetNextInstruction()
                     completed <- instruction.Address + uint64 instruction.Length >= endAddress
 
                     let handler = win32Process.GetActiveMemoryRegion().Handler
@@ -92,7 +92,7 @@ module Win32Sandbox =
         // run with default settings
         new() = new Win32Sandbox(defaultSandboxConfig)
 
-        member this.AddCallback(functionName: String, moduleName: String, callback: Action<Win32ProcessContainer>) =
+        member this.AddCallback(functionName: String, moduleName: String, callback: Action<IProcessContainer>) =
             let keyName = getFunctionKeyName(functionName, moduleName)
             _emulatedCallbacks.[keyName] <- FuncConvert.FromAction(callback)
         
@@ -105,3 +105,13 @@ module Win32Sandbox =
             let win32Process = new Win32ProcessContainer()
             win32Process.Initialize(buffer)
             runProcess(win32Process)
+
+        interface  ISandbox with
+            member this.AddCallback(functionName: String, moduleName: String, callback: Action<IProcessContainer>) =
+                this.AddCallback(functionName, moduleName, callback)
+        
+            member this.Run(filename: String) =
+                this.Run(filename)
+
+            member this.Run(buffer: Byte array) =
+                this.Run(buffer)

@@ -21,14 +21,14 @@ module Model =
         Type: EmulatedType
     }
 
-    let createVariableWithValue(name: String, t: EmulatedType, v: BitVector) = {
+    let internal createVariableWithValue(name: String, t: EmulatedType, v: BitVector) = {
         Name = name
         Value = v
         IsTemp = String.IsNullOrEmpty(name)
         Type = t
     }
 
-    let createVariable(name: String, t: EmulatedType) = 
+    let internal createVariable(name: String, t: EmulatedType) = 
         createVariableWithValue(name, t, BitVector.zero 1<rt>)
 
     type MemoryRegion = {
@@ -40,7 +40,7 @@ module Model =
         Info: String
     }
 
-    let createMemoryRegion(baseAddr: UInt64, size: Int32, protection: SectionKind) = 
+    let internal createMemoryRegion(baseAddr: UInt64, size: Int32, protection: SectionKind) = 
         let content = Array.zeroCreate<Byte>(size)
         let isa = ISA.OfString "x86"        
         let handler = BinHandler.Init(isa, ArchOperationMode.NoMode, true, baseAddr, content)

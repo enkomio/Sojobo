@@ -102,26 +102,20 @@ type Win32ProcessContainer() =
         )
 
     let addStackRegion(handler: BinHandler) =
-        // TODO: use createMemoryRegion function
-        // must create a new handler for each newly created region
-        let stackBuffer = Array.zeroCreate<Byte>(8192)
-        let isa = ISA.OfString "x86"
-        let baseAddress = 0x1000UL
-        let stackHandler = BinHandler.Init(isa, ArchOperationMode.NoMode, true, baseAddress, stackBuffer)
-
-        let stack = {
-            BaseAddress = baseAddress
-            Content = stackBuffer
-            Handler = stackHandler
-            Protection = SectionKind.WritableSection ||| SectionKind.ExecutableSection
-            Type = "Stack"
-            Info = handler.FileInfo.FilePath
+        let stackRegion = {
+            createMemoryRegion(
+                0x1000UL, 
+                0x1000, 
+                SectionKind.WritableSection ||| SectionKind.ExecutableSection
+            ) with 
+                Type = "Stack"
+                Info = handler.FileInfo.FilePath
         }
-        addRegion(stack)
+        addRegion(stackRegion)
 
         // set ESP value
         let esp = string Register.ESP
-        let startAddress = int32 stack.BaseAddress + int32 (stackBuffer.Length / 2)
+        let startAddress = int32 stackRegion.BaseAddress + int32 (stackRegion.Content.Length / 2)
         let espValue = createVariableWithValue(esp, EmulatedType.DoubleWord, BitVector.ofInt32 startAddress 32<rt>)
         _variables.Add(esp, espValue)
 
@@ -145,8 +139,7 @@ type Win32ProcessContainer() =
         let tib = createMemoryRegion(uint64 teb32Address, 0x1000, SectionKind.WritableSection ||| SectionKind.ExtraSection)
         let teb32Struct = {Activator.CreateInstance<TEB32>() with ProcessEnvironmentBlock = peb32Address}        
         Utility.writeStructure(teb32Struct, 0, tib.Content)
-        addRegion(tib)
-        
+        addRegion(tib)        
 
     let initialize(handler: BinHandler) =
         mapSections(handler)
@@ -158,36 +151,30 @@ type Win32ProcessContainer() =
 
     let getTempName(index: String, emuType: EmulatedType) =
         let size =  Utility.getSize(emuType)
-        String.Format("T_{0}:{1}", index, size)
+        String.Format("T_{0}:{1}", index, size)    
 
-    member this.GetImportedFunctions() =
-        _iat |> Seq.readonly
-
-    member this.GetOrCreateTemporaryVariable(index: String, emuType: EmulatedType) =
+    member internal this.GetOrCreateTemporaryVariable(index: String, emuType: EmulatedType) =
         let name = getTempName(index, emuType)
         match _tempVariables.TryGetValue(name) with
         | (true, value) -> value
         | _ -> 
             let variable = {createVariable(name, emuType) with IsTemp = true}
             _tempVariables.[name] <- variable
-            variable
-    
-    member this.GetVariable(name: String) =
-        _variables.[name]
+            variable    
 
-    member this.GetVariable(name: String, emuType: EmulatedType) =        
+    member internal this.GetVariable(name: String, emuType: EmulatedType) =        
         match _variables.TryGetValue(name) with
         | (true, value) -> value
         | _ ->
             let name = getTempName(name, emuType)
             _tempVariables.[name]
 
-    member this.SetVariable(value: EmulatedValue) =
+    member internal this.SetVariable(value: EmulatedValue) =
         if value.IsTemp
         then _tempVariables.[value.Name] <- value
         else _variables.[value.Name] <- value
 
-    member this.ClearTemporaryVariables() =
+    member internal this.ClearTemporaryVariables() =
         _tempVariables.Clear()
 
     member this.Initialize(buffer: Byte array) =
@@ -199,6 +186,9 @@ type Win32ProcessContainer() =
         let isa = ISA.OfString "x86"
         let handler = BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, filename)        
         initialize(handler)
+
+    member this.GetImportedFunctions() =
+        _iat |> Seq.readonly
 
     member this.GetMemoryRegion(address: UInt64) =
         getMemoryRegion(address)
@@ -212,14 +202,59 @@ type Win32ProcessContainer() =
     member this.WriteMemory(address: UInt64, value: Byte array) =
         writeMemory(address, value)
 
-    member this.GetInstruction() =
-        let programCounter = _variables.["EIP"]
+    member this.GetNextInstruction() =
+        let programCounter = this.GetProgramCounter()
         let instruction = BinHandler.ParseInstr (this.GetActiveMemoryRegion().Handler) (programCounter.Value |> BitVector.toUInt64)
-        _variables.["EIP"] <- 
+        _variables.[programCounter.Name] <- 
             {programCounter with
                 Value = BitVector.add programCounter.Value (BitVector.ofUInt32 instruction.Length 32<rt>)
             }
         instruction
 
     member this.GetProgramCounter() =
-        _variables.["EIP"].Value |> BitVector.toUInt64
+        _variables.["EIP"]
+    
+    member this.GetProgramCounterValue() =
+        this.GetProgramCounter().Value |> BitVector.toUInt64    
+
+    member this.ReadMemory(address: UInt64, size: Int32) =
+        let memRegion = this.GetMemoryRegion(address)
+        let offset = address - memRegion.BaseAddress |> int32
+        let buffer = Array.zeroCreate<Byte>(size)
+        Array.Copy(memRegion.Content, offset, buffer, 0, size)
+        buffer
+
+    member this.GetArgument(position: Int32) =
+        let ebp = this.GetVariable("EBP", EmulatedType.DoubleWord)
+        let address = uint64 (position + 2) * 4UL
+        let buffer = this.ReadMemory(address, sizeof<UInt32>)
+        let varName = getTempName(string position, EmulatedType.DoubleWord)        
+        {createVariable(varName, EmulatedType.DoubleWord) with Value = BitVector.ofArr(buffer)}
+
+    interface IProcessContainer with
+        member this.GetProgramCounter() =
+            this.GetProgramCounter()
+
+        member this.GetProgramCounterValue() =
+            this.GetProgramCounterValue()
+
+        member this.WriteMemory(address: UInt64, value: Byte array) =
+            this.WriteMemory(address, value)
+
+        member this.UpdateMemoryRegion(oldRegion: MemoryRegion, newRegion: MemoryRegion) =
+            this.UpdateMemoryRegion(oldRegion, newRegion)
+
+        member this.GetActiveMemoryRegion() =
+            this.GetActiveMemoryRegion()
+
+        member this.GetMemoryRegion(address: UInt64) =
+            this.GetMemoryRegion(address)
+
+        member this.GetImportedFunctions() =
+            this.GetImportedFunctions()
+
+        member this.GetArgument(position: Int32) =
+            this.GetArgument(position)
+
+        member this.ReadMemory(address: UInt64, size: Int32) =
+            this.ReadMemory(address, size)

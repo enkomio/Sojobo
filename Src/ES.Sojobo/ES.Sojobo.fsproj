@@ -47,6 +47,8 @@
     <Compile Include="Model.fs" />
     <Compile Include="Utility.fs" />
     <Compile Include="Win32.fs" />
+    <Compile Include="IProcessContainer.fs" />
+    <Compile Include="ISandbox.fs" />
     <Compile Include="Win32ProcessContainer.fs" />
     <Compile Include="LowUIREmulator.fs" />
     <Compile Include="Win32Sandbox.fs" />
