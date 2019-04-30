@@ -111,7 +111,18 @@ module LowUIREmulator =
         // | Name of Symbol
         // | FuncName of string
         // | Ite of Expr * Expr * Expr * ExprInfo * ConsInfo option
-        // | Cast of CastKind * RegType * Expr * ExprInfo * ConsInfo option
+        | Cast (castKind, regType, expr, exprInfo, consInfo)->
+            let valueToCast = emulateExpr win32Process expr
+            let castedValue =
+                match castKind with
+                | CastKind.SignExt -> BitVector.sext valueToCast.Value regType
+                | CastKind.ZeroExt -> BitVector.zext valueToCast.Value regType
+                | _ -> raise IllegalASTTypeException
+            
+            {valueToCast with 
+                Type = Utility.getType(regType)
+                Value = castedValue
+            }
 
         | _ -> failwith("Expression not yet emulated: " + expr.ToString())
 
