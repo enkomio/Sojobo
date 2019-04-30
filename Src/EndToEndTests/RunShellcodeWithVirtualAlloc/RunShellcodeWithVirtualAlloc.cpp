@@ -7,14 +7,15 @@ void copy_code(void *buffer)
 	{
 		jmp start
 	code:
-		push ebp;
+		push ebp
 		mov ebp, esp
-		xor eax, eax;
-		mov edx, 1;
-		mov ecx, DWORD PTR [ebp+8];
+		xor eax, eax
+		mov edx, 1
+		mov ecx, DWORD PTR [ebp+8]
 	l:	
-		xadd eax, edx;
-		loop l;
+		xadd eax, edx
+		loop l
+		mov esp, ebp
 		pop ebp
 		ret
 	start:
