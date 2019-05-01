@@ -4,8 +4,11 @@ open System
 open System.Runtime.InteropServices
 open ES.Sojobo.Model
 open B2R2
+open B2R2.FrontEnd
+open B2R2.BinIR
 
-module Utility =
+module Utility =    
+
     let toArray(bitVector: BitVector) =
         let size = int32 <| BitVector.getType bitVector
         let value = BitVector.getValue bitVector
@@ -36,10 +39,23 @@ module Utility =
     let getTypeSize =
         getType >> getSize
 
-    //let writeStructure<'T when 'T : struct>(s: 'T, offset: Int32, buffer: Byte array) =
     let writeStructure(s: Object, offset: Int32, buffer: Byte array) =        
         let size = Marshal.SizeOf(s)
         let ptr = Marshal.AllocHGlobal(size)
         Marshal.StructureToPtr(s, ptr, true)
         Marshal.Copy(ptr, buffer, offset, size)
         Marshal.FreeHGlobal(ptr)
+
+    let formatCurrentInstruction(processContainer: IProcessContainer) =
+        let handler = processContainer.GetActiveMemoryRegion().Handler
+        let instruction = processContainer.GetInstruction()
+        let disassembledInstruction = BinHandler.DisasmInstr handler false true instruction 
+        let instructionBytes = BinHandler.ReadBytes(handler , instruction.Address, int32 instruction.Length)                
+        let hexBytes = BitConverter.ToString(instructionBytes).Replace("-"," ")
+        String.Format("0x{0,-10} {1, -30} {2}", instruction.Address.ToString("X") + ":", hexBytes, disassembledInstruction)
+        
+    let formatCurrentInstructionIR(processContainer: IProcessContainer) =
+        let handler = processContainer.GetActiveMemoryRegion().Handler
+        let instruction = processContainer.GetInstruction()
+        BinHandler.LiftInstr handler instruction
+        |> Array.map(LowUIR.Pp.stmtToString)

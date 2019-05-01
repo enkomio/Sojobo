@@ -44,5 +44,5 @@ module Win32 =
         [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 12)>]
         Reserved: Byte array
 
-        // ...
+        // TODO ...
     }
