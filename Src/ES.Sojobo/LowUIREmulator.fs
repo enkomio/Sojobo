@@ -9,10 +9,10 @@ open B2R2.FrontEnd.Intel
 open B2R2.BinIR
 
 module LowUIREmulator =
-    let rec emulateExpr(win32Process: Win32ProcessContainer) (expr: Expr) =
+    let rec emulateExpr(baseProcess: BaseProcessContainer) (expr: Expr) =
         match expr with
         | TempVar (regType, index) ->
-            win32Process.GetOrCreateTemporaryVariable(string index, Utility.getType(regType))
+            baseProcess.GetOrCreateTemporaryVariable(string index, Utility.getType(regType))
 
         | Num number ->
             let size = Utility.getType(BitVector.getType number)
@@ -20,11 +20,11 @@ module LowUIREmulator =
 
         | Var (regType, registerId, _, _) ->
             let register = Register.ofRegID registerId            
-            win32Process.GetVariable(string register, Utility.getType(regType))
+            baseProcess.GetVariable(string register, Utility.getType(regType))
 
         | BinOp (binOpType, regType, firstOp, secondOp, _, _) ->
-            let firstValue = emulateExpr win32Process firstOp
-            let secondValue = emulateExpr win32Process secondOp           
+            let firstValue = emulateExpr baseProcess firstOp
+            let secondValue = emulateExpr baseProcess secondOp           
 
             let operation =
                 match binOpType with
@@ -48,12 +48,12 @@ module LowUIREmulator =
             createVariableWithValue(String.Empty, Utility.getType(regType), resultValue)
 
         | Load (_, regType, expr, _, _) -> 
-            let memAddressValue = (emulateExpr win32Process expr).Value
+            let memAddressValue = (emulateExpr baseProcess expr).Value
             let memAddress = BitVector.toUInt64 memAddressValue
             let emuType = Utility.getType(regType)
             let numBytes = Utility.getSize(emuType) / 8
 
-            let memRegion = win32Process.GetMemoryRegion(memAddress)            
+            let memRegion = baseProcess.GetMemoryRegion(memAddress)            
             let bytes = BinHandler.ReadBytes(memRegion.Handler, memAddress, numBytes)
                         
             // convert the readed bytes to emulated value
@@ -66,11 +66,11 @@ module LowUIREmulator =
             |> fun bi -> createVariableWithValue(String.Empty,  Utility.getType(regType), BitVector.ofUBInt bi regType)
 
         | PCVar (regType, regName) ->
-            win32Process.GetVariable(regName, Utility.getType(regType))
+            baseProcess.GetVariable(regName, Utility.getType(regType))
 
         | RelOp (relOpType, firstExpr, secondExpr, exprInfo, consInfo) ->
-            let firstValue = emulateExpr win32Process firstExpr
-            let secondValue = emulateExpr win32Process secondExpr 
+            let firstValue = emulateExpr baseProcess firstExpr
+            let secondValue = emulateExpr baseProcess secondExpr 
             
             let operation =
                 match relOpType with
@@ -90,7 +90,7 @@ module LowUIREmulator =
             createVariableWithValue(String.Empty, firstValue.Type, resultValue)
 
         | Extract(targetExpr, regType, startPos, _, _) ->
-            let targetValue = emulateExpr win32Process targetExpr
+            let targetValue = emulateExpr baseProcess targetExpr
             let extractionResult = BitVector.extract targetValue.Value regType startPos
             createVariableWithValue(String.Empty, Utility.getType(regType), extractionResult)
 
@@ -101,7 +101,7 @@ module LowUIREmulator =
                 | UnOpType.NOT -> BitVector.bnot
                 | _ -> failwith("Wrong or unsupported operation: " + unOpType.ToString())
 
-            let value = emulateExpr win32Process targetExpr
+            let value = emulateExpr baseProcess targetExpr
             let resultValue = operation value.Value
             createVariableWithValue(String.Empty, value.Type, resultValue)
 
@@ -112,7 +112,7 @@ module LowUIREmulator =
         // | FuncName of string
         // | Ite of Expr * Expr * Expr * ExprInfo * ConsInfo option
         | Cast (castKind, regType, expr, exprInfo, consInfo)->
-            let valueToCast = emulateExpr win32Process expr
+            let valueToCast = emulateExpr baseProcess expr
             let castedValue =
                 match castKind with
                 | CastKind.SignExt -> BitVector.sext valueToCast.Value regType
@@ -126,48 +126,48 @@ module LowUIREmulator =
 
         | _ -> failwith("Expression not yet emulated: " + expr.ToString())
 
-    and emulateStmt(win32Process: Win32ProcessContainer) (stmt: Stmt) =
+    and emulateStmt(baseProcess: BaseProcessContainer) (stmt: Stmt) =
         match stmt with
         | ISMark _ -> ()
         | IEMark _ ->
-            win32Process.ClearTemporaryVariables()
+            baseProcess.ClearTemporaryVariables()
 
         | Put (destination, source) -> 
-            let sourceValue = emulateExpr win32Process source
+            let sourceValue = emulateExpr baseProcess source
             let destinationValue = 
-                {emulateExpr win32Process destination with
+                {emulateExpr baseProcess destination with
                     Value = sourceValue.Value
                 }
-            win32Process.SetVariable(destinationValue)
+            baseProcess.SetVariable(destinationValue)
 
         | Store (_, destination, source) ->
-            let sourceValue = emulateExpr win32Process source
-            let destinationValue = emulateExpr win32Process destination
+            let sourceValue = emulateExpr baseProcess source
+            let destinationValue = emulateExpr baseProcess destination
 
             // extract info
             let memAddress = BitVector.toUInt64 destinationValue.Value          
             let bytes = Utility.toArray(sourceValue.Value)
             
             // write value
-            win32Process.WriteMemory(memAddress, bytes)
+            baseProcess.WriteMemory(memAddress, bytes)
             
         | InterJmp (programCounterExpr, destAddrExpr, interJumpInfo) ->
-            let destAddr = emulateExpr win32Process destAddrExpr
+            let destAddr = emulateExpr baseProcess destAddrExpr
             let programCounter = 
-                {emulateExpr win32Process programCounterExpr with
+                {emulateExpr baseProcess programCounterExpr with
                     Value = destAddr.Value
                 }
-            win32Process.SetVariable(programCounter)
+            baseProcess.SetVariable(programCounter)
 
         | InterCJmp (conditionExpr, currentProgramCounter, trueDestAddrExpr, falseDesAddrExpr) ->
-            let conditionValue = emulateExpr win32Process conditionExpr
-            {win32Process.GetProgramCounter() with
+            let conditionValue = emulateExpr baseProcess conditionExpr
+            {baseProcess.GetProgramCounter() with
                 Value =
                     if BitVector.isPositive conditionValue.Value
-                    then (emulateExpr win32Process trueDestAddrExpr).Value
-                    else (emulateExpr win32Process falseDesAddrExpr).Value
+                    then (emulateExpr baseProcess trueDestAddrExpr).Value
+                    else (emulateExpr baseProcess falseDesAddrExpr).Value
             }
-            |> win32Process.SetVariable
+            |> baseProcess.SetVariable
         (*
         | LMark of Symbol
         | Jmp of Expr
