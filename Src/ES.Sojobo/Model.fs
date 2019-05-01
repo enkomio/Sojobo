@@ -31,6 +31,9 @@ module Model =
     let internal createVariable(name: String, t: EmulatedType) = 
         createVariableWithValue(name, t, BitVector.zero 1<rt>)
 
+    let createInt32(value: Int32) =
+        createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofInt32 value 32<rt>)
+        
     type MemoryRegion = {
         BaseAddress: UInt64
         Content: Byte array
@@ -53,3 +56,12 @@ module Model =
             Type = String.Empty
             Info = String.Empty
         }
+
+    type CallingConvention =
+        | Cdecl
+        | Stdecl
+
+    type CallbackResult = {
+        ReturnValue: BitVector option
+        Convention: CallingConvention
+    }
