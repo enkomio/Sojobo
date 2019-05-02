@@ -8,32 +8,6 @@ open ES.Sojobo.Model
 
 module Program =
 
-    let getSystemTimeAsFileTime(win32Process: IProcessContainer) =
-        Console.WriteLine("getSystemTimeAsFileTime")
-
-    let getCurrentThreadId(win32Process: IProcessContainer) =
-        let threadId = {createInt32(123) with Name = "EAX"; IsTemp=false}
-        win32Process.SetVariable(threadId)
-        Console.WriteLine("Return thread Id: 123")
-
-    let getCurrentProcessId(win32Process: IProcessContainer) =
-        let threadId = {createInt32(-1) with Name = "EAX"; IsTemp=false}
-        win32Process.SetVariable(threadId)
-        Console.WriteLine("Return current process Id: -1")
-
-    let memset(win32Process: IProcessContainer) =
-        let dest = win32Process.GetArgument(0)
-        let c = win32Process.GetArgument(1)
-        let count = win32Process.GetArgument(2)
-
-        Console.WriteLine("memset")
-
-    let queryPerformanceCounter(win32Process: IProcessContainer) =
-        Console.WriteLine("queryPerformanceCounter")
-
-    let isProcessorFeaturePresent(win32Process: IProcessContainer) =
-        Console.WriteLine("isProcessorFeaturePresent")
-
     let step(activeProcess: IProcessContainer) =
         let text = Utility.formatCurrentInstruction(activeProcess)
         Console.WriteLine(text)

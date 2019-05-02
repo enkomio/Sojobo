@@ -45,13 +45,15 @@
     <Content Include="packages.config" />
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Model.fs" />
-    <Compile Include="Utility.fs" />
     <Compile Include="Win32.fs" />
     <Compile Include="IProcessContainer.fs" />
     <Compile Include="ISandbox.fs" />
+    <Compile Include="Utility.fs" />
+    <Compile Include="BaseProcessContainer.fs" />
     <Compile Include="Win32ProcessContainer.fs" />
     <Compile Include="LowUIREmulator.fs" />
     <Compile Include="Win32Sandbox.fs" />
+    <Compile Include="Kernel32Lib.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="FSharp.Core">
