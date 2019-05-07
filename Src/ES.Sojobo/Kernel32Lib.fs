@@ -8,7 +8,7 @@ module Kernel32 =
     let queryPerformanceCounter(win32Process: IProcessContainer) =
         {ReturnValue = None; Convention = CallingConvention.Cdecl}
 
-    let getSystemTimeAsFileTime(win32Process: IProcessContainer) =
+    let getSystemTimeAsFileTime(win32Process: IProcessContainer, lpSystemTimeAsFileTime: UInt32) =
         {ReturnValue = None; Convention = CallingConvention.Cdecl}
 
     let getCurrentThreadId(win32Process: IProcessContainer) =

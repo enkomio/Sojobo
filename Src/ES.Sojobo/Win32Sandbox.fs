@@ -53,12 +53,14 @@ type Win32Sandbox() =
         |> Seq.filter(fun m -> m.IsStatic && m.ReturnType = typeof<CallbackResult>)
         |> Seq.filter(fun m -> m.GetParameters().Length > 0 && m.GetParameters().[0].ParameterType = typeof<IProcessContainer>)
         |> Seq.filter(fun m ->
+            // The first parameter must be a IProcessContainer
+            // All the subsequence parameters (if nay) must be 
+            // integer, which value is directly takenfrom the stack
             let parameters = m.GetParameters()
             if parameters.Length > 1 then
                 parameters
                 |> Array.skip 1
                 |> Array.forall(fun p -> 
-                    // must be all integers
                     [typeof<Int32>; typeof<UInt32>]
                     |> List.contains(p.ParameterType)
                 )
@@ -70,10 +72,26 @@ type Win32Sandbox() =
             _libraryFunctions.[keyName] <- m
         )
 
+    let getArguments(baseProcess: BaseProcessContainer, mi: MethodInfo) =
+        mi.GetParameters()
+        |> Array.skip 1
+        |> Array.mapi(fun i p ->
+            let argi = baseProcess.GetArgument(i)
+            if p.ParameterType = typeof<UInt32>
+            then BitVector.toUInt32 argi.Value :> Object
+            else BitVector.toInt32 argi.Value :> Object
+        )
+
     let invokeLibraryFunction(baseProcess: BaseProcessContainer) =
         let keyName = _callbacks.[baseProcess.GetProgramCounterValue()]
         let libraryFunction = _libraryFunctions.[keyName]
-        let libraryFunctionResult = libraryFunction.Invoke(null, [|baseProcess|])
+        let arguments = Array.concat [
+            [|baseProcess :> Object|]
+            getArguments(baseProcess, libraryFunction)
+        ]
+
+        let libraryFunctionResult = libraryFunction.Invoke(null, arguments) :?> CallbackResult
+        //executeReturn(baseProcess, libraryFunctionResult)
         executeReturn(baseProcess)
 
     member this.AddLibrary(assembly: Assembly) =
