@@ -10,4 +10,3 @@ type ISandbox =
         abstract Stop: unit -> unit     
         abstract GetRunningProcess: unit -> IProcessContainer
     end
-

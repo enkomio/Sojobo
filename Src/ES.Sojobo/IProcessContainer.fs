@@ -21,6 +21,5 @@ type IProcessContainer =
         abstract GetInstruction: unit -> Instruction
         abstract Step: IEvent<IProcessContainer> with get
         abstract GetCallStack: unit -> UInt64 array
-        abstract GetPointerSize: unit -> Int32
+        abstract GetPointerSize: unit -> Int32        
     end
-
