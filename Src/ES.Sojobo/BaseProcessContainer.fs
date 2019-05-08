@@ -49,10 +49,14 @@ type BaseProcessContainer() =
     abstract GetInstruction: unit -> Instruction
     abstract Step: IEvent<IProcessContainer> with get
     abstract GetCallStack: unit -> UInt64 array
+    abstract GetPointerSize: unit -> Int32
 
     interface IProcessContainer with
         member this.GetProgramCounter() =
             this.GetProgramCounter()
+
+        member this.GetPointerSize() =
+            this.GetPointerSize()
 
         member this.GetProgramCounterValue() =
             this.GetProgramCounterValue()

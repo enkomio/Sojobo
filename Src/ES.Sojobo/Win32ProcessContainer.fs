@@ -59,8 +59,18 @@ type Win32ProcessContainer() as this =
     let setupRegisters() =
         [
             // segments
+            createVariableWithValue(string Register.SS, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
+            createVariableWithValue(string Register.SSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
+            createVariableWithValue(string Register.CS, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
+            createVariableWithValue(string Register.CSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
+            createVariableWithValue(string Register.DS, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
+            createVariableWithValue(string Register.DSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
+            createVariableWithValue(string Register.ES, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
+            createVariableWithValue(string Register.ESBase, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
             createVariableWithValue(string Register.FS, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
             createVariableWithValue(string Register.FSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
+            createVariableWithValue(string Register.GS, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
+            createVariableWithValue(string Register.GSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
 
             // general purpose registers
             createVariableWithValue(string Register.EAX, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 32<rt>)
@@ -206,3 +216,6 @@ type Win32ProcessContainer() as this =
             ebp <- BitConverter.ToUInt32(this.ReadMemory(uint64 ebp, 4) , 0)
             retValue <- BitConverter.ToUInt32(this.ReadMemory(ebp + 4ul |> uint64, 4) , 0)
     |]
+
+    default this.GetPointerSize() =
+        32
