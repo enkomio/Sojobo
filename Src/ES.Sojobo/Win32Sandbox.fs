@@ -34,7 +34,7 @@ type Win32Sandbox() as this =
 
     let emulateInstruction(handler: BinHandler, instruction: Instruction, baseProcess: BaseProcessContainer) =
         let block = BinHandler.LiftInstr handler instruction
-        LowUIREmulator.emulateBlock this baseProcess  block
+        LowUIREmulator.emulateBlock this block
 
     let emulateBufferInstruction(baseProcess: BaseProcessContainer, buffer: Byte array) =
         // compose instruction

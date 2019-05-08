@@ -107,10 +107,7 @@ module LowUIREmulator =
 
         | Undefined (regType, txt) ->
             createVariable(String.Empty, Utility.getType(regType))
-
-        // | Name of Symbol
-        // | FuncName of string
-        // | Ite of Expr * Expr * Expr * ExprInfo * ConsInfo option
+                          
         | Cast (castKind, regType, expr, exprInfo, consInfo)->
             let valueToCast = emulateExpr baseProcess expr
             let castedValue =
@@ -124,15 +121,25 @@ module LowUIREmulator =
                 Value = castedValue
             }
 
+        | Ite (conditionExpr, trueExpression, falseExpression, _, _) ->
+            let conditionValue = emulateExpr baseProcess conditionExpr
+            if BitVector.isTrue conditionValue.Value 
+            then emulateExpr baseProcess trueExpression
+            else emulateExpr baseProcess falseExpression
+
+        // | Name of Symbol
+        // | FuncName of string  
         | _ -> failwith("Expression not yet emulated: " + expr.ToString())
 
-    and emulateStmt(sandbox: BaseSandbox) (baseProcess: BaseProcessContainer) (stmt: Stmt) =
+    and emulateStmt(sandbox: BaseSandbox) (stmt: Stmt) =
         match stmt with
         | ISMark _ -> ()
         | IEMark _ ->
+            let baseProcess = sandbox.GetRunningProcess() :?> BaseProcessContainer
             baseProcess.ClearTemporaryVariables()
 
         | Put (destination, source) -> 
+            let baseProcess = sandbox.GetRunningProcess() :?> BaseProcessContainer
             let sourceValue = emulateExpr baseProcess source
             let destinationValue = 
                 {emulateExpr baseProcess destination with
@@ -141,6 +148,7 @@ module LowUIREmulator =
             baseProcess.SetVariable(destinationValue)
 
         | Store (_, destination, source) ->
+            let baseProcess = sandbox.GetRunningProcess() :?> BaseProcessContainer
             let sourceValue = emulateExpr baseProcess source
             let destinationValue = emulateExpr baseProcess destination
 
@@ -152,6 +160,7 @@ module LowUIREmulator =
             baseProcess.WriteMemory(memAddress, bytes)
             
         | InterJmp (programCounterExpr, destAddrExpr, interJumpInfo) ->
+            let baseProcess = sandbox.GetRunningProcess() :?> BaseProcessContainer
             let destAddr = emulateExpr baseProcess destAddrExpr
             let programCounter = 
                 {emulateExpr baseProcess programCounterExpr with
@@ -160,6 +169,7 @@ module LowUIREmulator =
             baseProcess.SetVariable(programCounter)
 
         | InterCJmp (conditionExpr, currentProgramCounter, trueDestAddrExpr, falseDesAddrExpr) ->
+            let baseProcess = sandbox.GetRunningProcess() :?> BaseProcessContainer
             let conditionValue = emulateExpr baseProcess conditionExpr
             {baseProcess.GetProgramCounter() with
                 Value =
@@ -178,5 +188,5 @@ module LowUIREmulator =
             
         | _ -> failwith("Statement not yet emulated: " + stmt.ToString())
 
-    and emulateBlock(sandbox: BaseSandbox) (baseProcess: BaseProcessContainer) (stmts: Stmt array) =
-        stmts |> Array.iter(emulateStmt sandbox baseProcess)
+    and emulateBlock(sandbox: BaseSandbox) (stmts: Stmt array) =
+        stmts |> Array.iter(emulateStmt sandbox)
