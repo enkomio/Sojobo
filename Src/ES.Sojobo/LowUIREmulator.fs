@@ -126,7 +126,7 @@ module LowUIREmulator =
 
         | _ -> failwith("Expression not yet emulated: " + expr.ToString())
 
-    and emulateStmt(baseProcess: BaseProcessContainer) (stmt: Stmt) =
+    and emulateStmt(sandbox: BaseSandbox) (baseProcess: BaseProcessContainer) (stmt: Stmt) =
         match stmt with
         | ISMark _ -> ()
         | IEMark _ ->
@@ -172,9 +172,11 @@ module LowUIREmulator =
         | LMark of Symbol
         | Jmp of Expr
         | CJmp of Expr * Expr * Expr                
-        | SideEffect of SideEffect
         *)
+        | SideEffect sideEffect ->
+            sandbox.TriggerSideEffect(sideEffect)
+            
         | _ -> failwith("Statement not yet emulated: " + stmt.ToString())
 
-    and emulateBlock(baseProcess: BaseProcessContainer) (stmts: Stmt array) =
-        stmts |> Array.iter(emulateStmt baseProcess)
+    and emulateBlock(sandbox: BaseSandbox) (baseProcess: BaseProcessContainer) (stmts: Stmt array) =
+        stmts |> Array.iter(emulateStmt sandbox baseProcess)

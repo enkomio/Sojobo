@@ -7,8 +7,11 @@ open System.IO
 open B2R2.FrontEnd
 open B2R2
 open ES.Sojobo.Model
+open B2R2.BinIR
 
-type Win32Sandbox() =
+type Win32Sandbox() as this =
+    inherit BaseSandbox()
+
     let _assemblies = new List<Assembly>()
     let _libraryFunctions = new Dictionary<String, MethodInfo>()
     let _callbacks = new Dictionary<UInt64, String>()       
@@ -31,7 +34,7 @@ type Win32Sandbox() =
 
     let emulateInstruction(handler: BinHandler, instruction: Instruction, baseProcess: BaseProcessContainer) =
         let block = BinHandler.LiftInstr handler instruction
-        LowUIREmulator.emulateBlock baseProcess block
+        LowUIREmulator.emulateBlock this baseProcess  block
 
     let emulateBufferInstruction(baseProcess: BaseProcessContainer, buffer: Byte array) =
         // compose instruction
@@ -132,7 +135,7 @@ type Win32Sandbox() =
     member this.AddLibrary(assembly: Assembly) =
         _assemblies.Add(assembly)
 
-    member this.Run() =            
+    default this.Run() =            
         let win32Process = _currentProcess.Value
         let activeRegion = win32Process.GetActiveMemoryRegion()
         let endAddress = activeRegion.BaseAddress + uint64 activeRegion.Content.Length
@@ -156,32 +159,16 @@ type Win32Sandbox() =
                 let handler = win32Process.GetActiveMemoryRegion().Handler                    
                 emulateInstruction(handler, instruction, win32Process)
 
-    member this.Stop() =
+    default this.Stop() =
         _stopExecution <- true
         
-    member this.Create(filename: String) =
+    default this.Create(filename: String) =
         _currentProcess <- new Win32ProcessContainer() |> Some
         _currentProcess.Value.Initialize(filename)
 
-    member this.Create(buffer: Byte array) =
+    default this.Create(buffer: Byte array) =
         _currentProcess <- new Win32ProcessContainer() |> Some
         _currentProcess.Value.Initialize(buffer)
 
-    member this.GetRunningProcess() =
+    default this.GetRunningProcess() =
         _currentProcess.Value :> IProcessContainer
-
-    interface  ISandbox with
-        member this.Create(filename: String) =
-            this.Create(filename)
-
-        member this.Create(buffer: Byte array) =
-            this.Create(buffer)
-
-        member this.Run() =
-            this.Run()
-
-        member this.Stop() =
-            this.Stop()
-            
-        member this.GetRunningProcess() =
-            this.GetRunningProcess()
