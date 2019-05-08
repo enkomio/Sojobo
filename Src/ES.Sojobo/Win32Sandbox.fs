@@ -3,6 +3,7 @@
 open System
 open System.Reflection
 open System.Collections.Generic
+open System.IO
 open B2R2.FrontEnd
 open B2R2
 open ES.Sojobo.Model
@@ -29,22 +30,46 @@ type Win32Sandbox() =
         )
 
     let emulateInstruction(handler: BinHandler, instruction: Instruction, baseProcess: BaseProcessContainer) =
-        BinHandler.LiftInstr handler instruction
-        |> Array.iter(LowUIREmulator.emulateStmt baseProcess)
+        let block = BinHandler.LiftInstr handler instruction
+        LowUIREmulator.emulateBlock baseProcess block
 
-    let executeReturn =
-        let arrayBuffer = Array.zeroCreate<Byte>(1)
-        arrayBuffer.[0] <- 0xC3uy
-        (*
-        // TODO:
-        if I have to clean the stack is: C2 0400                  | ret 4 
-        *)
+    let emulateBufferInstruction(baseProcess: BaseProcessContainer, buffer: Byte array) =
+        // compose instruction
+        let handler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
+        let instruction = BinHandler.ParseInstr handler Addr.MinValue        
 
-        let handler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, true, Addr.MinValue, arrayBuffer)
-        let retInstruction = BinHandler.ParseInstr handler Addr.MinValue
-        fun (baseProcess: BaseProcessContainer) -> 
-            let handler = baseProcess.GetActiveMemoryRegion().Handler
-            emulateInstruction(handler, retInstruction, baseProcess)
+        // emulate instruction
+        let handler = baseProcess.GetActiveMemoryRegion().Handler
+        emulateInstruction(handler, instruction, baseProcess)
+
+    let executeStackFrameSetup(baseProcess: BaseProcessContainer) =
+        emulateBufferInstruction(baseProcess, [|0x8Buy; 0xFFuy|]) // mov edi, edi
+        emulateBufferInstruction(baseProcess, [|0x55uy|]) // push ebp
+        emulateBufferInstruction(baseProcess, [|0x8Buy; 0xECuy|]) // mov ebp, esp
+
+    let executeStackFrameCleanup(baseProcess: BaseProcessContainer) =
+        emulateBufferInstruction(baseProcess, [|0x8Buy; 0xE5uy|]) // mov esp, ebp
+        emulateBufferInstruction(baseProcess, [|0x5Duy|]) // pop ebp
+
+    let executeReturn(baseProcess: BaseProcessContainer, mi: MethodInfo, callbackResult: CallbackResult) =
+        let bytesToPop = (mi.GetParameters().Length - 1) * 4 
+        
+        // compose buffer
+        use memWriter = new MemoryStream()
+        use binWriter = new BinaryWriter(memWriter)
+
+        if bytesToPop > 0 && callbackResult.Convention = CallingConvention.Cdecl then            
+            binWriter.Write(0xC2uy)
+            binWriter.Write(bytesToPop)
+            memWriter.SetLength(int64 3)
+        else            
+            binWriter.Write(0xC3uy)        
+            memWriter.SetLength(int64 1)
+        
+        // compose instruction
+        binWriter.Flush()
+        let arrayBuffer = memWriter.ToArray()
+        emulateBufferInstruction(baseProcess, arrayBuffer)
 
     let resolveLibraryFunctions(assemblies: Assembly seq) =
         assemblies
@@ -82,17 +107,27 @@ type Win32Sandbox() =
             else BitVector.toInt32 argi.Value :> Object
         )
 
+    let setResult(baseProcess: BaseProcessContainer, callbackResult: CallbackResult) =
+        callbackResult.ReturnValue
+        |> Option.iter(fun retValue ->
+            let eax = createVariableWithValue("EAX", EmulatedType.DoubleWord, retValue)
+            baseProcess.SetVariable(eax)
+        )
+
     let invokeLibraryFunction(baseProcess: BaseProcessContainer) =
         let keyName = _callbacks.[baseProcess.GetProgramCounterValue()]
         let libraryFunction = _libraryFunctions.[keyName]
+
+        executeStackFrameSetup(baseProcess)
         let arguments = Array.concat [
             [|baseProcess :> Object|]
             getArguments(baseProcess, libraryFunction)
         ]
 
         let libraryFunctionResult = libraryFunction.Invoke(null, arguments) :?> CallbackResult
-        //executeReturn(baseProcess, libraryFunctionResult)
-        executeReturn(baseProcess)
+        setResult(baseProcess, libraryFunctionResult)
+        executeStackFrameCleanup(baseProcess)
+        executeReturn(baseProcess, libraryFunction, libraryFunctionResult)
 
     member this.AddLibrary(assembly: Assembly) =
         _assemblies.Add(assembly)

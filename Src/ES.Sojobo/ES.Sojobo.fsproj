@@ -54,6 +54,7 @@
     <Compile Include="LowUIREmulator.fs" />
     <Compile Include="Win32Sandbox.fs" />
     <Compile Include="Kernel32Lib.fs" />
+    <Compile Include="VCRUNTIME140Lib.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="FSharp.Core">

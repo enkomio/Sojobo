@@ -175,3 +175,6 @@ module LowUIREmulator =
         | SideEffect of SideEffect
         *)
         | _ -> failwith("Statement not yet emulated: " + stmt.ToString())
+
+    and emulateBlock(baseProcess: BaseProcessContainer) (stmts: Stmt array) =
+        stmts |> Array.iter(emulateStmt baseProcess)

@@ -96,7 +96,7 @@ type Win32ProcessContainer() as this =
 
         // set ESP value
         let esp = string Register.ESP
-        let startAddress = int32 stackRegion.BaseAddress + int32 (stackRegion.Content.Length / 2)
+        let startAddress = int32 stackRegion.BaseAddress + int32 stackRegion.Content.Length - 8
         let espValue = createVariableWithValue(esp, EmulatedType.DoubleWord, BitVector.ofInt32 startAddress 32<rt>)
         this.Variables.Add(esp, espValue)
 
@@ -193,7 +193,16 @@ type Win32ProcessContainer() as this =
 
     default this.GetArgument(position: Int32) =
         let ebp = this.GetVariable("EBP", EmulatedType.DoubleWord).Value |> BitVector.toUInt32
-        let address = ebp - uint32 (position + 2) * 4ul
+        let address = ebp + uint32 (position + 2) * 4ul
         let buffer = this.ReadMemory(uint64 address, sizeof<UInt32>)
         let varName = this.GetTempName(string position, EmulatedType.DoubleWord)        
         {createVariable(varName, EmulatedType.DoubleWord) with Value = BitVector.ofArr(buffer)}
+
+    default this.GetCallStack() = [|
+        let mutable ebp = this.GetVariable("EBP").Value |> BitVector.toUInt32
+        let mutable retValue = BitConverter.ToUInt32(this.ReadMemory(ebp + 4ul |> uint64, 4) , 0)
+        while retValue <> 0ul do
+            yield uint64 retValue
+            ebp <- BitConverter.ToUInt32(this.ReadMemory(uint64 ebp, 4) , 0)
+            retValue <- BitConverter.ToUInt32(this.ReadMemory(ebp + 4ul |> uint64, 4) , 0)
+    |]

@@ -19,6 +19,7 @@ type IProcessContainer =
         abstract GetMemoryRegion: UInt64 -> MemoryRegion
         abstract GetImportedFunctions: unit -> Symbol seq
         abstract GetInstruction: unit -> Instruction
-        abstract Step : IEvent<IProcessContainer> with get
+        abstract Step: IEvent<IProcessContainer> with get
+        abstract GetCallStack: unit -> UInt64 array
     end
 
