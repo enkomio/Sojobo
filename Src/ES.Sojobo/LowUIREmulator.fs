@@ -163,7 +163,7 @@ module LowUIREmulator =
             let conditionValue = emulateExpr baseProcess conditionExpr
             {baseProcess.GetProgramCounter() with
                 Value =
-                    if BitVector.isPositive conditionValue.Value
+                    if BitVector.isTrue conditionValue.Value
                     then (emulateExpr baseProcess trueDestAddrExpr).Value
                     else (emulateExpr baseProcess falseDesAddrExpr).Value
             }
