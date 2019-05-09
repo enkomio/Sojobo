@@ -50,7 +50,7 @@ type BaseProcessContainer() =
     abstract Step: IEvent<IProcessContainer> with get
     abstract GetCallStack: unit -> UInt64 array
     abstract GetPointerSize: unit -> Int32
-
+    
     interface IProcessContainer with
         member this.GetProgramCounter() =
             this.GetProgramCounter()
@@ -96,3 +96,6 @@ type BaseProcessContainer() =
     
         member this.GetCallStack() =
             this.GetCallStack()
+
+        member this.AddMemoryRegion(memRegion: MemoryRegion) =
+            this.AddMemoryRegion(memRegion)

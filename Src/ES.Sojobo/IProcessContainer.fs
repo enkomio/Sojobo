@@ -17,6 +17,7 @@ type IProcessContainer =
         abstract UpdateMemoryRegion: MemoryRegion * MemoryRegion -> unit
         abstract GetActiveMemoryRegion: unit -> MemoryRegion
         abstract GetMemoryRegion: UInt64 -> MemoryRegion
+        abstract AddMemoryRegion: MemoryRegion -> unit
         abstract GetImportedFunctions: unit -> Symbol seq
         abstract GetInstruction: unit -> Instruction
         abstract Step: IEvent<IProcessContainer> with get

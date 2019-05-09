@@ -220,6 +220,9 @@ type Win32ProcessContainer() as this =
     default this.GetMemoryRegion(address: UInt64) =
         getMemoryRegion(address)
 
+    default this.AddMemoryRegion(memRegion: MemoryRegion) =
+        addRegion(memRegion)
+
     default this.GetActiveMemoryRegion() =
         _activeRegion.Value
 
