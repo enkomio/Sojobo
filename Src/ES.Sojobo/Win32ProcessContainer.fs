@@ -74,12 +74,14 @@ type Win32ProcessContainer() as this =
     let mapSections(handler: BinHandler, pe: PE) =
         handler.FileInfo.GetSections()
         |> Seq.map(fun section ->
-            let sectionHeader = pe.SectionHeaders |> Seq.find(fun sc -> sc.Name.Equals(section.Name, StringComparison.OrdinalIgnoreCase))
-            let sectionSize = min sectionHeader.SizeOfRawData (int32 section.Size)
+            let sectionHeader = 
+                pe.SectionHeaders 
+                |> Seq.find(fun sc -> sc.Name.Equals(section.Name, StringComparison.OrdinalIgnoreCase))
+            
+            let sectionSize = min sectionHeader.SizeOfRawData (int32 section.Size)            
             let buffer = Array.zeroCreate<Byte>(max sectionHeader.SizeOfRawData (int32 section.Size))
             Array.Copy(handler.ReadBytes(section.Address, sectionSize), buffer, sectionSize)
             
-            //handler.ReadBytes(section.Address, sectionSize)            
             let sectionHandler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, false, section.Address, buffer)
             (section, buffer, sectionHandler)
         ) 
