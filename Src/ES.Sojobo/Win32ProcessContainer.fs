@@ -248,10 +248,7 @@ type Win32ProcessContainer() as this =
         instruction
 
     default this.GetProgramCounter() =
-        this.Variables.["EIP"]
-    
-    default this.GetProgramCounterValue() =
-        this.GetProgramCounter().Value |> BitVector.toUInt64    
+        this.Variables.["EIP"] 
 
     default this.ReadMemory(address: UInt64, size: Int32) =
         // TODO: add check on memory protection
@@ -276,3 +273,6 @@ type Win32ProcessContainer() as this =
 
     default this.GetPointerSize() =
         32
+
+    default this.GetMemoryMap() =
+        _va.Values |> Seq.toArray

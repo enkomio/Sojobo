@@ -8,7 +8,6 @@ open B2R2.FrontEnd
 type IProcessContainer =
     interface 
         abstract GetProgramCounter: unit -> EmulatedValue
-        abstract GetProgramCounterValue: unit -> UInt64
         abstract GetArgument: position: Int32 -> EmulatedValue
         abstract SetVariable: EmulatedValue -> unit
         abstract GetVariable: name: String -> EmulatedValue
@@ -17,6 +16,7 @@ type IProcessContainer =
         abstract UpdateMemoryRegion: MemoryRegion * MemoryRegion -> unit
         abstract GetActiveMemoryRegion: unit -> MemoryRegion
         abstract GetMemoryRegion: UInt64 -> MemoryRegion
+        abstract GetMemoryMap: unit -> MemoryRegion array
         abstract AddMemoryRegion: MemoryRegion -> unit
         abstract GetImportedFunctions: unit -> Symbol seq
         abstract GetInstruction: unit -> Instruction

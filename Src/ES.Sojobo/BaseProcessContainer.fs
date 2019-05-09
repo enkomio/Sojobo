@@ -36,7 +36,6 @@ type BaseProcessContainer() =
         this.TempVariables.Clear()
 
     abstract GetProgramCounter: unit -> EmulatedValue
-    abstract GetProgramCounterValue: unit -> UInt64
     abstract GetArgument: position: Int32 -> EmulatedValue
     abstract SetVariable: EmulatedValue -> unit
     abstract GetVariable: name: String -> EmulatedValue
@@ -50,6 +49,8 @@ type BaseProcessContainer() =
     abstract Step: IEvent<IProcessContainer> with get
     abstract GetCallStack: unit -> UInt64 array
     abstract GetPointerSize: unit -> Int32
+    abstract AddMemoryRegion: MemoryRegion -> unit
+    abstract GetMemoryMap: unit -> MemoryRegion array
     
     interface IProcessContainer with
         member this.GetProgramCounter() =
@@ -57,9 +58,6 @@ type BaseProcessContainer() =
 
         member this.GetPointerSize() =
             this.GetPointerSize()
-
-        member this.GetProgramCounterValue() =
-            this.GetProgramCounterValue()
 
         member this.WriteMemory(address: UInt64, value: Byte array) =
             this.WriteMemory(address, value)
@@ -99,3 +97,6 @@ type BaseProcessContainer() =
 
         member this.AddMemoryRegion(memRegion: MemoryRegion) =
             this.AddMemoryRegion(memRegion)
+
+        member this.GetMemoryMap() =
+            this.GetMemoryMap()    

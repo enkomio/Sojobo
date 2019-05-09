@@ -120,7 +120,7 @@ type Win32Sandbox() as this =
         )
 
     let invokeLibraryFunction(sandbox: ISandbox, baseProcess: BaseProcessContainer) =
-        let keyName = _callbacks.[baseProcess.GetProgramCounterValue()]
+        let keyName = _callbacks.[baseProcess.GetProgramCounter().Value |> BitVector.toUInt64]
         let libraryFunction = _libraryFunctions.[keyName]
 
         executeStackFrameSetup(baseProcess)
@@ -151,7 +151,7 @@ type Win32Sandbox() as this =
         _stopExecution <- false
         while not _stopExecution do
             // check if called an emulated function
-            let programCounter = win32Process.GetProgramCounterValue()
+            let programCounter = win32Process.GetProgramCounter().Value |> BitVector.toUInt64
             if programCounter |> _callbacks.ContainsKey then
                 invokeLibraryFunction(this, win32Process)
             else                    
