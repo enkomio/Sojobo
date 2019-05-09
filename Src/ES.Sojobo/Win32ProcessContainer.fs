@@ -2,11 +2,13 @@
 
 open System
 open System.Collections.Generic
+open System.Reflection
 open B2R2
 open B2R2.FrontEnd
 open B2R2.BinFile
 open ES.Sojobo.Model
 open B2R2.FrontEnd.Intel
+open B2R2.BinFile.PE
 open Win32
 
 type Win32ProcessContainer() as this =  
@@ -20,12 +22,12 @@ type Win32ProcessContainer() as this =
     let addRegion(memRegion: MemoryRegion) =        
         _va.[memRegion.BaseAddress] <- memRegion
 
-    let getMemoryRegion(programCounter: UInt64) =
+    let getMemoryRegion(address: UInt64) =
         _va.Values
         |> Seq.find(fun memRegion -> 
             let startAddr = memRegion.BaseAddress
             let endAddr = memRegion.BaseAddress + uint64 memRegion.Content.Length
-            programCounter >= startAddr && programCounter <= endAddr
+            address >= startAddr && address <= endAddr
         )
 
     let writeMemory(address: UInt64, value: Byte array) =
@@ -44,13 +46,48 @@ type Win32ProcessContainer() as this =
         let eipValue = createVariableWithValue(eip, EmulatedType.DoubleWord, BitVector.ofUInt64 handler.FileInfo.EntryPoint 32<rt>)
         this.Variables.Add(eip, eipValue)
 
-    let mapSections(handler: BinHandler) =            
+    let getPe(handler: BinHandler) =
+        let fileInfo = handler.FileInfo
+        fileInfo.GetType().GetField("pe", BindingFlags.NonPublic ||| BindingFlags.Instance).GetValue(fileInfo) :?> PE        
+        
+    let mapPeHeader(handler: BinHandler, pe: PE) =
+        let fileInfo = handler.FileInfo
+        let struct (buffer, _) = fileInfo.BinReader.ReadBytes(int32 pe.PEHeaders.PEHeader.SizeOfHeaders, 0)
+        
+        {
+            BaseAddress = pe.PEHeaders.PEHeader.ImageBase
+            Content = buffer
+            Handler =
+                BinHandler.Init(
+                    ISA.OfString "x86", 
+                    ArchOperationMode.NoMode, 
+                    false, 
+                    pe.PEHeaders.PEHeader.ImageBase, 
+                    buffer
+                )
+            Protection = MemoryProtection.Read
+            Type = fileInfo.FilePath
+            Info = fileInfo.FilePath
+        }
+        |> addRegion
+
+    let mapSections(handler: BinHandler, pe: PE) =
         handler.FileInfo.GetSections()
-        |> Seq.map(fun section -> {
+        |> Seq.map(fun section ->
+            let sectionHeader = pe.SectionHeaders |> Seq.find(fun sc -> sc.Name.Equals(section.Name, StringComparison.OrdinalIgnoreCase))
+            let sectionSize = min sectionHeader.SizeOfRawData (int32 section.Size)
+            let buffer = Array.zeroCreate<Byte>(max sectionHeader.SizeOfRawData (int32 section.Size))
+            Array.Copy(handler.ReadBytes(section.Address, sectionSize), buffer, sectionSize)
+            
+            //handler.ReadBytes(section.Address, sectionSize)            
+            let sectionHandler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, false, section.Address, buffer)
+            (section, buffer, sectionHandler)
+        ) 
+        |> Seq.map(fun (section, buffer, sectionHandler) -> {
             BaseAddress = section.Address
-            Content = handler.FileInfo.BinReader.Bytes
-            Handler = handler
-            Protection = section.Kind
+            Content = buffer
+            Handler = sectionHandler
+            Protection = MemoryProtection.Read ||| MemoryProtection.Write ||| MemoryProtection.Execute
             Type = section.Name
             Info = handler.FileInfo.FilePath
         })
@@ -59,18 +96,18 @@ type Win32ProcessContainer() as this =
     let setupRegisters() =
         [
             // segments
-            createVariableWithValue(string Register.SS, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
-            createVariableWithValue(string Register.SSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
-            createVariableWithValue(string Register.CS, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
-            createVariableWithValue(string Register.CSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
-            createVariableWithValue(string Register.DS, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
-            createVariableWithValue(string Register.DSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
-            createVariableWithValue(string Register.ES, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
-            createVariableWithValue(string Register.ESBase, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
+            createVariableWithValue(string Register.SS, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
+            createVariableWithValue(string Register.SSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
+            createVariableWithValue(string Register.CS, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
+            createVariableWithValue(string Register.CSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
+            createVariableWithValue(string Register.DS, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
+            createVariableWithValue(string Register.DSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
+            createVariableWithValue(string Register.ES, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
+            createVariableWithValue(string Register.ESBase, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
             createVariableWithValue(string Register.FS, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
             createVariableWithValue(string Register.FSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
-            createVariableWithValue(string Register.GS, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
-            createVariableWithValue(string Register.GSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
+            createVariableWithValue(string Register.GS, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
+            createVariableWithValue(string Register.GSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
 
             // general purpose registers
             createVariableWithValue(string Register.EAX, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 32<rt>)
@@ -95,9 +132,9 @@ type Win32ProcessContainer() as this =
     let addStackRegion(handler: BinHandler) =
         let stackRegion = {
             createMemoryRegion(
-                0x1000UL, 
-                0x1000, 
-                SectionKind.WritableSection ||| SectionKind.ExecutableSection
+                0x19D000UL, 
+                0x3000, 
+                MemoryProtection.Read ||| MemoryProtection.Write
             ) with 
                 Type = "Stack"
                 Info = handler.FileInfo.FilePath
@@ -123,16 +160,32 @@ type Win32ProcessContainer() as this =
         )
 
     let createStructures() =
-        let peb = createMemoryRegion(uint64 peb32Address, 0x1000, SectionKind.WritableSection ||| SectionKind.ExtraSection)        
-        addRegion(peb)
+        let stack = 
+            _va.Values 
+            |> Seq.find(fun memRegion -> memRegion.Type.Equals("Stack", StringComparison.OrdinalIgnoreCase))
         
-        let tib = createMemoryRegion(uint64 teb32Address, 0x1000, SectionKind.WritableSection ||| SectionKind.ExtraSection)
-        let teb32Struct = {Activator.CreateInstance<TEB32>() with ProcessEnvironmentBlock = peb32Address}        
-        Utility.writeStructure(teb32Struct, 0, tib.Content)
-        addRegion(tib)        
+        // add teb
+        let teb = 
+            {Activator.CreateInstance<TEB32>() with
+                StackBase = uint32 stack.BaseAddress + uint32 stack.Content.Length
+                StackLimit = uint32 stack.BaseAddress
+                Self = teb32Address
+                ProcessEnvironmentBlock = peb32Address
+            }
+        let tebMemoryRegion = createMemoryRegion(uint64 teb32Address, 0x1000, MemoryProtection.Read)
+        Utility.writeStructure(teb, 0, tebMemoryRegion.Content)
+        addRegion(tebMemoryRegion)     
+
+        // add peb
+        let peb = Activator.CreateInstance<PEB32>()
+        let pebMemoryRegion = createMemoryRegion(uint64 peb32Address, 0x1000, MemoryProtection.Read)        
+        Utility.writeStructure(peb, 0, pebMemoryRegion.Content)
+        addRegion(pebMemoryRegion)            
 
     let initialize(handler: BinHandler) =
-        mapSections(handler)
+        let pe = getPe(handler)
+        mapPeHeader(handler, pe)
+        mapSections(handler, pe)
         addStackRegion(handler)
         setEntryPoint(handler)
         resolveIATSymbols(handler)
@@ -148,7 +201,7 @@ type Win32ProcessContainer() as this =
         if value.IsTemp
         then this.TempVariables.[value.Name] <- value
         else this.Variables.[value.Name] <- value
-
+        
     member this.Initialize(buffer: Byte array) =
         let isa = ISA.OfString "x86"
         let handler = BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
@@ -172,6 +225,7 @@ type Win32ProcessContainer() as this =
         _va.[oldRegion.BaseAddress] <- newRegion
 
     default this.WriteMemory(address: UInt64, value: Byte array) =
+        // TODO: add check on memory protection
         writeMemory(address, value)
 
     default this.GetInstruction() =
@@ -195,11 +249,9 @@ type Win32ProcessContainer() as this =
         this.GetProgramCounter().Value |> BitVector.toUInt64    
 
     default this.ReadMemory(address: UInt64, size: Int32) =
+        // TODO: add check on memory protection
         let memRegion = this.GetMemoryRegion(address)
-        let offset = address - memRegion.BaseAddress |> int32
-        let buffer = Array.zeroCreate<Byte>(size)
-        Array.Copy(memRegion.Content, offset, buffer, 0, size)
-        buffer
+        BinHandler.ReadBytes(memRegion.Handler, address, size)
 
     default this.GetArgument(position: Int32) =
         let ebp = this.GetVariable("EBP", EmulatedType.DoubleWord).Value |> BitVector.toUInt32

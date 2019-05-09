@@ -33,7 +33,9 @@ type Win32Sandbox() as this =
         )
 
     let emulateInstruction(handler: BinHandler, instruction: Instruction, baseProcess: BaseProcessContainer) =
-        let block = BinHandler.LiftInstr handler instruction
+        let block = 
+            BinHandler.LiftInstr handler instruction
+            |> BinHandler.Optimize
         LowUIREmulator.emulateBlock this block
 
     let emulateBufferInstruction(baseProcess: BaseProcessContainer, buffer: Byte array) =
@@ -149,11 +151,12 @@ type Win32Sandbox() as this =
         _stopExecution <- false
         while not _stopExecution do
             // check if called an emulated function
-            if win32Process.GetProgramCounterValue() |> _callbacks.ContainsKey then
+            let programCounter = win32Process.GetProgramCounterValue()
+            if programCounter |> _callbacks.ContainsKey then
                 invokeLibraryFunction(this, win32Process)
             else                    
                 let instruction = win32Process.ReadNextInstruction()
-                _stopExecution <- _stopExecution || instruction.Address + uint64 instruction.Length >= endAddress
+                _stopExecution <- _stopExecution || programCounter >= endAddress
 
                 // emulate instruction
                 let handler = win32Process.GetActiveMemoryRegion().Handler                    

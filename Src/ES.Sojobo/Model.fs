@@ -1,7 +1,7 @@
 ﻿namespace ES.Sojobo
 
 open System
-open System.Collections.Generic
+open System.Reflection.PortableExecutable
 open B2R2
 open B2R2.FrontEnd
 open B2R2.BinFile
@@ -34,16 +34,21 @@ module Model =
     let createInt32(value: Int32) =
         createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofInt32 value 32<rt>)
         
+    type MemoryProtection =
+        | Read = 0
+        | Write = 2
+        | Execute = 4
+
     type MemoryRegion = {
         BaseAddress: UInt64
         Content: Byte array
-        Protection: SectionKind
+        Protection: MemoryProtection
         Handler: BinHandler
         Type: String
         Info: String
     }
 
-    let internal createMemoryRegion(baseAddr: UInt64, size: Int32, protection: SectionKind) = 
+    let internal createMemoryRegion(baseAddr: UInt64, size: Int32, protection: MemoryProtection) = 
         let content = Array.zeroCreate<Byte>(size)
         let isa = ISA.OfString "x86"        
         let handler = BinHandler.Init(isa, ArchOperationMode.NoMode, true, baseAddr, content)

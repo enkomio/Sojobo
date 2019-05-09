@@ -47,14 +47,12 @@ module LowUIREmulator =
             let resultValue = operation firstValue.Value secondValue.Value
             createVariableWithValue(String.Empty, Utility.getType(regType), resultValue)
 
-        | Load (_, regType, expr, _, _) -> 
+        | Load (_, regType, expr, _, _) ->             
             let memAddressValue = (emulateExpr baseProcess expr).Value
             let memAddress = BitVector.toUInt64 memAddressValue
             let emuType = Utility.getType(regType)
             let numBytes = Utility.getSize(emuType) / 8
-
-            let memRegion = baseProcess.GetMemoryRegion(memAddress)            
-            let bytes = BinHandler.ReadBytes(memRegion.Handler, memAddress, numBytes)
+            let bytes = baseProcess.ReadMemory(memAddress, numBytes)
                         
             // convert the readed bytes to emulated value
             match emuType with

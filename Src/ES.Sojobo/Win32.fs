@@ -8,6 +8,7 @@ module Win32 =
     let peb32Address = 0x7ffdf000u
 
     // https://docs.microsoft.com/en-us/windows/desktop/api/winternl/ns-winternl-_teb
+    // https://www.nirsoft.net/kernel_struct/vista/TEB.html
     [<CLIMutable>]
     [<StructLayout(LayoutKind.Sequential, Pack=1, CharSet=CharSet.Ansi)>]
     type TEB32 = {
@@ -18,6 +19,7 @@ module Win32 =
         SubSystemTib: UInt32
         Version: UInt32
         ArbitraryUserPointer: UInt32
+        Self: UInt32
 
         // TEB
         ProcessEnvironmentBlock: UInt32
@@ -41,8 +43,31 @@ module Win32 =
     [<CLIMutable>]
     [<StructLayout(LayoutKind.Sequential, Pack=1, CharSet=CharSet.Ansi)>]
     type PEB32 = {
-        [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 12)>]
-        Reserved: Byte array
-
-        // TODO ...
+        [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)>]
+        Reserved1: Byte array
+        BeingDebugged: Byte
+        [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 1)>]
+        Reserved2: Byte array
+        [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)>]
+        Reserved3: Byte array
+        Ldr: UInt32
+        ProcessParameters: UInt32
+        [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)>]
+        Reserved4: Byte array
+        AtlThunkSListPtr: UInt32
+        Reserved5: UInt32
+        Reserved6: UInt32
+        Reserved7: UInt32
+        Reserved8: UInt32
+        AtlThunkSListPtr32: UInt32
+        [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 45)>]
+        Reserved9: Byte array
+        [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 96)>]
+        Reserved10: Byte array
+        PostProcessInitRoutine: UInt32
+        [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 128)>]
+        Reserved11: Byte array
+        [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 1)>]
+        Reserved12: Byte array
+        SessionId: UInt32
     }
