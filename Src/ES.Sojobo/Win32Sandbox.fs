@@ -165,11 +165,11 @@ type Win32Sandbox() as this =
     default this.Stop() =
         _stopExecution <- true
         
-    default this.Create(filename: String) =
+    default this.Load(filename: String) =
         _currentProcess <- new Win32ProcessContainer() |> Some
         _currentProcess.Value.Initialize(filename)
 
-    default this.Create(buffer: Byte array) =
+    default this.Load(buffer: Byte array) =
         _currentProcess <- new Win32ProcessContainer() |> Some
         _currentProcess.Value.Initialize(buffer)
 

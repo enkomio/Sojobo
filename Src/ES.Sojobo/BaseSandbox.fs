@@ -13,8 +13,8 @@ open B2R2.BinIR
 type BaseSandbox() =
     let _sideEffectEvent = new Event<ISandbox * SideEffect>()
 
-    abstract Create: String -> unit
-    abstract Create: Byte array -> unit  
+    abstract Load: String -> unit
+    abstract Load: Byte array -> unit  
     abstract Run: unit -> unit
     abstract Stop: unit -> unit     
     abstract GetRunningProcess: unit -> IProcessContainer
@@ -25,11 +25,11 @@ type BaseSandbox() =
         _sideEffectEvent.Trigger(upcast this, sideEffect)
 
     interface  ISandbox with
-        member this.Create(filename: String) =
-            this.Create(filename)
+        member this.Load(filename: String) =
+            this.Load(filename)
 
-        member this.Create(buffer: Byte array) =
-            this.Create(buffer)
+        member this.Load(buffer: Byte array) =
+            this.Load(buffer)
 
         member this.Run() =
             this.Run()
