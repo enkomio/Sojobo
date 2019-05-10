@@ -52,7 +52,7 @@ module LowUIREmulator =
             let memAddress = BitVector.toUInt64 memAddressValue
             let emuType = Utility.getType(regType)
             let numBytes = Utility.getSize(emuType) / 8
-            let bytes = baseProcess.ReadMemory(memAddress, numBytes)
+            let bytes = baseProcess.Memory.ReadMemory(memAddress, numBytes)
                         
             // convert the readed bytes to emulated value
             match emuType with
@@ -155,7 +155,7 @@ module LowUIREmulator =
             let bytes = Utility.toArray(sourceValue.Value)
             
             // write value
-            baseProcess.WriteMemory(memAddress, bytes)
+            baseProcess.Memory.WriteMemory(memAddress, bytes)
             
         | InterJmp (programCounterExpr, destAddrExpr, interJumpInfo) ->
             let baseProcess = sandbox.GetRunningProcess() :?> BaseProcessContainer

@@ -14,11 +14,12 @@ open Win32
 type Win32ProcessContainer() as this =  
     inherit BaseProcessContainer()
 
-    let _va = new Dictionary<UInt64, MemoryRegion>()
+    let _memoryManager = new MemoryManager()
     let _iat = new List<Symbol>()
     let _stepEvent = new Event<IProcessContainer>()
     let mutable _activeRegion: MemoryRegion option = None    
     
+    (*
     let addRegion(memRegion: MemoryRegion) =        
         _va.[memRegion.BaseAddress] <- memRegion
 
@@ -35,10 +36,10 @@ type Win32ProcessContainer() as this =
         let region = getMemoryRegion(address)
         let offset = region.Handler.FileInfo.TranslateAddress address
         Array.Copy(value, 0, region.Handler.FileInfo.BinReader.Bytes, offset, value.Length)
-
+        *)
     let setEntryPoint(handler: BinHandler) =
         _activeRegion <- 
-            getMemoryRegion(handler.FileInfo.EntryPoint)
+            _memoryManager.GetMemoryRegion(handler.FileInfo.EntryPoint)
             |> Some
 
         // save the EIP registry value
@@ -69,7 +70,7 @@ type Win32ProcessContainer() as this =
             Type = fileInfo.FilePath
             Info = fileInfo.FilePath
         }
-        |> addRegion
+        |> _memoryManager.AddMemoryRegion
 
     let mapSections(handler: BinHandler, pe: PE) =
         handler.FileInfo.GetSections()
@@ -93,7 +94,7 @@ type Win32ProcessContainer() as this =
             Type = section.Name
             Info = handler.FileInfo.FilePath
         })
-        |> Seq.iter(addRegion)
+        |> Seq.iter(_memoryManager.AddMemoryRegion)
 
     let setupRegisters() =
         [
@@ -141,7 +142,7 @@ type Win32ProcessContainer() as this =
                 Type = "Stack"
                 Info = handler.FileInfo.FilePath
         }
-        addRegion(stackRegion)
+        _memoryManager.AddMemoryRegion(stackRegion)
 
         // set ESP value
         let esp = string Register.ESP
@@ -163,7 +164,7 @@ type Win32ProcessContainer() as this =
 
     let createStructures() =
         let stack = 
-            _va.Values 
+            _memoryManager.GetMemoryMap()
             |> Seq.find(fun memRegion -> memRegion.Type.Equals("Stack", StringComparison.OrdinalIgnoreCase))
         
         // add teb
@@ -176,13 +177,13 @@ type Win32ProcessContainer() as this =
             }
         let tebMemoryRegion = createMemoryRegion(uint64 teb32Address, 0x1000, MemoryProtection.Read)
         Utility.writeStructure(teb, 0, tebMemoryRegion.Content)
-        addRegion(tebMemoryRegion)     
+        _memoryManager.AddMemoryRegion(tebMemoryRegion)     
 
         // add peb
         let peb = Activator.CreateInstance<PEB32>()
         let pebMemoryRegion = createMemoryRegion(uint64 peb32Address, 0x1000, MemoryProtection.Read)        
         Utility.writeStructure(peb, 0, pebMemoryRegion.Content)
-        addRegion(pebMemoryRegion)            
+        _memoryManager.AddMemoryRegion(pebMemoryRegion)            
 
     let initialize(handler: BinHandler) =
         let pe = getPe(handler)
@@ -194,7 +195,8 @@ type Win32ProcessContainer() as this =
         setupRegisters()    
         createStructures()
 
-    default this.Step = _stepEvent.Publish    
+    default this.Step = _stepEvent.Publish   
+    default this.Memory = _memoryManager
 
     default this.GetVariable(name: String) =
         this.Variables.[name]
@@ -217,22 +219,9 @@ type Win32ProcessContainer() as this =
     default this.GetImportedFunctions() =
         _iat |> Seq.readonly
 
-    default this.GetMemoryRegion(address: UInt64) =
-        getMemoryRegion(address)
-
-    default this.AddMemoryRegion(memRegion: MemoryRegion) =
-        addRegion(memRegion)
-
     default this.GetActiveMemoryRegion() =
         _activeRegion.Value
-
-    default this.UpdateMemoryRegion(oldRegion: MemoryRegion, newRegion: MemoryRegion) =
-        _va.[oldRegion.BaseAddress] <- newRegion
-
-    default this.WriteMemory(address: UInt64, value: Byte array) =
-        // TODO: add check on memory protection
-        writeMemory(address, value)
-
+        
     default this.GetInstruction() =
         let programCounter = this.GetProgramCounter()
         BinHandler.ParseInstr (this.GetActiveMemoryRegion().Handler) (programCounter.Value |> BitVector.toUInt64)
@@ -248,31 +237,23 @@ type Win32ProcessContainer() as this =
         instruction
 
     default this.GetProgramCounter() =
-        this.Variables.["EIP"] 
-
-    default this.ReadMemory(address: UInt64, size: Int32) =
-        // TODO: add check on memory protection
-        let memRegion = this.GetMemoryRegion(address)
-        BinHandler.ReadBytes(memRegion.Handler, address, size)
+        this.Variables.["EIP"]     
 
     default this.GetArgument(position: Int32) =
         let ebp = this.GetVariable("EBP", EmulatedType.DoubleWord).Value |> BitVector.toUInt32
         let address = ebp + uint32 (position + 2) * 4ul
-        let buffer = this.ReadMemory(uint64 address, sizeof<UInt32>)
+        let buffer = this.Memory.ReadMemory(uint64 address, sizeof<UInt32>)
         let varName = this.GetTempName(string position, EmulatedType.DoubleWord)        
         {createVariable(varName, EmulatedType.DoubleWord) with Value = BitVector.ofArr(buffer)}
 
     default this.GetCallStack() = [|
         let mutable ebp = this.GetVariable("EBP").Value |> BitVector.toUInt32
-        let mutable retValue = BitConverter.ToUInt32(this.ReadMemory(ebp + 4ul |> uint64, 4) , 0)
+        let mutable retValue = BitConverter.ToUInt32(this.Memory.ReadMemory(ebp + 4ul |> uint64, 4) , 0)
         while retValue <> 0ul do
             yield uint64 retValue
-            ebp <- BitConverter.ToUInt32(this.ReadMemory(uint64 ebp, 4) , 0)
-            retValue <- BitConverter.ToUInt32(this.ReadMemory(ebp + 4ul |> uint64, 4) , 0)
+            ebp <- BitConverter.ToUInt32(this.Memory.ReadMemory(uint64 ebp, 4) , 0)
+            retValue <- BitConverter.ToUInt32(this.Memory.ReadMemory(ebp + 4ul |> uint64, 4) , 0)
     |]
 
     default this.GetPointerSize() =
         32
-
-    default this.GetMemoryMap() =
-        _va.Values |> Seq.toArray

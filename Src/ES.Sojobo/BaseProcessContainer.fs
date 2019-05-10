@@ -38,19 +38,15 @@ type BaseProcessContainer() =
     abstract GetProgramCounter: unit -> EmulatedValue
     abstract GetArgument: position: Int32 -> EmulatedValue
     abstract SetVariable: EmulatedValue -> unit
-    abstract GetVariable: name: String -> EmulatedValue
-    abstract ReadMemory: address: UInt64 * size: Int32 -> Byte array
-    abstract WriteMemory: UInt64 * Byte array -> unit
-    abstract UpdateMemoryRegion: MemoryRegion * MemoryRegion -> unit
-    abstract GetActiveMemoryRegion: unit -> MemoryRegion
-    abstract GetMemoryRegion: UInt64 -> MemoryRegion
+    abstract GetVariable: name: String -> EmulatedValue    
+    abstract GetActiveMemoryRegion: unit -> MemoryRegion    
     abstract GetImportedFunctions: unit -> Symbol seq
-    abstract GetInstruction: unit -> Instruction
-    abstract Step: IEvent<IProcessContainer> with get
+    abstract GetInstruction: unit -> Instruction    
     abstract GetCallStack: unit -> UInt64 array
     abstract GetPointerSize: unit -> Int32
-    abstract AddMemoryRegion: MemoryRegion -> unit
-    abstract GetMemoryMap: unit -> MemoryRegion array
+    
+    abstract Step: IEvent<IProcessContainer> with get
+    abstract Memory: MemoryManager with get
     
     interface IProcessContainer with
         member this.GetProgramCounter() =
@@ -59,26 +55,11 @@ type BaseProcessContainer() =
         member this.GetPointerSize() =
             this.GetPointerSize()
 
-        member this.WriteMemory(address: UInt64, value: Byte array) =
-            this.WriteMemory(address, value)
-
-        member this.UpdateMemoryRegion(oldRegion: MemoryRegion, newRegion: MemoryRegion) =
-            this.UpdateMemoryRegion(oldRegion, newRegion)
-
-        member this.GetActiveMemoryRegion() =
-            this.GetActiveMemoryRegion()
-
-        member this.GetMemoryRegion(address: UInt64) =
-            this.GetMemoryRegion(address)
-
         member this.GetImportedFunctions() =
             this.GetImportedFunctions()
 
         member this.GetArgument(position: Int32) =
             this.GetArgument(position)
-
-        member this.ReadMemory(address: UInt64, size: Int32) =
-            this.ReadMemory(address, size)
 
         member this.GetInstruction() =
             this.GetInstruction()
@@ -89,14 +70,14 @@ type BaseProcessContainer() =
         member this.SetVariable(value: EmulatedValue) =
             this.SetVariable(value)
 
-        member this.Step
-            with get() = this.Step
-    
         member this.GetCallStack() =
             this.GetCallStack()
+        
+        member this.GetActiveMemoryRegion() =
+            this.GetActiveMemoryRegion()
 
-        member this.AddMemoryRegion(memRegion: MemoryRegion) =
-            this.AddMemoryRegion(memRegion)
+        member this.Step
+            with get() = this.Step
 
-        member this.GetMemoryMap() =
-            this.GetMemoryMap()    
+        member this.Memory
+            with get() = this.Memory

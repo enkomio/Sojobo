@@ -7,20 +7,19 @@ open B2R2.FrontEnd
 
 type IProcessContainer =
     interface 
+        /// Get the memory manager associated with the process
+        abstract Memory: MemoryManager with get
+
+        /// This method is invoked before the next instruction being emulated
+        abstract Step: IEvent<IProcessContainer> with get
+
         abstract GetProgramCounter: unit -> EmulatedValue
         abstract GetArgument: position: Int32 -> EmulatedValue
         abstract SetVariable: EmulatedValue -> unit
-        abstract GetVariable: name: String -> EmulatedValue
-        abstract ReadMemory: address: UInt64 * size: Int32 -> Byte array
-        abstract WriteMemory: UInt64 * Byte array -> unit
-        abstract UpdateMemoryRegion: MemoryRegion * MemoryRegion -> unit
+        abstract GetVariable: name: String -> EmulatedValue        
         abstract GetActiveMemoryRegion: unit -> MemoryRegion
-        abstract GetMemoryRegion: UInt64 -> MemoryRegion
-        abstract GetMemoryMap: unit -> MemoryRegion array
-        abstract AddMemoryRegion: MemoryRegion -> unit
         abstract GetImportedFunctions: unit -> Symbol seq
-        abstract GetInstruction: unit -> Instruction
-        abstract Step: IEvent<IProcessContainer> with get
+        abstract GetInstruction: unit -> Instruction        
         abstract GetCallStack: unit -> UInt64 array
         abstract GetPointerSize: unit -> Int32        
     end

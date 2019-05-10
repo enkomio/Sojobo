@@ -44,3 +44,12 @@ module Kernel32 =
         ReturnValue = Some <| createInt32(0).Value
         Convention = CallingConvention.Cdecl
     }
+
+    let virtualAlloc(sandbox: ISandbox, lpAddress: UInt32, dwSize: UInt32, flAllocationType: UInt32, flProtect: UInt32) = 
+        let runningProc = sandbox.GetRunningProcess()
+        let allocatedAddress = 123
+        
+        {
+            ReturnValue = Some <| createInt32(allocatedAddress).Value
+            Convention = CallingConvention.Cdecl
+        }
