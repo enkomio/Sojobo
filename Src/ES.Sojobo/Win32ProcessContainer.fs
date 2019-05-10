@@ -10,6 +10,7 @@ open ES.Sojobo.Model
 open B2R2.FrontEnd.Intel
 open B2R2.BinFile.PE
 open Win32
+open System.Reflection.PortableExecutable
 
 type Win32ProcessContainer() as this =  
     inherit BaseProcessContainer()
@@ -19,24 +20,6 @@ type Win32ProcessContainer() as this =
     let _stepEvent = new Event<IProcessContainer>()
     let mutable _activeRegion: MemoryRegion option = None    
     
-    (*
-    let addRegion(memRegion: MemoryRegion) =        
-        _va.[memRegion.BaseAddress] <- memRegion
-
-    let getMemoryRegion(address: UInt64) =
-        _va.Values
-        |> Seq.find(fun memRegion -> 
-            let startAddr = memRegion.BaseAddress
-            let endAddr = memRegion.BaseAddress + uint64 memRegion.Content.Length
-            address >= startAddr && address <= endAddr
-        )
-
-    let writeMemory(address: UInt64, value: Byte array) =
-        // copy the memory
-        let region = getMemoryRegion(address)
-        let offset = region.Handler.FileInfo.TranslateAddress address
-        Array.Copy(value, 0, region.Handler.FileInfo.BinReader.Bytes, offset, value.Length)
-        *)
     let setEntryPoint(handler: BinHandler) =
         _activeRegion <- 
             _memoryManager.GetMemoryRegion(handler.FileInfo.EntryPoint)
@@ -72,6 +55,29 @@ type Win32ProcessContainer() as this =
         }
         |> _memoryManager.AddMemoryRegion
 
+    let getSectionProtection(sectionHeader: SectionHeader) =
+        let characteristics = sectionHeader.SectionCharacteristics
+        let mutable protection: MemoryProtection option = None
+        
+        if characteristics.HasFlag(SectionCharacteristics.MemRead) then 
+            protection <- Some MemoryProtection.Read
+
+        if characteristics.HasFlag(SectionCharacteristics.MemWrite) then 
+            protection <-
+                match protection with
+                | Some p -> p ||| MemoryProtection.Write
+                | None -> MemoryProtection.Write
+                |> Some
+
+        if characteristics.HasFlag(SectionCharacteristics.MemExecute) then 
+            protection <-
+                match protection with
+                | Some p -> p ||| MemoryProtection.Execute
+                | None -> MemoryProtection.Execute
+                |> Some
+
+        Option.defaultValue MemoryProtection.Read protection
+
     let mapSections(handler: BinHandler, pe: PE) =
         handler.FileInfo.GetSections()
         |> Seq.map(fun section ->
@@ -82,15 +88,15 @@ type Win32ProcessContainer() as this =
             let sectionSize = min sectionHeader.SizeOfRawData (int32 section.Size)            
             let buffer = Array.zeroCreate<Byte>(max sectionHeader.SizeOfRawData (int32 section.Size))
             Array.Copy(handler.ReadBytes(section.Address, sectionSize), buffer, sectionSize)
-            
+                        
             let sectionHandler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, false, section.Address, buffer)
-            (section, buffer, sectionHandler)
+            (section, buffer, sectionHandler, getSectionProtection(sectionHeader))
         ) 
-        |> Seq.map(fun (section, buffer, sectionHandler) -> {
+        |> Seq.map(fun (section, buffer, sectionHandler, protection) -> {
             BaseAddress = section.Address
             Content = buffer
             Handler = sectionHandler
-            Protection = MemoryProtection.Read ||| MemoryProtection.Write ||| MemoryProtection.Execute
+            Protection = protection
             Type = section.Name
             Info = handler.FileInfo.FilePath
         })

@@ -34,10 +34,11 @@ module Model =
     let createInt32(value: Int32) =
         createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofInt32 value 32<rt>)
         
+    [<Flags>]
     type MemoryProtection =
-        | Read = 0
-        | Write = 2
-        | Execute = 4
+        | Read = 2
+        | Write = 4
+        | Execute = 8
 
     type MemoryRegion = {
         BaseAddress: UInt64

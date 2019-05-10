@@ -29,7 +29,7 @@ type Win32Sandbox() as this =
             if _libraryFunctions.ContainsKey(keyName) then
                 _callbacks.[symbol.Address] <- keyName
                 let addressBytes = uint32 symbol.Address |> BitConverter.GetBytes
-                win32Process.Memory.WriteMemory(symbol.Address, addressBytes)
+                win32Process.Memory.UnsafeWriteMemory(symbol.Address, addressBytes, false)
         )
 
     let emulateInstruction(handler: BinHandler, instruction: Instruction, baseProcess: BaseProcessContainer) =
