@@ -46,6 +46,7 @@ module Kernel32 =
     }
 
     let virtualAlloc(sandbox: ISandbox, lpAddress: UInt32, dwSize: UInt32, flAllocationType: UInt32, flProtect: UInt32) = 
+        // TODO: when creating the region correctly set the protection
         let runningProc = sandbox.GetRunningProcess()
         let allocatedAddress = 123
         

@@ -14,9 +14,9 @@ type IProcessContainer =
         abstract Step: IEvent<IProcessContainer> with get
 
         abstract GetProgramCounter: unit -> EmulatedValue
-        abstract GetArgument: position: Int32 -> EmulatedValue
-        abstract SetVariable: EmulatedValue -> unit
-        abstract GetVariable: name: String -> EmulatedValue        
+        abstract GetArgument: position: Int32 -> EmulatedValue // TODO: remove from interface?
+        abstract SetVariable: EmulatedValue -> unit // TODO: change to SetRegister?
+        abstract GetVariable: name: String -> EmulatedValue // TODO: see above
         abstract GetActiveMemoryRegion: unit -> MemoryRegion
         abstract GetImportedFunctions: unit -> Symbol seq
         abstract GetInstruction: unit -> Instruction        
