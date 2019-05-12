@@ -38,5 +38,29 @@ type MemoryManager() =
 
     member this.GetMemoryMap() =
         _va.Values 
+        |> Seq.sortBy(fun m -> m.BaseAddress)
         |> Seq.readonly 
         |> Seq.toArray
+
+    member this.FreeMemoryRegion(address: UInt64) =
+        _va.Remove(this.GetMemoryRegion(address).BaseAddress)        
+
+    member this.AllocateMemory(size: Int32, protection: MemoryProtection) =
+        let baseAddress =
+            this.GetMemoryMap()
+            |> Seq.pairwise
+            |> Seq.tryFind(fun (m1, m2) ->
+                m2.BaseAddress - m1.BaseAddress + uint64 m1.Content.Length > uint64 size
+            )
+            |> function
+                | Some (m1, _) -> 
+                    m1.BaseAddress + uint64 m1.Content.Length
+                | None -> 
+                    let lastRegion = this.GetMemoryMap() |> Array.last
+                    lastRegion.BaseAddress + uint64 lastRegion.Content.Length
+
+        // create the memory region
+        createMemoryRegion(baseAddress, size, protection)
+        |> this.AddMemoryRegion
+
+        baseAddress

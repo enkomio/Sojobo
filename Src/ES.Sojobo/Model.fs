@@ -33,6 +33,9 @@ module Model =
 
     let createInt32(value: Int32) =
         createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofInt32 value 32<rt>)
+
+    let createUInt32(value: UInt32) =
+        createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofUInt32 value 32<rt>)
         
     [<Flags>]
     type MemoryProtection =

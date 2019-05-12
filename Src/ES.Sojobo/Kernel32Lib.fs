@@ -46,11 +46,51 @@ module Kernel32 =
     }
 
     let virtualAlloc(sandbox: ISandbox, lpAddress: UInt32, dwSize: UInt32, flAllocationType: UInt32, flProtect: UInt32) = 
-        // TODO: when creating the region correctly set the protection
-        let runningProc = sandbox.GetRunningProcess()
-        let allocatedAddress = 123
+        let memoryManager = sandbox.GetRunningProcess().Memory        
+        let mutable protection: MemoryProtection option = None
+       
+        // check execute
+        if 
+            flProtect &&& 0x10ul <> 0ul || 
+            flProtect &&& 0x20ul <> 0ul || 
+            flProtect &&& 0x40ul <> 0ul ||
+            flProtect &&& 0x80ul <> 0ul
+        then   
+            protection <-
+                match protection with
+                | Some p -> p ||| MemoryProtection.Execute
+                | None -> MemoryProtection.Execute
+                |> Some
+
+        // check write
+        if 
+            flProtect &&& 0x04ul <> 0ul || 
+            flProtect &&& 0x08ul <> 0ul || 
+            flProtect &&& 0x40ul <> 0ul ||
+            flProtect &&& 0x80ul <> 0ul
+        then   
+            protection <-
+                match protection with
+                | Some p -> p ||| MemoryProtection.Write
+                | None -> MemoryProtection.Write
+                |> Some
+
+        // check read
+        if 
+            flProtect &&& 0x20ul <> 0ul || 
+            flProtect &&& 0x40ul <> 0ul ||
+            flProtect &&& 0x02ul <> 0ul ||
+            flProtect &&& 0x04ul <> 0ul
+        then   
+            protection <-
+                match protection with
+                | Some p -> p ||| MemoryProtection.Read
+                | None -> MemoryProtection.Read
+                |> Some
         
+        let baseAddress = memoryManager.AllocateMemory(int32 dwSize, Option.defaultValue MemoryProtection.Read protection)
+
         {
-            ReturnValue = Some <| createInt32(allocatedAddress).Value
+            ReturnValue = Some <| createUInt32(uint32 baseAddress).Value
             Convention = CallingConvention.Cdecl
         }
