@@ -7,6 +7,7 @@ open B2R2.FrontEnd
 open B2R2.BinFile
 
 module Model =
+
     type EmulatedType =
         | Bit
         | Byte
@@ -51,6 +52,12 @@ module Model =
         Type: String
         Info: String
     }
+
+    type MemoryAccessOperation =
+        | Read of UInt64
+        | Write of UInt64
+        | Allocate of MemoryRegion
+        | Free of MemoryRegion
 
     let internal createMemoryRegion(baseAddr: UInt64, size: Int32, protection: MemoryProtection) = 
         let content = Array.zeroCreate<Byte>(size)

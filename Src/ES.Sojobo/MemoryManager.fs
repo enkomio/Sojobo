@@ -7,9 +7,13 @@ open B2R2.FrontEnd
 
 type MemoryManager() =
     let _va = new Dictionary<UInt64, MemoryRegion>() 
+    let _memoryAccessEvent = new Event<MemoryAccessOperation>()
+
+    member this.MemoryAccess = _memoryAccessEvent.Publish   
     
     member this.ReadMemory(address: UInt64, size: Int32) =
         // TODO: add check on memory protection
+        _memoryAccessEvent.Trigger(MemoryAccessOperation.Read address)
         let memRegion = this.GetMemoryRegion(address)
         BinHandler.ReadBytes(memRegion.Handler, address, size)
 
@@ -23,6 +27,7 @@ type MemoryManager() =
         Array.Copy(value, 0, region.Handler.FileInfo.BinReader.Bytes, offset, value.Length)
 
     member this.WriteMemory(address: UInt64, value: Byte array) =
+        _memoryAccessEvent.Trigger(MemoryAccessOperation.Write address)
         this.UnsafeWriteMemory(address, value, true)
 
     member this.GetMemoryRegion(address: UInt64) =
@@ -42,8 +47,10 @@ type MemoryManager() =
         |> Seq.readonly 
         |> Seq.toArray
 
-    member this.FreeMemoryRegion(address: UInt64) =
-        _va.Remove(this.GetMemoryRegion(address).BaseAddress)        
+    member this.FreeMemoryRegion(address: UInt64) =        
+        let region = this.GetMemoryRegion(address)
+        _memoryAccessEvent.Trigger(MemoryAccessOperation.Free region)
+        _va.Remove(region.BaseAddress)        
 
     member this.AllocateMemory(size: Int32, protection: MemoryProtection) =
         let baseAddress =
@@ -60,7 +67,8 @@ type MemoryManager() =
                     lastRegion.BaseAddress + uint64 lastRegion.Content.Length
 
         // create the memory region
-        createMemoryRegion(baseAddress, size, protection)
-        |> this.AddMemoryRegion
+        let region = createMemoryRegion(baseAddress, size, protection)
+        _memoryAccessEvent.Trigger(MemoryAccessOperation.Allocate region)
+        this.AddMemoryRegion(region)
 
         baseAddress
