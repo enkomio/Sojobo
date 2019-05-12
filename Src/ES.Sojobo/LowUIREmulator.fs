@@ -143,7 +143,7 @@ module LowUIREmulator =
                 {emulateExpr baseProcess destination with
                     Value = sourceValue.Value
                 }
-            baseProcess.SetVariable(destinationValue)
+            baseProcess.SetRegister(destinationValue)
 
         | Store (_, destination, source) ->
             let baseProcess = sandbox.GetRunningProcess() :?> BaseProcessContainer
@@ -164,7 +164,7 @@ module LowUIREmulator =
                 {emulateExpr baseProcess programCounterExpr with
                     Value = destAddr.Value
                 }
-            baseProcess.SetVariable(programCounter)
+            baseProcess.SetRegister(programCounter)
 
         | InterCJmp (conditionExpr, currentProgramCounter, trueDestAddrExpr, falseDesAddrExpr) ->
             let baseProcess = sandbox.GetRunningProcess() :?> BaseProcessContainer
@@ -175,7 +175,7 @@ module LowUIREmulator =
                     then (emulateExpr baseProcess trueDestAddrExpr).Value
                     else (emulateExpr baseProcess falseDesAddrExpr).Value
             }
-            |> baseProcess.SetVariable
+            |> baseProcess.SetRegister
         (*
         | LMark of Symbol
         | Jmp of Expr

@@ -103,7 +103,7 @@ type Win32Sandbox() as this =
         )
 
     let getArgument(proc: IProcessContainer, position: Int32) =
-        let ebp = proc.GetVariable("EBP").Value |> BitVector.toUInt32
+        let ebp = proc.GetRegister("EBP").Value |> BitVector.toUInt32
         let address = ebp + uint32 (position + 2) * 4ul
         let buffer = proc.Memory.ReadMemory(uint64 address, sizeof<UInt32>)
         let varName = Utility.getTempName(string position, EmulatedType.DoubleWord)        
@@ -123,7 +123,7 @@ type Win32Sandbox() as this =
         callbackResult.ReturnValue
         |> Option.iter(fun retValue ->
             let eax = createVariableWithValue("EAX", EmulatedType.DoubleWord, retValue)
-            baseProcess.SetVariable(eax)
+            baseProcess.SetRegister(eax)
         )
 
     let invokeLibraryFunction(sandbox: ISandbox, baseProcess: BaseProcessContainer) =

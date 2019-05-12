@@ -204,10 +204,10 @@ type Win32ProcessContainer() as this =
     default this.Step = _stepEvent.Publish   
     default this.Memory = _memoryManager
 
-    default this.GetVariable(name: String) =
+    default this.GetRegister(name: String) =
         this.Variables.[name]
 
-    default this.SetVariable(value: EmulatedValue) =
+    default this.SetRegister(value: EmulatedValue) =
         if value.IsTemp
         then this.TempVariables.[value.Name] <- value
         else this.Variables.[value.Name] <- value
@@ -246,7 +246,7 @@ type Win32ProcessContainer() as this =
         this.Variables.["EIP"]  
 
     default this.GetCallStack() = [|
-        let mutable ebp = this.GetVariable("EBP").Value |> BitVector.toUInt32
+        let mutable ebp = this.GetRegister("EBP").Value |> BitVector.toUInt32
         let mutable retValue = BitConverter.ToUInt32(this.Memory.ReadMemory(ebp + 4ul |> uint64, 4) , 0)
         while retValue <> 0ul do
             yield uint64 retValue

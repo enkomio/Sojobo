@@ -32,8 +32,8 @@ type BaseProcessContainer() =
         this.TempVariables.Clear()
 
     abstract GetProgramCounter: unit -> EmulatedValue
-    abstract SetVariable: EmulatedValue -> unit
-    abstract GetVariable: name: String -> EmulatedValue    
+    abstract SetRegister: EmulatedValue -> unit
+    abstract GetRegister: name: String -> EmulatedValue    
     abstract GetActiveMemoryRegion: unit -> MemoryRegion    
     abstract GetImportedFunctions: unit -> Symbol seq
     abstract GetInstruction: unit -> Instruction    
@@ -56,11 +56,11 @@ type BaseProcessContainer() =
         member this.GetInstruction() =
             this.GetInstruction()
 
-        member this.GetVariable(name: String) =
-            this.GetVariable(name)
+        member this.GetRegister(name: String) =
+            this.GetRegister(name)
 
-        member this.SetVariable(value: EmulatedValue) =
-            this.SetVariable(value)
+        member this.SetRegister(value: EmulatedValue) =
+            this.SetRegister(value)
 
         member this.GetCallStack() =
             this.GetCallStack()
