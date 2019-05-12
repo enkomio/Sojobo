@@ -9,7 +9,18 @@ open B2R2.FrontEnd.Intel
 open B2R2.BinIR
 
 module LowUIREmulator =
-    let rec emulateExpr(baseProcess: BaseProcessContainer) (expr: Expr) =
+    let rec emulateConditionalJump(sandbox: ISandbox, conditionExpr: Expr, trueDestAddrExpr: Expr, falseDesAddrExpr: Expr) =
+        let baseProcess = sandbox.GetRunningProcess() :?> BaseProcessContainer
+        let conditionValue = emulateExpr baseProcess conditionExpr
+        {baseProcess.GetProgramCounter() with
+            Value =
+                if BitVector.isTrue conditionValue.Value
+                then (emulateExpr baseProcess trueDestAddrExpr).Value
+                else (emulateExpr baseProcess falseDesAddrExpr).Value
+        }
+        |> baseProcess.SetRegister
+
+    and  emulateExpr(baseProcess: BaseProcessContainer) (expr: Expr) =
         match expr with
         | TempVar (regType, index) ->
             baseProcess.GetOrCreateTemporaryVariable(string index, Utility.getType(regType))
@@ -167,23 +178,20 @@ module LowUIREmulator =
             baseProcess.SetRegister(programCounter)
 
         | InterCJmp (conditionExpr, currentProgramCounter, trueDestAddrExpr, falseDesAddrExpr) ->
-            let baseProcess = sandbox.GetRunningProcess() :?> BaseProcessContainer
-            let conditionValue = emulateExpr baseProcess conditionExpr
-            {baseProcess.GetProgramCounter() with
-                Value =
-                    if BitVector.isTrue conditionValue.Value
-                    then (emulateExpr baseProcess trueDestAddrExpr).Value
-                    else (emulateExpr baseProcess falseDesAddrExpr).Value
-            }
-            |> baseProcess.SetRegister
+            emulateConditionalJump(sandbox, conditionExpr, trueDestAddrExpr, falseDesAddrExpr)
+            
+        | SideEffect sideEffect ->
+            sandbox.TriggerSideEffect(sideEffect)
+        
+        | CJmp(conditionExpr, trueDestAddrExpr, falseDesAddrExpr) ->
+            emulateConditionalJump(sandbox, conditionExpr, trueDestAddrExpr, falseDesAddrExpr)
+
         (*
         | LMark of Symbol
         | Jmp of Expr
-        | CJmp of Expr * Expr * Expr                
+        
         *)
-        | SideEffect sideEffect ->
-            sandbox.TriggerSideEffect(sideEffect)
-            
+
         | _ -> failwith("Statement not yet emulated: " + stmt.ToString())
 
     and emulateBlock(sandbox: BaseSandbox) (stmts: Stmt array) =
