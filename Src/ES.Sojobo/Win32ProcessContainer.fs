@@ -243,14 +243,7 @@ type Win32ProcessContainer() as this =
         instruction
 
     default this.GetProgramCounter() =
-        this.Variables.["EIP"]     
-
-    default this.GetArgument(position: Int32) =
-        let ebp = this.GetVariable("EBP", EmulatedType.DoubleWord).Value |> BitVector.toUInt32
-        let address = ebp + uint32 (position + 2) * 4ul
-        let buffer = this.Memory.ReadMemory(uint64 address, sizeof<UInt32>)
-        let varName = this.GetTempName(string position, EmulatedType.DoubleWord)        
-        {createVariable(varName, EmulatedType.DoubleWord) with Value = BitVector.ofArr(buffer)}
+        this.Variables.["EIP"]  
 
     default this.GetCallStack() = [|
         let mutable ebp = this.GetVariable("EBP").Value |> BitVector.toUInt32

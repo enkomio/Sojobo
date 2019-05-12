@@ -59,3 +59,7 @@ module Utility =
         let instruction = processContainer.GetInstruction()
         BinHandler.LiftInstr handler instruction
         |> Array.map(LowUIR.Pp.stmtToString)
+
+    let getTempName(index: String, emuType: EmulatedType) =
+        let size =  getSize(emuType)
+        String.Format("T_{0}:{1}", index, size)   

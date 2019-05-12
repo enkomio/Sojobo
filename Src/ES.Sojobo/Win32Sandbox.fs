@@ -102,11 +102,18 @@ type Win32Sandbox() as this =
             _libraryFunctions.[keyName] <- m
         )
 
+    let getArgument(proc: IProcessContainer, position: Int32) =
+        let ebp = proc.GetVariable("EBP").Value |> BitVector.toUInt32
+        let address = ebp + uint32 (position + 2) * 4ul
+        let buffer = proc.Memory.ReadMemory(uint64 address, sizeof<UInt32>)
+        let varName = Utility.getTempName(string position, EmulatedType.DoubleWord)        
+        {createVariable(varName, EmulatedType.DoubleWord) with Value = BitVector.ofArr(buffer)}
+
     let getArguments(baseProcess: BaseProcessContainer, mi: MethodInfo) =
         mi.GetParameters()
         |> Array.skip 1
         |> Array.mapi(fun i p ->
-            let argi = baseProcess.GetArgument(i)
+            let argi = getArgument(baseProcess, i)
             if p.ParameterType = typeof<UInt32>
             then BitVector.toUInt32 argi.Value :> Object
             else BitVector.toInt32 argi.Value :> Object

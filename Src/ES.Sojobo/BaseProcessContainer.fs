@@ -12,12 +12,8 @@ type BaseProcessContainer() =
     member val internal Variables = new Dictionary<String, EmulatedValue>() with get
     member val internal TempVariables = new Dictionary<String, EmulatedValue>() with get
 
-    member internal this.GetTempName(index: String, emuType: EmulatedType) =
-        let size =  Utility.getSize(emuType)
-        String.Format("T_{0}:{1}", index, size)   
-
     member internal this.GetOrCreateTemporaryVariable(index: String, emuType: EmulatedType) =
-        let name = this.GetTempName(index, emuType)
+        let name = Utility.getTempName(index, emuType)
         match this.TempVariables.TryGetValue(name) with
         | (true, value) -> value
         | _ -> 
@@ -29,14 +25,13 @@ type BaseProcessContainer() =
         match this.Variables.TryGetValue(name) with
         | (true, value) -> value
         | _ ->
-            let name = this.GetTempName(name, emuType)
+            let name = Utility.getTempName(name, emuType)
             this.TempVariables.[name]
 
     member internal this.ClearTemporaryVariables() =
         this.TempVariables.Clear()
 
     abstract GetProgramCounter: unit -> EmulatedValue
-    abstract GetArgument: position: Int32 -> EmulatedValue
     abstract SetVariable: EmulatedValue -> unit
     abstract GetVariable: name: String -> EmulatedValue    
     abstract GetActiveMemoryRegion: unit -> MemoryRegion    
@@ -57,9 +52,6 @@ type BaseProcessContainer() =
 
         member this.GetImportedFunctions() =
             this.GetImportedFunctions()
-
-        member this.GetArgument(position: Int32) =
-            this.GetArgument(position)
 
         member this.GetInstruction() =
             this.GetInstruction()
