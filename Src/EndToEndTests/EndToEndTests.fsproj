@@ -78,6 +78,11 @@
       <Project>{993ea649-3fa2-4f27-abbd-2ef650b9f4c8}</Project>
       <Private>True</Private>
     </ProjectReference>
+    <ProjectReference Include="..\ThirdPart\B2R2\src\BinIR\B2R2.BinIR.fsproj">
+      <Name>B2R2.BinIR</Name>
+      <Project>{3b620c49-b570-4a68-bfbe-44f1ff2c03f6}</Project>
+      <Private>True</Private>
+    </ProjectReference>
   </ItemGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

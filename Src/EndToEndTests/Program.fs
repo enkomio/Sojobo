@@ -7,11 +7,25 @@ open ES.Sojobo
 open ES.Sojobo.Model
 
 module Program =
-
+    let mutable print = false
     let step(activeProcess: IProcessContainer) =
-        let text = Utility.formatCurrentInstruction(activeProcess)
-        Console.WriteLine(text)
+        let ip = activeProcess.GetProgramCounter().Value |> BitVector.toInt32
+        if ip = 0x40144a then            
+            //print <- true
+            ()
 
+        let text = Utility.formatCurrentInstruction(activeProcess)
+        Console.WriteLine(text)       
+
+        if print then
+            Console.WriteLine("Register before execution")
+            Console.WriteLine("EAX=" + activeProcess.GetVariable("EAX").Value.ToString())
+            Console.WriteLine("ECX=" + activeProcess.GetVariable("ECX").Value.ToString())
+            Console.WriteLine("EDX=" + activeProcess.GetVariable("EDX").Value.ToString())
+            Console.WriteLine("ESI=" + activeProcess.GetVariable("ESI").Value.ToString())
+            Console.WriteLine("EDI=" + activeProcess.GetVariable("EDI").Value.ToString())
+            Console.ReadKey() |> ignore
+            
         let printUI = false
         if printUI then
             Utility.formatCurrentInstructionIR(activeProcess)
@@ -21,27 +35,10 @@ module Program =
     let main argv =
         let sandbox = new Win32Sandbox()   
         
-        (*
-        TODO implementare la logica con Lib (Kernel32Lib).
-        Implementare un metodo che permetta di sovrascrivere le funzioni (eg. AddAssembly resolver)
-        Da mettere in sandbox class
-        Return deve pulire lo stack a seconda del tipo di chiamata (info da mettere nel risultato)
-        *)
-
-        (*
-        sandbox.AddCallback("GetSystemTimeAsFileTime", "KERNEL32.dll", new Action<IProcessContainer>(getSystemTimeAsFileTime))
-        sandbox.AddCallback("GetCurrentThreadId", "KERNEL32.dll", new Action<IProcessContainer>(getCurrentThreadId))
-        sandbox.AddCallback("GetCurrentProcessId", "KERNEL32.dll", new Action<IProcessContainer>(getCurrentProcessId))
-        sandbox.AddCallback("QueryPerformanceCounter", "KERNEL32.dll", new Action<IProcessContainer>(queryPerformanceCounter))
-        sandbox.AddCallback("IsProcessorFeaturePresent", "KERNEL32.dll", new Action<IProcessContainer>(isProcessorFeaturePresent))
-
-        sandbox.AddCallback("memset", "VCRUNTIME140.dll", new Action<IProcessContainer>(memset))
-          *)
-          
-        let unShellcodeWithVirtualAlloc = Path.Combine("..", "..", "..", "Release", "RunShellcodeWithVirtualAlloc.exe")
+        let runShellcodeWithVirtualAlloc = Path.Combine("..", "..", "..", "Release", "RunShellcodeWithVirtualAlloc.exe")
         
         // create and run the process
-        sandbox.Create(unShellcodeWithVirtualAlloc)
+        sandbox.Load(runShellcodeWithVirtualAlloc)
         let proc = sandbox.GetRunningProcess()
         
         // print imported function
