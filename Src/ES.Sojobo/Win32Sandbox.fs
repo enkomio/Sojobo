@@ -154,20 +154,7 @@ type Win32Sandbox() as this =
         setResult(baseProcess, libraryFunctionResult)
         executeStackFrameCleanup(baseProcess)
         executeReturn(baseProcess, libraryFunction, libraryFunctionResult)
-
-    let emulateInstructionWithLoop(win32Process: Win32ProcessContainer, programCounter: UInt64) =
-        // emulate instruction
-        let instruction = win32Process.ReadNextInstruction()
-        let handler = win32Process.GetActiveMemoryRegion().Handler
-
-        // the following loop is due to how repX instructions are lifted
-        // For more info see: https://github.com/B2R2-org/B2R2/issues/15
-        let mutable isDifferent = false
-        while not isDifferent do
-            emulateInstruction(handler, instruction, win32Process)
-            let currentProgramCounter = win32Process.GetProgramCounter().Value |> BitVector.toUInt64
-            isDifferent <- currentProgramCounter <> programCounter
-
+        
     default this.Run() =            
         let win32Process = _currentProcess.Value
         let activeRegion = win32Process.GetActiveMemoryRegion()
@@ -186,7 +173,10 @@ type Win32Sandbox() as this =
             if programCounter |> this.Callbacks.ContainsKey then
                 invokeLibraryFunction(this, win32Process)
             else                    
-                emulateInstructionWithLoop(win32Process, programCounter)
+                // emulate instruction
+                let instruction = win32Process.ReadNextInstruction()
+                let handler = win32Process.GetActiveMemoryRegion().Handler
+                emulateInstruction(handler, instruction, win32Process)
 
                 // check ending condition
                 _stopExecution <- 
