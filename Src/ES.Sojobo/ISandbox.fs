@@ -3,6 +3,8 @@
 open System
 open B2R2.BinIR
 
+exception UnhandledFunction of string
+
 type ISandbox =
     interface 
         abstract Load: String -> unit

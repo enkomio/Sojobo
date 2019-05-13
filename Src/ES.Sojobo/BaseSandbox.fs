@@ -12,6 +12,9 @@ open B2R2.BinIR
 [<AbstractClass>]
 type BaseSandbox() =
     let _sideEffectEvent = new Event<ISandbox * SideEffect>()
+    let _assemblies = new List<Assembly>()
+    let _libraryFunctions = new Dictionary<String, MethodInfo>()
+    let _callbacks = new Dictionary<UInt64, String>()      
 
     abstract Load: String -> unit
     abstract Load: Byte array -> unit  
@@ -20,6 +23,12 @@ type BaseSandbox() =
     abstract GetRunningProcess: unit -> IProcessContainer
 
     member this.SideEffect = _sideEffectEvent.Publish
+    member internal this.Callbacks = _callbacks
+    member internal this.LibraryFunctions = _libraryFunctions
+    member internal this.Assemblies = _assemblies
+
+    member this.AddLibrary(assembly: Assembly) =
+        this.Assemblies.Add(assembly)
 
     member internal this.TriggerSideEffect(sideEffect: SideEffect) =
         _sideEffectEvent.Trigger(upcast this, sideEffect)

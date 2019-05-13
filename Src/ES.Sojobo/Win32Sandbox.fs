@@ -11,10 +11,7 @@ open B2R2.BinIR
 
 type Win32Sandbox() as this =
     inherit BaseSandbox()
-
-    let _assemblies = new List<Assembly>()
-    let _libraryFunctions = new Dictionary<String, MethodInfo>()
-    let _callbacks = new Dictionary<UInt64, String>()       
+     
     let mutable _stopExecution = false
     let mutable _currentProcess: Win32ProcessContainer option = None
 
@@ -22,14 +19,31 @@ type Win32Sandbox() as this =
         let keyName = String.Format("{0}::{1}", libraryName, functioName).ToLower()
         keyName.Replace(".dll", String.Empty)
 
+    static let notRegisteredFunction(sandbox: ISandbox) =
+        let programCounter = sandbox.GetRunningProcess().GetProgramCounter().Value |> BitVector.toUInt32
+        let keyName = (sandbox :?> BaseSandbox).Callbacks.[uint64 programCounter]
+        raise (UnhandledFunction keyName) |> ignore
+
     let mapImportedFunctions(win32Process: Win32ProcessContainer) =
+        let iatRegionBaseAddress = win32Process.Memory.AllocateMemory((win32Process.GetImportedFunctions() |> Seq.length) * 4, MemoryProtection.Read)
+        let iatRegion = win32Process.Memory.GetMemoryRegion(iatRegionBaseAddress)
+        win32Process.Memory.UpdateMemoryRegion(iatRegion.BaseAddress, {iatRegion with Info = "IAT"})
+
         win32Process.GetImportedFunctions()
-        |> Seq.iter(fun symbol ->
+        |> Seq.iteri(fun index symbol ->
+            // obtains function offset
             let keyName = getFunctionKeyName(symbol.Name, symbol.LibraryName)
-            if _libraryFunctions.ContainsKey(keyName) then
-                _callbacks.[symbol.Address] <- keyName
-                let addressBytes = uint32 symbol.Address |> BitConverter.GetBytes
-                win32Process.Memory.UnsafeWriteMemory(symbol.Address, addressBytes, false)
+            let offset = iatRegion.BaseAddress + uint64 (index * 4)
+            this.Callbacks.[offset] <- keyName
+
+            // write the function address
+            let addressBytes = uint32 offset |> BitConverter.GetBytes
+            win32Process.Memory.UnsafeWriteMemory(symbol.Address, addressBytes, false)  
+
+            // map unhandled function if necessary
+            if this.LibraryFunctions.ContainsKey(keyName) |> not then                
+                let methodInfo = this.GetType().GetMethod("notRegisteredFunction", BindingFlags.NonPublic ||| BindingFlags.Static)
+                this.LibraryFunctions.[keyName] <- methodInfo
         )
 
     let emulateInstruction(handler: BinHandler, instruction: Instruction, baseProcess: BaseProcessContainer) =
@@ -99,7 +113,7 @@ type Win32Sandbox() as this =
         )
         |> Seq.iter(fun m ->
             let keyName = getFunctionKeyName(m.Name, m.DeclaringType.Name)
-            _libraryFunctions.[keyName] <- m
+            this.LibraryFunctions.[keyName] <- m
         )
 
     let getArgument(proc: IProcessContainer, position: Int32) =
@@ -127,8 +141,8 @@ type Win32Sandbox() as this =
         )
 
     let invokeLibraryFunction(sandbox: ISandbox, baseProcess: BaseProcessContainer) =
-        let keyName = _callbacks.[baseProcess.GetProgramCounter().Value |> BitVector.toUInt64]
-        let libraryFunction = _libraryFunctions.[keyName]
+        let keyName = this.Callbacks.[baseProcess.GetProgramCounter().Value |> BitVector.toUInt64]
+        let libraryFunction = this.LibraryFunctions.[keyName]
 
         executeStackFrameSetup(baseProcess)
         let arguments = Array.concat [
@@ -141,17 +155,14 @@ type Win32Sandbox() as this =
         executeStackFrameCleanup(baseProcess)
         executeReturn(baseProcess, libraryFunction, libraryFunctionResult)
 
-    member this.AddLibrary(assembly: Assembly) =
-        _assemblies.Add(assembly)
-
     default this.Run() =            
         let win32Process = _currentProcess.Value
         let activeRegion = win32Process.GetActiveMemoryRegion()
         let endAddress = activeRegion.BaseAddress + uint64 activeRegion.Content.Length
         
-        // prepare for execution
+        // prepare for execution        
         resolveLibraryFunctions([Assembly.GetExecutingAssembly()])
-        resolveLibraryFunctions(_assemblies)
+        resolveLibraryFunctions(this.Assemblies)        
         mapImportedFunctions(win32Process)
                         
         // start execution loop
@@ -159,7 +170,7 @@ type Win32Sandbox() as this =
         while not _stopExecution do
             // check if called an emulated function
             let programCounter = win32Process.GetProgramCounter().Value |> BitVector.toUInt64
-            if programCounter |> _callbacks.ContainsKey then
+            if programCounter |> this.Callbacks.ContainsKey then
                 invokeLibraryFunction(this, win32Process)
             else                    
                 let instruction = win32Process.ReadNextInstruction()

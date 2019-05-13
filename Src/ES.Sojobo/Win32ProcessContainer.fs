@@ -229,8 +229,20 @@ type Win32ProcessContainer() as this =
         _activeRegion.Value
         
     default this.GetInstruction() =
-        let programCounter = this.GetProgramCounter()
-        BinHandler.ParseInstr (this.GetActiveMemoryRegion().Handler) (programCounter.Value |> BitVector.toUInt64)
+        let programCounter = this.GetProgramCounter().Value |> BitVector.toUInt64
+        BinHandler.ParseInstr (this.GetActiveMemoryRegion().Handler) (programCounter)
+        (*
+        try            
+            
+        with _ ->
+            // maybe is another region?
+            let programCounterRegion = this.Memory.GetMemoryRegion(programCounter)
+            if programCounterRegion <> this.GetActiveMemoryRegion() then
+                _activeRegion <- Some programCounterRegion
+                BinHandler.ParseInstr (this.GetActiveMemoryRegion().Handler) (programCounter)
+            else
+                reraise()
+                *)
 
     member this.ReadNextInstruction() =      
         _stepEvent.Trigger(this)

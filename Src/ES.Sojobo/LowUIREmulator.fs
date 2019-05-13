@@ -136,7 +136,10 @@ module LowUIREmulator =
             then emulateExpr baseProcess trueExpression
             else emulateExpr baseProcess falseExpression
 
-        // | Name of Symbol
+        | Name(symbol) ->
+            createVariable(String.Empty, EmulatedType.DoubleWord)
+
+
         // | FuncName of string  
         | _ -> failwith("Expression not yet emulated: " + expr.ToString())
 
@@ -186,8 +189,9 @@ module LowUIREmulator =
         | CJmp(conditionExpr, trueDestAddrExpr, falseDesAddrExpr) ->
             emulateConditionalJump(sandbox, conditionExpr, trueDestAddrExpr, falseDesAddrExpr)
 
-        (*
-        | LMark of Symbol
+        | LMark(symbol) ->
+            ()
+        (*        
         | Jmp of Expr
         
         *)
