@@ -1,6 +1,7 @@
 ﻿namespace ES.Sojobo
 
 open System
+open System.Collections.Generic
 open B2R2
 open B2R2.FrontEnd
 open B2R2.BinIR.LowUIR
@@ -9,18 +10,24 @@ open B2R2.FrontEnd.Intel
 open B2R2.BinIR
 
 module LowUIREmulator =
-    let rec emulateConditionalJump(sandbox: ISandbox, conditionExpr: Expr, trueDestAddrExpr: Expr, falseDesAddrExpr: Expr) =
-        let baseProcess = sandbox.GetRunningProcess() :?> BaseProcessContainer
-        let conditionValue = emulateExpr baseProcess conditionExpr
-        {baseProcess.GetProgramCounter() with
-            Value =
-                if BitVector.isTrue conditionValue.Value
-                then (emulateExpr baseProcess trueDestAddrExpr).Value
-                else (emulateExpr baseProcess falseDesAddrExpr).Value
-        }
-        |> baseProcess.SetRegister
+    let private extractBlocks(stmts: Stmt array) =
+        let blocks = new Dictionary<String, List<Stmt>>()
+        let mutable curList = new List<Stmt>()
+        blocks.[String.Empty] <- curList
 
-    and  emulateExpr(baseProcess: BaseProcessContainer) (expr: Expr) =
+        // identify labels
+        stmts
+        |> Array.iter(fun stmt ->
+            match stmt with 
+            | LMark(name, n) ->
+                curList <- new List<Stmt>()
+                blocks.[name] <- curList
+            | _ -> curList.Add(stmt)
+        )
+
+        blocks
+
+    let rec private emulateExpr(baseProcess: BaseProcessContainer) (expr: Expr) =
         match expr with
         | TempVar (regType, index) ->
             baseProcess.GetOrCreateTemporaryVariable(string index, Utility.getType(regType))
@@ -136,14 +143,13 @@ module LowUIREmulator =
             then emulateExpr baseProcess trueExpression
             else emulateExpr baseProcess falseExpression
 
-        | Name(symbol) ->
-            createVariable(String.Empty, EmulatedType.DoubleWord)
-
+        | Name(name, n) ->
+            createVariable(name, EmulatedType.DoubleWord)
 
         // | FuncName of string  
         | _ -> failwith("Expression not yet emulated: " + expr.ToString())
 
-    and emulateStmt(sandbox: BaseSandbox) (stmt: Stmt) =
+    and private emulateStmt(sandbox: BaseSandbox) (blocks: Dictionary<String, List<Stmt>>) (stmt: Stmt) =
         match stmt with
         | ISMark _ -> ()
         | IEMark _ ->
@@ -179,17 +185,43 @@ module LowUIREmulator =
                     Value = destAddr.Value
                 }
             baseProcess.SetRegister(programCounter)
+            
+            // update the active memory region
+            let destMemRegion = baseProcess.Memory.GetMemoryRegion(programCounter.Value |> BitVector.toUInt64)
+            baseProcess.UpdateActiveMemoryRegion(destMemRegion)
 
         | InterCJmp (conditionExpr, currentProgramCounter, trueDestAddrExpr, falseDesAddrExpr) ->
-            emulateConditionalJump(sandbox, conditionExpr, trueDestAddrExpr, falseDesAddrExpr)
+            let baseProcess = sandbox.GetRunningProcess() :?> BaseProcessContainer
+            let conditionValue = emulateExpr baseProcess conditionExpr
+            {baseProcess.GetProgramCounter() with
+                Value =
+                    if BitVector.isTrue conditionValue.Value
+                    then (emulateExpr baseProcess trueDestAddrExpr).Value
+                    else (emulateExpr baseProcess falseDesAddrExpr).Value
+            }
+            |> baseProcess.SetRegister
+
+            // update the active memory region
+            let destMemRegion = baseProcess.Memory.GetMemoryRegion(baseProcess.GetProgramCounter().Value |> BitVector.toUInt64)
+            baseProcess.UpdateActiveMemoryRegion(destMemRegion)
             
         | SideEffect sideEffect ->
             sandbox.TriggerSideEffect(sideEffect)
         
         | CJmp(conditionExpr, trueDestAddrExpr, falseDesAddrExpr) ->
-            emulateConditionalJump(sandbox, conditionExpr, trueDestAddrExpr, falseDesAddrExpr)
+            let baseProcess = sandbox.GetRunningProcess() :?> BaseProcessContainer
+            let conditionValue = emulateExpr baseProcess conditionExpr
+            let label =
+                if BitVector.isTrue conditionValue.Value 
+                then (emulateExpr baseProcess trueDestAddrExpr).Name
+                else (emulateExpr baseProcess falseDesAddrExpr).Name
+                
+            // emulate the statements
+            blocks.[label] 
+            |> Seq.iter(emulateStmt sandbox blocks)
 
-        | LMark(symbol) ->
+        | LMark(_) ->
+            // this statement was already considered by extractBlocks
             ()
         (*        
         | Jmp of Expr
@@ -199,4 +231,8 @@ module LowUIREmulator =
         | _ -> failwith("Statement not yet emulated: " + stmt.ToString())
 
     and emulateBlock(sandbox: BaseSandbox) (stmts: Stmt array) =
-        stmts |> Array.iter(emulateStmt sandbox)
+        let blocks = extractBlocks(stmts)
+        
+        blocks.[String.Empty] 
+        |> Seq.toArray
+        |> Array.iter(emulateStmt sandbox blocks)

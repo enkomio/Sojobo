@@ -8,9 +8,14 @@ open B2R2.FrontEnd
 open B2R2.BinFile
 
 [<AbstractClass>]
-type BaseProcessContainer() =    
+type BaseProcessContainer() =
+    let mutable _activeRegion: MemoryRegion option = None
+
     member val internal Variables = new Dictionary<String, EmulatedValue>() with get
     member val internal TempVariables = new Dictionary<String, EmulatedValue>() with get
+
+    member internal this.UpdateActiveMemoryRegion(memRegion: MemoryRegion) =
+        _activeRegion <- Some memRegion
 
     member internal this.GetOrCreateTemporaryVariable(index: String, emuType: EmulatedType) =
         let name = Utility.getTempName(index, emuType)
@@ -31,15 +36,16 @@ type BaseProcessContainer() =
     member internal this.ClearTemporaryVariables() =
         this.TempVariables.Clear()
 
+    member this.GetActiveMemoryRegion() =
+        _activeRegion.Value
+
     abstract GetProgramCounter: unit -> EmulatedValue
     abstract SetRegister: EmulatedValue -> unit
     abstract GetRegister: name: String -> EmulatedValue    
-    abstract GetActiveMemoryRegion: unit -> MemoryRegion    
     abstract GetImportedFunctions: unit -> Symbol seq
     abstract GetInstruction: unit -> Instruction    
     abstract GetCallStack: unit -> UInt64 array
-    abstract GetPointerSize: unit -> Int32
-    
+    abstract GetPointerSize: unit -> Int32    
     abstract Step: IEvent<IProcessContainer> with get
     abstract Memory: MemoryManager with get
     

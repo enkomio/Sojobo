@@ -17,13 +17,10 @@ type Win32ProcessContainer() as this =
 
     let _memoryManager = new MemoryManager()
     let _iat = new List<Symbol>()
-    let _stepEvent = new Event<IProcessContainer>()
-    let mutable _activeRegion: MemoryRegion option = None    
+    let _stepEvent = new Event<IProcessContainer>()       
     
     let setEntryPoint(handler: BinHandler) =
-        _activeRegion <- 
-            _memoryManager.GetMemoryRegion(handler.FileInfo.EntryPoint)
-            |> Some
+        this.UpdateActiveMemoryRegion(_memoryManager.GetMemoryRegion(handler.FileInfo.EntryPoint))
 
         // save the EIP registry value
         let eip = string Register.EIP
@@ -223,26 +220,11 @@ type Win32ProcessContainer() as this =
         initialize(handler)
 
     default this.GetImportedFunctions() =
-        _iat |> Seq.readonly
-
-    default this.GetActiveMemoryRegion() =
-        _activeRegion.Value
+        _iat |> Seq.readonly    
         
     default this.GetInstruction() =
         let programCounter = this.GetProgramCounter().Value |> BitVector.toUInt64
         BinHandler.ParseInstr (this.GetActiveMemoryRegion().Handler) (programCounter)
-        (*
-        try            
-            
-        with _ ->
-            // maybe is another region?
-            let programCounterRegion = this.Memory.GetMemoryRegion(programCounter)
-            if programCounterRegion <> this.GetActiveMemoryRegion() then
-                _activeRegion <- Some programCounterRegion
-                BinHandler.ParseInstr (this.GetActiveMemoryRegion().Handler) (programCounter)
-            else
-                reraise()
-                *)
 
     member this.ReadNextInstruction() =      
         _stepEvent.Trigger(this)

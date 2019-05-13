@@ -60,7 +60,8 @@ type MemoryManager() =
             this.GetMemoryMap()
             |> Seq.pairwise
             |> Seq.tryFind(fun (m1, m2) ->
-                m2.BaseAddress - m1.BaseAddress + uint64 m1.Content.Length > uint64 size
+                let availableSize = m2.BaseAddress - (m1.BaseAddress + uint64 m1.Content.Length)
+                availableSize > uint64 size
             )
             |> function
                 | Some (m1, _) -> 

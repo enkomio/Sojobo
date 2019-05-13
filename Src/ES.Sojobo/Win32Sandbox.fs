@@ -51,7 +51,7 @@ type Win32Sandbox() as this =
             BinHandler.LiftInstr handler instruction
             |> BinHandler.Optimize
         LowUIREmulator.emulateBlock this block
-
+            
     let emulateBufferInstruction(baseProcess: BaseProcessContainer, buffer: Byte array) =
         // compose instruction
         let handler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
@@ -155,6 +155,19 @@ type Win32Sandbox() as this =
         executeStackFrameCleanup(baseProcess)
         executeReturn(baseProcess, libraryFunction, libraryFunctionResult)
 
+    let emulateInstructionWithLoop(win32Process: Win32ProcessContainer, programCounter: UInt64) =
+        // emulate instruction
+        let instruction = win32Process.ReadNextInstruction()
+        let handler = win32Process.GetActiveMemoryRegion().Handler
+
+        // the following loop is due to how repX instructions are lifted
+        // For more info see: https://github.com/B2R2-org/B2R2/issues/15
+        let mutable isDifferent = false
+        while not isDifferent do
+            emulateInstruction(handler, instruction, win32Process)
+            let currentProgramCounter = win32Process.GetProgramCounter().Value |> BitVector.toUInt64
+            isDifferent <- currentProgramCounter <> programCounter
+
     default this.Run() =            
         let win32Process = _currentProcess.Value
         let activeRegion = win32Process.GetActiveMemoryRegion()
@@ -173,12 +186,12 @@ type Win32Sandbox() as this =
             if programCounter |> this.Callbacks.ContainsKey then
                 invokeLibraryFunction(this, win32Process)
             else                    
-                let instruction = win32Process.ReadNextInstruction()
-                _stopExecution <- _stopExecution || programCounter >= endAddress
+                emulateInstructionWithLoop(win32Process, programCounter)
 
-                // emulate instruction
-                let handler = win32Process.GetActiveMemoryRegion().Handler                    
-                emulateInstruction(handler, instruction, win32Process)
+                // check ending condition
+                _stopExecution <- 
+                    _stopExecution || 
+                    win32Process.GetProgramCounter().Value |> BitVector.toUInt64 >= endAddress
 
     default this.Stop() =
         _stopExecution <- true
