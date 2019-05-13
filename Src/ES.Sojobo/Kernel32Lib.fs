@@ -94,3 +94,11 @@ module Kernel32 =
             ReturnValue = Some <| createUInt32(uint32 baseAddress).Value
             Convention = CallingConvention.Cdecl
         }
+
+    let virtualFree(sandbox: ISandbox, lpAddress: UInt32, dwSize: UInt32, dwFreeType: UInt32) = 
+        let memoryManager = sandbox.GetRunningProcess().Memory      
+        memoryManager.FreeMemoryRegion(uint64 lpAddress) |> ignore
+        {
+            ReturnValue = Some <| createInt32(0).Value
+            Convention = CallingConvention.Cdecl
+        }
