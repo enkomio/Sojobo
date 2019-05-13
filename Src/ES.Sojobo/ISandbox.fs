@@ -2,6 +2,7 @@
 
 open System
 open B2R2.BinIR
+open System.Reflection
 
 exception UnhandledFunction of string
 
@@ -12,5 +13,6 @@ type ISandbox =
         abstract Run: unit -> unit
         abstract Stop: unit -> unit     
         abstract GetRunningProcess: unit -> IProcessContainer
+        abstract AddLibrary: Assembly-> unit
         abstract SideEffect: IEvent<ISandbox * SideEffect> with get
     end

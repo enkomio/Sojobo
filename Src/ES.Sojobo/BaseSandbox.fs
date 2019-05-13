@@ -28,7 +28,7 @@ type BaseSandbox() =
     member internal this.Assemblies = _assemblies
 
     member this.AddLibrary(assembly: Assembly) =
-        this.Assemblies.Add(assembly)
+        this.Assemblies.Add(assembly) 
 
     member internal this.TriggerSideEffect(sideEffect: SideEffect) =
         _sideEffectEvent.Trigger(upcast this, sideEffect)
@@ -49,5 +49,8 @@ type BaseSandbox() =
         member this.GetRunningProcess() =
             this.GetRunningProcess()
 
+        member this.AddLibrary(assembly: Assembly) =
+            this.AddLibrary(assembly)
+        
         member this.SideEffect
             with get() = this.SideEffect
