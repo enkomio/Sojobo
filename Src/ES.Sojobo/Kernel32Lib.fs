@@ -102,3 +102,8 @@ module Kernel32 =
             ReturnValue = Some <| createInt32(0).Value
             Convention = CallingConvention.Cdecl
         }
+
+    let getModuleHandleW(sandbox: ISandbox, lpModuleName: UInt32) = {
+        ReturnValue = Some <| createInt32(0).Value
+        Convention = CallingConvention.Cdecl
+    }
