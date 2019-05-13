@@ -107,3 +107,8 @@ module Kernel32 =
         ReturnValue = Some <| createInt32(0).Value
         Convention = CallingConvention.Cdecl
     }
+
+    let getLastError(sandbox: ISandbox) = {
+        ReturnValue = Some <| createInt32(0).Value
+        Convention = CallingConvention.Cdecl
+    }
