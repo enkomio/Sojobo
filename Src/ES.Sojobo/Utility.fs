@@ -39,13 +39,6 @@ module Utility =
     let getTypeSize =
         getType >> getSize
 
-    let writeStructure(s: Object, offset: Int32, buffer: Byte array) =        
-        let size = Marshal.SizeOf(s)
-        let ptr = Marshal.AllocHGlobal(size)
-        Marshal.StructureToPtr(s, ptr, true)
-        Marshal.Copy(ptr, buffer, offset, size)
-        Marshal.FreeHGlobal(ptr)
-
     let formatCurrentInstruction(processContainer: IProcessContainer) =
         let handler = processContainer.GetActiveMemoryRegion().Handler
         let instruction = processContainer.GetInstruction()

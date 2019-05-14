@@ -4,6 +4,7 @@ open System
 open System.Collections.Generic
 open ES.Sojobo.Model
 open B2R2.FrontEnd
+open System.Runtime.InteropServices
 
 type MemoryManager() =
     let _va = new Dictionary<UInt64, MemoryRegion>() 
@@ -29,6 +30,21 @@ type MemoryManager() =
     member this.WriteMemory(address: UInt64, value: Byte array) =
         _memoryAccessedEvent.Trigger(MemoryAccessOperation.Write address)
         this.UnsafeWriteMemory(address, value, true)
+
+    member this.WriteMemory(address: UInt64, value: Object) =
+        // serialize object in memory
+        let size = Marshal.SizeOf(value)
+        let ptr = Marshal.AllocHGlobal(size)
+        Marshal.StructureToPtr(value, ptr, true)
+
+        // get region
+        let memRegion = this.GetMemoryRegion(address)
+        let offset = memRegion.Handler.FileInfo.TranslateAddress address
+        let buffer = memRegion.Handler.FileInfo.BinReader.Bytes
+
+        // write content and free        
+        Marshal.Copy(ptr, buffer, offset, size)
+        Marshal.FreeHGlobal(ptr)
 
     member this.UpdateMemoryRegion(baseAddress: UInt64, memoryRegion: MemoryRegion) =
         _va.[baseAddress] <- memoryRegion

@@ -179,14 +179,14 @@ type Win32ProcessContainer() as this =
                 ProcessEnvironmentBlock = peb32Address
             }
         let tebMemoryRegion = createMemoryRegion(uint64 teb32Address, 0x1000, MemoryProtection.Read)
-        Utility.writeStructure(teb, 0, tebMemoryRegion.Content)
-        _memoryManager.AddMemoryRegion(tebMemoryRegion)     
+        _memoryManager.AddMemoryRegion(tebMemoryRegion)  
+        _memoryManager.WriteMemory(uint64 teb32Address, teb)
 
         // add peb
         let peb = Activator.CreateInstance<PEB32>()
         let pebMemoryRegion = createMemoryRegion(uint64 peb32Address, 0x1000, MemoryProtection.Read)        
-        Utility.writeStructure(peb, 0, pebMemoryRegion.Content)
-        _memoryManager.AddMemoryRegion(pebMemoryRegion)            
+        _memoryManager.AddMemoryRegion(pebMemoryRegion)
+        _memoryManager.WriteMemory(uint64 peb32Address, peb)
 
     let initialize(handler: BinHandler) =
         let pe = getPe(handler)
