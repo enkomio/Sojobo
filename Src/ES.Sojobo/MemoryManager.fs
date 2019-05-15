@@ -39,26 +39,28 @@ type MemoryManager(pointerByteSize: Int32) =
         // write to buffer not primitive type
         let flags = BindingFlags.Instance ||| BindingFlags.NonPublic ||| BindingFlags.Public        
         value.GetType().GetFields(flags)
+        |> Array.filter(fun field -> field.GetValue(value) <> null)
         |> Array.iter(fun field ->
-            if field.FieldType.IsArray then
-                ()
-            elif field.FieldType.IsClass then
-                let offset = Marshal.OffsetOf(value.GetType(), field.Name).ToInt32()
-
-                match patches |> Seq.tryFind(fun p -> p.SourceType = field.FieldType) with
-                | Some patch -> 
-                    let newPatch = {patch with Offset = offset}
-                    patches.Add(newPatch)
-                | None ->
-                    let fieldValue = field.GetValue(value)
-                    if fieldValue <> null then
-                        let fieldSerializedBuffer = serialize(fieldValue, patches)
-                        patches.Add({
-                            Offset = offset
-                            SourceType = value.GetType()
-                            Source = serializedValue
-                            Field = fieldSerializedBuffer
-                        })
+            let fieldValue = field.GetValue(value)
+            let offset = Marshal.OffsetOf(value.GetType(), field.Name).ToInt32()
+                        
+            // serialize field if necessary
+            match patches |> Seq.tryFind(fun p -> p.SourceType = field.FieldType) with
+            | Some patch -> 
+                let newPatch = {patch with Offset = offset}
+                patches.Add(newPatch)
+            | None ->                    
+                if field.FieldType.IsArray then
+                    // TODO: implements it
+                    ()
+                elif field.FieldType.IsClass then
+                    let fieldSerializedBuffer = serialize(fieldValue, patches)
+                    patches.Add({
+                        Offset = offset
+                        SourceType = value.GetType()
+                        Source = serializedValue
+                        Field = fieldSerializedBuffer
+                    })
         )
 
     member this.MemoryAccessed = _memoryAccessedEvent.Publish   
