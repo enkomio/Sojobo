@@ -15,7 +15,7 @@ type private Patch = {
     Field: Byte array
 }
 
-type MemoryManager(pointerByteSize: Int32) =
+type MemoryManager(pointerSize: Int32) =
     let _va = new Dictionary<UInt64, MemoryRegion>() 
     let _memoryAccessedEvent = new Event<MemoryAccessOperation>()
     
@@ -105,7 +105,7 @@ type MemoryManager(pointerByteSize: Int32) =
             
             // write the address
             let fieldsMemRegionAddrBytes =
-                if pointerByteSize = 4
+                if pointerSize = 32
                 then BitConverter.GetBytes(uint32 fieldsMemRegionAddr)
                 else BitConverter.GetBytes(fieldsMemRegionAddr)
 

@@ -6,8 +6,10 @@ open System.Collections.Generic
 open System.IO
 open B2R2.FrontEnd
 open B2R2
-open ES.Sojobo.Model
 open B2R2.BinIR
+open B2R2.FrontEnd.Intel
+open ES.Sojobo.Win32
+open ES.Sojobo.Model
 
 type Win32Sandbox() as this =
     inherit BaseSandbox()
@@ -24,7 +26,7 @@ type Win32Sandbox() as this =
         let keyName = (sandbox :?> BaseSandbox).Callbacks.[uint64 programCounter]
         raise (UnhandledFunction keyName) |> ignore
 
-    let mapImportedFunctions(win32Process: Win32ProcessContainer) =
+    let mapImportedFunctions(win32Process: IProcessContainer) =
         let iatRegionBaseAddress = win32Process.Memory.AllocateMemory((win32Process.GetImportedFunctions() |> Seq.length) * 4, MemoryProtection.Read)
         let iatRegion = win32Process.Memory.GetMemoryRegion(iatRegionBaseAddress)
         win32Process.Memory.UpdateMemoryRegion(iatRegion.BaseAddress, {iatRegion with Info = "IAT"})
@@ -154,6 +156,21 @@ type Win32Sandbox() as this =
         setResult(baseProcess, libraryFunctionResult)
         executeStackFrameCleanup(baseProcess)
         executeReturn(baseProcess, libraryFunction, libraryFunctionResult)
+
+    let setupTeb() =
+        let tebAddress = createTeb(this)
+        if this.GetRunningProcess().GetPointerSize() = 32 then
+            [
+                createVariableWithValue(string Register.ESBase, EmulatedType.DoubleWord, BitVector.ofUInt32 (uint32 tebAddress) 32<rt>)
+                createVariableWithValue(string Register.FS, EmulatedType.DoubleWord, BitVector.ofUInt32 (uint32 tebAddress) 32<rt>)
+        
+            ] |> List.iter(this.GetRunningProcess().SetRegister)
+        else
+            [
+                createVariableWithValue(string Register.ESBase, EmulatedType.QuadWord, BitVector.ofUInt64 tebAddress 64<rt>)
+                createVariableWithValue(string Register.FS, EmulatedType.QuadWord, BitVector.ofUInt64 tebAddress 64<rt>)
+        
+            ] |> List.iter(this.GetRunningProcess().SetRegister)
         
     default this.Run() =            
         let win32Process = _currentProcess.Value
@@ -164,6 +181,7 @@ type Win32Sandbox() as this =
         resolveLibraryFunctions([Assembly.GetExecutingAssembly()])
         resolveLibraryFunctions(this.Assemblies)        
         mapImportedFunctions(win32Process)
+        setupTeb()
                         
         // start execution loop
         _stopExecution <- false

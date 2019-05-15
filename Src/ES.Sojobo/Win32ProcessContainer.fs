@@ -15,7 +15,8 @@ open System.Reflection.PortableExecutable
 type Win32ProcessContainer() as this =  
     inherit BaseProcessContainer()
 
-    let _memoryManager = new MemoryManager(4)
+    let _pointerSize = 32
+    let _memoryManager = new MemoryManager(_pointerSize)
     let _iat = new List<Symbol>()
     let _stepEvent = new Event<IProcessContainer>()       
     
@@ -106,8 +107,8 @@ type Win32ProcessContainer() as this =
             createVariableWithValue(string Register.DSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
             createVariableWithValue(string Register.ES, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
             createVariableWithValue(string Register.ESBase, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
-            createVariableWithValue(string Register.FS, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
-            createVariableWithValue(string Register.FSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 teb32Address 32<rt>)
+            createVariableWithValue(string Register.FS, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
+            createVariableWithValue(string Register.FSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
             createVariableWithValue(string Register.GS, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
             createVariableWithValue(string Register.GSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
 
@@ -159,32 +160,7 @@ type Win32ProcessContainer() as this =
         |> Seq.iter(fun symbol ->
             if not(String.IsNullOrEmpty(symbol.LibraryName)) && (symbol.Kind = SymbolKind.ExternFunctionType || symbol.Kind = SymbolKind.FunctionType) then 
                 _iat.Add(symbol)
-        )
-
-    let createStructures() =
-        let stack = 
-            _memoryManager.GetMemoryMap()
-            |> Seq.find(fun memRegion -> memRegion.Type.Equals("Stack", StringComparison.OrdinalIgnoreCase))
-        
-        // add peb        
-        let ldr = Activator.CreateInstance<PEB_LDR_DATA>()
-        let peb = {Activator.CreateInstance<PEB32>() with Ldr = ldr}
-        let peb32Address = _memoryManager.AllocateMemory(peb, MemoryProtection.Read)
-
-        // add teb
-        let teb = 
-            {Activator.CreateInstance<TEB32>() with
-                StackBase = uint32 stack.BaseAddress + uint32 stack.Content.Length
-                StackLimit = uint32 stack.BaseAddress
-                Self = teb32Address
-                ProcessEnvironmentBlock = uint32 peb32Address
-            }
-        
-        let tebMemoryRegion = createMemoryRegion(uint64 teb32Address, 0x1000, MemoryProtection.Read)
-        _memoryManager.AddMemoryRegion(tebMemoryRegion)  
-        _memoryManager.WriteMemory(uint64 teb32Address, teb)
-        
-        
+        )    
 
     let initialize(handler: BinHandler) =
         let pe = Utility.getPe(handler)
@@ -193,8 +169,7 @@ type Win32ProcessContainer() as this =
         addStackRegion(handler)
         setEntryPoint(handler)
         resolveIATSymbols(handler)
-        setupRegisters()    
-        createStructures()
+        setupRegisters()
 
     default this.Step = _stepEvent.Publish   
     default this.Memory = _memoryManager
@@ -247,4 +222,4 @@ type Win32ProcessContainer() as this =
     |]
 
     default this.GetPointerSize() =
-        32
+        _pointerSize

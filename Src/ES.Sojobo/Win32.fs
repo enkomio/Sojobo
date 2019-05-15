@@ -1,21 +1,15 @@
 ﻿namespace ES.Sojobo
 
 open System
+open System.Collections.Generic
 open System.Text
 open System.Runtime.InteropServices
 open Model
 
+// The following structures follow the definition provided by MS.
+// As general rule, reserved fields are not valorized
 module Win32 =
-    let teb32Address = 0x7ff70000u
-
-    // https://www.aldeid.com/wiki/LIST_ENTRY
-    [<CLIMutable>]
-    [<StructLayout(LayoutKind.Sequential, Pack=1, CharSet=CharSet.Ansi)>]
-    type LIST_ENTRY = {
-        Flink: UInt32
-        Blink: UInt32
-    }
-
+    
     // https://docs.microsoft.com/en-us/windows/desktop/api/subauth/ns-subauth-_unicode_string
     [<CLIMutable>]
     [<StructLayout(LayoutKind.Sequential, Pack=1, CharSet=CharSet.Ansi)>]
@@ -30,26 +24,22 @@ module Win32 =
     [<CLIMutable>]
     [<StructLayout(LayoutKind.Sequential, Pack=1, CharSet=CharSet.Ansi)>]
     type LDR_DATA_TABLE_ENTRY = {
-        [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)>]
-        Reserved1: UInt32 array
-        InMemoryOrderLinks: UInt32
-        [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)>]
-        Reserved2: UInt32 array
+        mutable InLoadOrderLinksFlink: LDR_DATA_TABLE_ENTRY
+        mutable InLoadOrderLinksBlink: LDR_DATA_TABLE_ENTRY
+        mutable InMemoryOrderLinksFlink: LDR_DATA_TABLE_ENTRY
+        mutable InMemoryOrderLinksBlink: LDR_DATA_TABLE_ENTRY
+        mutable InInitializationOrderLinksFlink: LDR_DATA_TABLE_ENTRY
+        mutable InInitializationOrderLinksBlink: LDR_DATA_TABLE_ENTRY
         DllBase: UInt32
         EntryPoint: UInt32
-        SizeOfImage: UInt32
-        FullDllName: UInt32
-        BaseDllName: UInt32
-        Flags: UInt32
-        LoadCount: UInt16
-        TlsIndex: UInt16
-        HashLinks: UInt32
-        LoadedImports: UInt32
-        EntryPointActivationContext: UInt32
-        PatchInformation: UInt32
-        ForwarderLinks: UInt32
-        ServiceTagLinks: UInt32
-        StaticLinks: UInt32
+        Reserved3: UInt32
+        FullDllName: UNICODE_STRING
+        [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)>]
+        Reserved4: Byte array
+        [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)>]
+        Reserved5: UInt32 array        
+        Reserved6: UInt32
+        TimeDateStamp: UInt32
     }
 
     // https://www.aldeid.com/wiki/PEB_LDR_DATA
@@ -57,12 +47,11 @@ module Win32 =
     [<CLIMutable>]
     [<StructLayout(LayoutKind.Sequential, Pack=1, CharSet=CharSet.Ansi)>]
     type PEB_LDR_DATA = {
-        Length: UInt32
-        Initialized: UInt32
-        SsHandle: UInt32
-        InLoadOrderModuleList: LDR_DATA_TABLE_ENTRY
+        [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)>]
+        Reserved1: Byte array
+        [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)>]
+        Reserved2: UInt32 array
         InMemoryOrderModuleList: LDR_DATA_TABLE_ENTRY
-        InInitializationOrderModuleList: LDR_DATA_TABLE_ENTRY
     }
 
     // https://docs.microsoft.com/en-us/windows/desktop/api/winternl/ns-winternl-_teb
@@ -129,37 +118,70 @@ module Win32 =
         [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 1)>]
         Reserved12: Byte array
         SessionId: UInt32
-    }
-    (*
-    let createPeb(proc: IProcessContainer) =
-        let peb = Activator.CreateInstance<PEB32>()
+    }    
+    
+    let private createPeb(sandbox: ISandbox) =
+        let proc = sandbox.GetRunningProcess()
+        let dataEntries = new List<LDR_DATA_TABLE_ENTRY>()
                 
-        proc.GetImportedFunctions()
+        // fill the entries list
+        proc.GetImportedFunctions()            
         |> Seq.groupBy(fun s -> s.LibraryName)
         |> Seq.map(fun (libraryName, _) -> libraryName)
         |> Seq.iter(fun libraryName ->
-            let nameBytes = Encoding.Unicode.GetBytes(libraryName)
-            let unicodeStringAddr =
+            let fullNameBytes = Encoding.Unicode.GetBytes(libraryName)
+            let fullNameDll = 
                 {Activator.CreateInstance<UNICODE_STRING>() with 
-                    Length = uint16 nameBytes.Length
-                    MaximumLength = uint16 nameBytes.Length   
-                    Buffer = proc.Memory.AllocateMemory(nameBytes, MemoryProtection.Read) |> uint32
+                    Length = uint16 fullNameBytes.Length
+                    MaximumLength = uint16 fullNameBytes.Length   
+                    Buffer = proc.Memory.AllocateMemory(fullNameBytes, MemoryProtection.Read) |> uint32
                 }
-                |> fun o -> uint32 <| proc.Memory.AllocateMemory(o, MemoryProtection.Read)
 
-            let ldrDataTableEntry = 
-                {Activator.CreateInstance<LDR_DATA_TABLE_ENTRY>() with
-                    SizeOfImage = 10ul
-                    DllBase = 5000ul
-                    EntryPoint = 0x1000ul
-                    FullDllName = unicodeStringAddr
-                    BaseDllName = unicodeStringAddr
-                }
-            
-            let dataTableEntryAddress = proc.Memory.AllocateMemory(ldrDataTableEntry, MemoryProtection.Read)
-            ()
+            {Activator.CreateInstance<LDR_DATA_TABLE_ENTRY>() with
+                FullDllName = fullNameDll
+            } 
+            |> dataEntries.Add
         )
 
-        ()
+        // connect the FLink and BLink
+        dataEntries        
+        |> Seq.iteri(fun index entry ->
+            let flink = dataEntries.[(index + 1) % dataEntries.Count]
+            let blink = 
+                if index = 0 
+                then dataEntries.[dataEntries.Count - 1]
+                else dataEntries.[(index - 1) % dataEntries.Count]
 
-    *)
+            dataEntries.[index].InLoadOrderLinksFlink <- flink
+            dataEntries.[index].InLoadOrderLinksBlink <- blink
+            dataEntries.[index].InMemoryOrderLinksFlink <- flink
+            dataEntries.[index].InMemoryOrderLinksBlink <- blink
+            dataEntries.[index].InInitializationOrderLinksFlink <- flink
+            dataEntries.[index].InInitializationOrderLinksBlink <- blink
+        )
+        
+        // finally create the PEB
+        {Activator.CreateInstance<PEB32>() with 
+            Ldr = 
+                {Activator.CreateInstance<PEB_LDR_DATA>() with
+                    InMemoryOrderModuleList = Seq.head dataEntries
+                }
+        }
+
+    let createTeb(sandbox: ISandbox) =
+        let proc = sandbox.GetRunningProcess()
+        let peb = createPeb(sandbox)
+        let peb32Address = proc.Memory.AllocateMemory(peb, MemoryProtection.Read)
+
+        let stack = 
+            proc.Memory.GetMemoryMap()
+            |> Seq.find(fun memRegion -> memRegion.Type.Equals("Stack", StringComparison.OrdinalIgnoreCase))
+        
+        // create the TEB
+        {Activator.CreateInstance<TEB32>() with
+            StackBase = uint32 stack.BaseAddress + uint32 stack.Content.Length
+            StackLimit = uint32 stack.BaseAddress
+            Self = 0x7ff70000u
+            ProcessEnvironmentBlock = uint32 peb32Address
+        }
+        |> fun teb -> proc.Memory.AllocateMemory(teb, MemoryProtection.Read)
