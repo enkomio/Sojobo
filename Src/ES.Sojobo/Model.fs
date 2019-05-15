@@ -46,7 +46,7 @@ module Model =
 
     type MemoryAccessOperation =
         | Read of UInt64
-        | Write of UInt64
+        | Write of UInt64 * Byte array
         | Allocate of MemoryRegion
         | Free of MemoryRegion
 

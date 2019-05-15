@@ -17,7 +17,7 @@ type private Patch = {
 
 type MemoryManager(pointerSize: Int32) =
     let _va = new Dictionary<UInt64, MemoryRegion>() 
-    let _memoryAccessedEvent = new Event<MemoryAccessOperation>()
+    let _memoryAccessEvent = new Event<MemoryAccessOperation>()
     
     let rec serialize(value: Object, patches: List<Patch>) =
         // serialize object in memory
@@ -63,11 +63,11 @@ type MemoryManager(pointerSize: Int32) =
                     })
         )
 
-    member this.MemoryAccessed = _memoryAccessedEvent.Publish   
+    member this.MemoryAccess = _memoryAccessEvent.Publish   
     
     member this.ReadMemory(address: UInt64, size: Int32) =
         // TODO: add check on memory protection
-        _memoryAccessedEvent.Trigger(MemoryAccessOperation.Read address)
+        _memoryAccessEvent.Trigger(MemoryAccessOperation.Read address)
         let memRegion = this.GetMemoryRegion(address)
         BinHandler.ReadBytes(memRegion.Handler, address, size)
 
@@ -81,7 +81,7 @@ type MemoryManager(pointerSize: Int32) =
         Array.Copy(value, 0, region.Handler.FileInfo.BinReader.Bytes, offset, value.Length)
 
     member this.WriteMemory(address: UInt64, value: Byte array) =
-        _memoryAccessedEvent.Trigger(MemoryAccessOperation.Write address)
+        _memoryAccessEvent.Trigger(MemoryAccessOperation.Write (address, value))
         this.UnsafeWriteMemory(address, value, true)
 
     member this.WriteMemory(address: UInt64, value: Object) =
@@ -132,7 +132,7 @@ type MemoryManager(pointerSize: Int32) =
 
     member this.FreeMemoryRegion(address: UInt64) =        
         let region = this.GetMemoryRegion(address)
-        _memoryAccessedEvent.Trigger(MemoryAccessOperation.Free region)
+        _memoryAccessEvent.Trigger(MemoryAccessOperation.Free region)
         _va.Remove(region.BaseAddress)        
 
     member this.AllocateMemory(size: Int32, protection: MemoryProtection) =
@@ -152,7 +152,7 @@ type MemoryManager(pointerSize: Int32) =
 
         // create the memory region
         let region = createMemoryRegion(baseAddress, size, protection)
-        _memoryAccessedEvent.Trigger(MemoryAccessOperation.Allocate region)
+        _memoryAccessEvent.Trigger(MemoryAccessOperation.Allocate region)
         this.AddMemoryRegion(region)
 
         baseAddress
