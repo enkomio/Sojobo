@@ -1,13 +1,14 @@
 ﻿namespace ES.Sojobo
 
 open System
-open System.Runtime.InteropServices
+open System.Reflection
 open ES.Sojobo.Model
 open B2R2
 open B2R2.FrontEnd
 open B2R2.BinIR
+open B2R2.BinFile.PE
 
-module Utility =    
+module Utility =        
 
     let toArray(bitVector: BitVector) =
         let size = int32 <| BitVector.getType bitVector
@@ -56,3 +57,7 @@ module Utility =
     let getTempName(index: String, emuType: EmulatedType) =
         let size =  getSize(emuType)
         String.Format("T_{0}:{1}", index, size)   
+
+    let getPe(handler: BinHandler) =
+        let fileInfo = handler.FileInfo
+        fileInfo.GetType().GetField("pe", BindingFlags.NonPublic ||| BindingFlags.Instance).GetValue(fileInfo) :?> PE

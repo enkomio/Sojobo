@@ -2,13 +2,64 @@
 
 open System
 open System.Collections.Generic
-open ES.Sojobo.Model
-open B2R2.FrontEnd
 open System.Runtime.InteropServices
+open System.Reflection
+open B2R2
+open B2R2.FrontEnd
+open ES.Sojobo.Model
 
-type MemoryManager() =
+type private Patch = {
+    Offset: Int32
+    SourceType: Type
+    Source: Byte array
+    Field: Byte array
+}
+
+type MemoryManager(pointerByteSize: Int32) =
     let _va = new Dictionary<UInt64, MemoryRegion>() 
     let _memoryAccessedEvent = new Event<MemoryAccessOperation>()
+    
+    let rec serialize(value: Object, patches: List<Patch>) =
+        // serialize object in memory
+        let size = Marshal.SizeOf(value)
+        let ptr = Marshal.AllocHGlobal(size)
+        Marshal.StructureToPtr(value, ptr, true)
+
+        // write content and free buffer
+        let buffer = Array.zeroCreate<Byte>(size)
+        Marshal.Copy(ptr, buffer, 0, size)
+        Marshal.FreeHGlobal(ptr)
+
+        // serialize the fields that are not primitive types
+        serializeFields(value, buffer, patches)
+
+        buffer
+
+    and serializeFields(value: Object, serializedValue: Byte array, patches: List<Patch>) =
+        // write to buffer not primitive type
+        let flags = BindingFlags.Instance ||| BindingFlags.NonPublic ||| BindingFlags.Public        
+        value.GetType().GetFields(flags)
+        |> Array.iter(fun field ->
+            if field.FieldType.IsArray then
+                ()
+            elif field.FieldType.IsClass then
+                let offset = Marshal.OffsetOf(value.GetType(), field.Name).ToInt32()
+
+                match patches |> Seq.tryFind(fun p -> p.SourceType = field.FieldType) with
+                | Some patch -> 
+                    let newPatch = {patch with Offset = offset}
+                    patches.Add(newPatch)
+                | None ->
+                    let fieldValue = field.GetValue(value)
+                    if fieldValue <> null then
+                        let fieldSerializedBuffer = serialize(fieldValue, patches)
+                        patches.Add({
+                            Offset = offset
+                            SourceType = value.GetType()
+                            Source = serializedValue
+                            Field = fieldSerializedBuffer
+                        })
+        )
 
     member this.MemoryAccessed = _memoryAccessedEvent.Publish   
     
@@ -32,19 +83,35 @@ type MemoryManager() =
         this.UnsafeWriteMemory(address, value, true)
 
     member this.WriteMemory(address: UInt64, value: Object) =
-        // serialize object in memory
-        let size = Marshal.SizeOf(value)
-        let ptr = Marshal.AllocHGlobal(size)
-        Marshal.StructureToPtr(value, ptr, true)
-
         // get region
         let memRegion = this.GetMemoryRegion(address)
         let offset = memRegion.Handler.FileInfo.TranslateAddress address
-        let buffer = memRegion.Handler.FileInfo.BinReader.Bytes
+        let destBuffer = memRegion.Handler.FileInfo.BinReader.Bytes
 
-        // write content and free        
-        Marshal.Copy(ptr, buffer, offset, size)
-        Marshal.FreeHGlobal(ptr)
+        // serialize object
+        let patches = new List<Patch>()
+        let sourceBuffer = serialize(value, patches)
+
+        // apply patch
+        let totalSize = patches |> Seq.sumBy(fun p -> p.Field.Length)
+        let mutable fieldsMemRegionAddr = this.AllocateMemory(totalSize, memRegion.Protection)
+        patches
+        |> Seq.iter(fun patch ->
+            // write the content of the field
+            this.UnsafeWriteMemory(fieldsMemRegionAddr, patch.Field, false)
+            fieldsMemRegionAddr <- fieldsMemRegionAddr + uint64 patch.Field.Length
+            
+            // write the address
+            let fieldsMemRegionAddrBytes =
+                if pointerByteSize = 4
+                then BitConverter.GetBytes(uint32 fieldsMemRegionAddr)
+                else BitConverter.GetBytes(fieldsMemRegionAddr)
+
+            Array.Copy(fieldsMemRegionAddrBytes, 0, patch.Source, patch.Offset, fieldsMemRegionAddrBytes.Length)
+        )
+
+        // write content of the main object
+        Array.Copy(sourceBuffer, 0, destBuffer, offset, sourceBuffer.Length)
 
     member this.UpdateMemoryRegion(baseAddress: UInt64, memoryRegion: MemoryRegion) =
         _va.[baseAddress] <- memoryRegion
@@ -91,4 +158,15 @@ type MemoryManager() =
         _memoryAccessedEvent.Trigger(MemoryAccessOperation.Allocate region)
         this.AddMemoryRegion(region)
 
+        baseAddress
+
+    member this.AllocateMemory(value: Byte array, protection: MemoryProtection) =        
+        let baseAddress = this.AllocateMemory(value.Length, protection)
+        this.WriteMemory(baseAddress, value)
+        baseAddress
+
+    member this.AllocateMemory(value: Object, protection: MemoryProtection) =
+        let size = Marshal.SizeOf(value)
+        let baseAddress = this.AllocateMemory(size, protection)
+        this.WriteMemory(baseAddress, value)
         baseAddress

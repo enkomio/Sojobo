@@ -15,7 +15,7 @@ open System.Reflection.PortableExecutable
 type Win32ProcessContainer() as this =  
     inherit BaseProcessContainer()
 
-    let _memoryManager = new MemoryManager()
+    let _memoryManager = new MemoryManager(4)
     let _iat = new List<Symbol>()
     let _stepEvent = new Event<IProcessContainer>()       
     
@@ -26,11 +26,7 @@ type Win32ProcessContainer() as this =
         let eip = string Register.EIP
         let eipValue = createVariableWithValue(eip, EmulatedType.DoubleWord, BitVector.ofUInt64 handler.FileInfo.EntryPoint 32<rt>)
         this.Variables.Add(eip, eipValue)
-
-    let getPe(handler: BinHandler) =
-        let fileInfo = handler.FileInfo
-        fileInfo.GetType().GetField("pe", BindingFlags.NonPublic ||| BindingFlags.Instance).GetValue(fileInfo) :?> PE        
-        
+      
     let mapPeHeader(handler: BinHandler, pe: PE) =
         let fileInfo = handler.FileInfo
         let struct (buffer, _) = fileInfo.BinReader.ReadBytes(int32 pe.PEHeaders.PEHeader.SizeOfHeaders, 0)
@@ -170,26 +166,28 @@ type Win32ProcessContainer() as this =
             _memoryManager.GetMemoryMap()
             |> Seq.find(fun memRegion -> memRegion.Type.Equals("Stack", StringComparison.OrdinalIgnoreCase))
         
+        // add peb        
+        let ldr = Activator.CreateInstance<PEB_LDR_DATA>()
+        let peb = {Activator.CreateInstance<PEB32>() with Ldr = ldr}
+        let peb32Address = _memoryManager.AllocateMemory(peb, MemoryProtection.Read)
+
         // add teb
         let teb = 
             {Activator.CreateInstance<TEB32>() with
                 StackBase = uint32 stack.BaseAddress + uint32 stack.Content.Length
                 StackLimit = uint32 stack.BaseAddress
                 Self = teb32Address
-                ProcessEnvironmentBlock = peb32Address
+                ProcessEnvironmentBlock = uint32 peb32Address
             }
+        
         let tebMemoryRegion = createMemoryRegion(uint64 teb32Address, 0x1000, MemoryProtection.Read)
         _memoryManager.AddMemoryRegion(tebMemoryRegion)  
         _memoryManager.WriteMemory(uint64 teb32Address, teb)
-
-        // add peb
-        let peb = Activator.CreateInstance<PEB32>()
-        let pebMemoryRegion = createMemoryRegion(uint64 peb32Address, 0x1000, MemoryProtection.Read)        
-        _memoryManager.AddMemoryRegion(pebMemoryRegion)
-        _memoryManager.WriteMemory(uint64 peb32Address, peb)
+        
+        
 
     let initialize(handler: BinHandler) =
-        let pe = getPe(handler)
+        let pe = Utility.getPe(handler)
         mapPeHeader(handler, pe)
         mapSections(handler, pe)
         addStackRegion(handler)
