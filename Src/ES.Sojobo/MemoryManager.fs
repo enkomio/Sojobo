@@ -10,8 +10,8 @@ open ES.Sojobo.Model
 
 type private Patch = {
     Offset: Int32
-    SourceType: Type
-    Source: Byte array
+    Source: Object
+    SourceContent: Byte array
     Field: Byte array
 }
 
@@ -40,12 +40,12 @@ type MemoryManager(pointerSize: Int32) =
         let flags = BindingFlags.Instance ||| BindingFlags.NonPublic ||| BindingFlags.Public        
         value.GetType().GetFields(flags)
         |> Array.filter(fun field -> field.GetValue(value) <> null)
-        |> Array.iter(fun field ->
+        |> Array.iter(fun field ->            
             let fieldValue = field.GetValue(value)
             let offset = Marshal.OffsetOf(value.GetType(), field.Name).ToInt32()
                         
             // serialize field if necessary
-            match patches |> Seq.tryFind(fun p -> p.SourceType = field.FieldType) with
+            match patches |> Seq.tryFind(fun p -> Object.ReferenceEquals(p.Source, fieldValue)) with
             | Some patch -> 
                 let newPatch = {patch with Offset = offset}
                 patches.Add(newPatch)
@@ -57,8 +57,8 @@ type MemoryManager(pointerSize: Int32) =
                     let fieldSerializedBuffer = serialize(fieldValue, patches)
                     patches.Add({
                         Offset = offset
-                        SourceType = value.GetType()
-                        Source = serializedValue
+                        Source = value
+                        SourceContent = serializedValue
                         Field = fieldSerializedBuffer
                     })
         )
@@ -85,35 +85,30 @@ type MemoryManager(pointerSize: Int32) =
         this.UnsafeWriteMemory(address, value, true)
 
     member this.WriteMemory(address: UInt64, value: Object) =
-        // get region
-        let memRegion = this.GetMemoryRegion(address)
-        let offset = memRegion.Handler.FileInfo.TranslateAddress address
-        let destBuffer = memRegion.Handler.FileInfo.BinReader.Bytes
-
         // serialize object
         let patches = new List<Patch>()
         let sourceBuffer = serialize(value, patches)
 
         // apply patch
         let totalSize = patches |> Seq.sumBy(fun p -> p.Field.Length)
-        let mutable fieldsMemRegionAddr = this.AllocateMemory(totalSize, memRegion.Protection)
+        let mutable fieldsMemRegionAddr = this.AllocateMemory(totalSize, this.GetMemoryRegion(address).Protection)
         patches
         |> Seq.iter(fun patch ->
             // write the content of the field
             this.UnsafeWriteMemory(fieldsMemRegionAddr, patch.Field, false)
-            fieldsMemRegionAddr <- fieldsMemRegionAddr + uint64 patch.Field.Length
-            
+
             // write the address
             let fieldsMemRegionAddrBytes =
                 if pointerSize = 32
                 then BitConverter.GetBytes(uint32 fieldsMemRegionAddr)
                 else BitConverter.GetBytes(fieldsMemRegionAddr)
-
-            Array.Copy(fieldsMemRegionAddrBytes, 0, patch.Source, patch.Offset, fieldsMemRegionAddrBytes.Length)
+                            
+            Array.Copy(fieldsMemRegionAddrBytes, 0, patch.SourceContent, patch.Offset, fieldsMemRegionAddrBytes.Length)
+            fieldsMemRegionAddr <- fieldsMemRegionAddr + uint64 patch.Field.Length
         )
 
         // write content of the main object
-        Array.Copy(sourceBuffer, 0, destBuffer, offset, sourceBuffer.Length)
+        this.UnsafeWriteMemory(address, sourceBuffer, false)
 
     member this.UpdateMemoryRegion(baseAddress: UInt64, memoryRegion: MemoryRegion) =
         _va.[baseAddress] <- memoryRegion

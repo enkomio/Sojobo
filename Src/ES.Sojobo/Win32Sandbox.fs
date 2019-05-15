@@ -6,7 +6,6 @@ open System.Collections.Generic
 open System.IO
 open B2R2.FrontEnd
 open B2R2
-open B2R2.BinIR
 open B2R2.FrontEnd.Intel
 open ES.Sojobo.Win32
 open ES.Sojobo.Model
@@ -161,16 +160,15 @@ type Win32Sandbox() as this =
         let tebAddress = createTeb(this)
         if this.GetRunningProcess().GetPointerSize() = 32 then
             [
-                createVariableWithValue(string Register.ESBase, EmulatedType.DoubleWord, BitVector.ofUInt32 (uint32 tebAddress) 32<rt>)
-                createVariableWithValue(string Register.FS, EmulatedType.DoubleWord, BitVector.ofUInt32 (uint32 tebAddress) 32<rt>)
-        
-            ] |> List.iter(this.GetRunningProcess().SetRegister)
+                createVariableWithValue(string Register.FSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 (uint32 tebAddress) 32<rt>)
+                createVariableWithValue(string Register.FS, EmulatedType.DoubleWord, BitVector.ofUInt32 (uint32 tebAddress) 32<rt>)        
+            ]
         else
             [
-                createVariableWithValue(string Register.ESBase, EmulatedType.QuadWord, BitVector.ofUInt64 tebAddress 64<rt>)
-                createVariableWithValue(string Register.FS, EmulatedType.QuadWord, BitVector.ofUInt64 tebAddress 64<rt>)
-        
-            ] |> List.iter(this.GetRunningProcess().SetRegister)
+                createVariableWithValue(string Register.FSBase, EmulatedType.QuadWord, BitVector.ofUInt64 tebAddress 64<rt>)
+                createVariableWithValue(string Register.FS, EmulatedType.QuadWord, BitVector.ofUInt64 tebAddress 64<rt>)        
+            ] 
+        |> List.iter(this.GetRunningProcess().SetRegister)
         
     default this.Run() =            
         let win32Process = _currentProcess.Value
