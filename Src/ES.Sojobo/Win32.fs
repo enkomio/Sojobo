@@ -110,6 +110,8 @@ module Win32 =
         Reserved2: Byte array
         [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)>]
         Reserved3: UInt32 array
+        // the following attribute is necessary in order to force 
+        // the serialization as a pointer and not a struct
         [<MarshalAs(UnmanagedType.Interface)>]
         Ldr: PEB_LDR_DATA
         ProcessParameters: UInt32
@@ -211,6 +213,10 @@ module Win32 =
         let proc = sandbox.GetRunningProcess()
         let peb = createPeb(sandbox)
         let peb32Address = proc.Memory.AllocateMemory(peb, MemoryProtection.Read)
+
+        ////////////////
+        proc.Memory.ReadMemory<PEB32>(peb32Address)
+        ////////////////
 
         // create the TEB
         let teb =

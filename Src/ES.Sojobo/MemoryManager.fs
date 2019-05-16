@@ -4,6 +4,7 @@ open System
 open System.Collections.Generic
 open System.Runtime.InteropServices
 open System.Reflection
+open System.IO
 open B2R2
 open B2R2.FrontEnd
 open ES.Sojobo.Model
@@ -38,6 +39,18 @@ type MemoryManager(pointerSize: Int32) =
             )
         _va.Add(heap.BaseAddress, heap)
         heap
+
+    let getMemoryRegion(address: UInt64) =
+        _va.Values
+        |> Seq.find(fun memRegion -> 
+            let startAddr = memRegion.BaseAddress
+            let endAddr = memRegion.BaseAddress + uint64 memRegion.Content.Length
+            address >= startAddr && address < endAddr
+        )
+
+    let readMemory(address: UInt64, size: Int32) =
+        let memRegion = getMemoryRegion(address)
+        BinHandler.ReadBytes(memRegion.Handler, address, size)
     
     let rec serialize(value: Object, patches: List<Patch>) =
         // serialize object in memory
@@ -71,7 +84,8 @@ type MemoryManager(pointerSize: Int32) =
                 patches.Add(newPatch)
             | None ->                    
                 if field.FieldType.IsArray then
-                    // TODO: implements it
+                    // TODO: implements it, for each elements I have to create a Patch
+                    // if the element is a class. Otherwise I can just ignore it.
                     ()
                 elif field.FieldType.IsClass then
                     let fieldSerializedBuffer = serialize(fieldValue, patches)
@@ -83,6 +97,49 @@ type MemoryManager(pointerSize: Int32) =
                     })
         )
 
+    let rec deserialize(buffer: Byte array, objectType: Type) =
+        // create empty object
+        use binReader = new BinaryReader(new MemoryStream(buffer))
+        let resultObject = Activator.CreateInstance(objectType)
+
+        // set field values
+        let flags = BindingFlags.Instance ||| BindingFlags.NonPublic ||| BindingFlags.Public        
+        objectType.GetFields(flags)
+        |> Array.iter(fun field ->
+            if field.FieldType.IsArray then
+                let arrayLength = field.GetCustomAttribute<MarshalAsAttribute>().SizeConst
+                let elementType = field.FieldType.GetElementType()
+                let elementSize = Marshal.SizeOf(elementType)
+                let arrayValue = Array.CreateInstance(elementType, arrayLength)
+                
+                for i=0 to arrayLength - 1 do                    
+                    let elementBuffer = binReader.ReadBytes(elementSize)
+                    let elementObject = deserialize(elementBuffer, elementType)
+                    arrayValue.SetValue(elementObject, i)
+                    
+                field.SetValue(resultObject, arrayValue)
+
+            elif field.FieldType.IsClass then
+                let address =
+                    if pointerSize = 32
+                    then binReader.ReadUInt32() |> uint64
+                    else binReader.ReadUInt64()
+                ()
+            else
+                match field.GetValue(resultObject) with
+                | :? Byte -> binReader.ReadByte() :> Object
+                | :? Int16 -> binReader.ReadInt16() :> Object
+                | :? UInt16 -> binReader.ReadUInt16() :> Object
+                | :? Int32 -> binReader.ReadInt32() :> Object
+                | :? UInt32 -> binReader.ReadUInt32() :> Object
+                | :? Int64 -> binReader.ReadInt64() :> Object
+                | :? UInt64 -> binReader.ReadUInt64() :> Object
+                | t -> failwith ("Unrecognized primitive value: " + t.ToString())
+                |> fun objectValue -> field.SetValue(resultObject, objectValue)
+        )
+
+        Convert.ChangeType(resultObject, objectType)        
+
     member this.MemoryAccess = _memoryAccessEvent.Publish  
     member val Stack = _stack with get, set
     member val Heap = _heap with get, set
@@ -90,8 +147,13 @@ type MemoryManager(pointerSize: Int32) =
     member this.ReadMemory(address: UInt64, size: Int32) =
         // TODO: add check on memory protection
         _memoryAccessEvent.Trigger(MemoryAccessOperation.Read address)
-        let memRegion = this.GetMemoryRegion(address)
-        BinHandler.ReadBytes(memRegion.Handler, address, size)
+        readMemory(address, size)
+
+    member this.ReadMemory<'T>(address: UInt64) =
+        // read raw bytes
+        let size = Marshal.SizeOf<'T>()
+        let buffer = readMemory(address, size)
+        deserialize(buffer, typeof<'T>) |> ignore
 
     member internal this.UnsafeWriteMemory(address: UInt64, value: Byte array, verifyProtection: Boolean) =        
         let region = this.GetMemoryRegion(address)
@@ -136,12 +198,7 @@ type MemoryManager(pointerSize: Int32) =
         _va.[baseAddress] <- memoryRegion
 
     member this.GetMemoryRegion(address: UInt64) =
-        _va.Values
-        |> Seq.find(fun memRegion -> 
-            let startAddr = memRegion.BaseAddress
-            let endAddr = memRegion.BaseAddress + uint64 memRegion.Content.Length
-            address >= startAddr && address < endAddr
-        )
+        getMemoryRegion(address)
 
     member this.AddMemoryRegion(memRegion: MemoryRegion) =
         _va.[memRegion.BaseAddress] <- memRegion
@@ -176,7 +233,6 @@ type MemoryManager(pointerSize: Int32) =
         let region = createMemoryRegion(baseAddress, size, protection)
         _memoryAccessEvent.Trigger(MemoryAccessOperation.Allocate region)
         this.AddMemoryRegion(region)
-
         baseAddress
 
     member this.AllocateMemory(value: Byte array, protection: MemoryProtection) =        
