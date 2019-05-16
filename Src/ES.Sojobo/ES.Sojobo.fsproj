@@ -59,6 +59,7 @@
     <Compile Include="VCRUNTIME140Lib.fs" />
     <Compile Include="ApiMsWinCrtRuntimeLib.fs" />
     <Compile Include="ADVAPI32Lib.fs" />
+    <Compile Include="USERENVLib.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="FSharp.Core">
