@@ -75,6 +75,11 @@ module Win32 =
         Self: UInt32
 
         // TEB
+        EnvironmentPointer: UInt32
+        [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)>]
+        ClientId: UInt32 array
+        ActiveRpcHandle: UInt32
+        ThreadLocalStoragePointer: UInt32
         ProcessEnvironmentBlock: UInt32
         [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 399)>]
         Reserved2: UInt32 array
