@@ -98,6 +98,7 @@ module Win32 =
     }
 
     // https://docs.microsoft.com/en-us/windows/desktop/api/winternl/ns-winternl-peb
+    // https://www.nirsoft.net/kernel_struct/vista/PEB.html
     // https://www.aldeid.com/wiki/PEB-Process-Environment-Block
     [<CLIMutable>]
     [<StructLayout(LayoutKind.Sequential, Pack=1, CharSet=CharSet.Ansi)>]
@@ -109,10 +110,12 @@ module Win32 =
         Reserved2: Byte array
         [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)>]
         Reserved3: UInt32 array
+        [<MarshalAs(UnmanagedType.Interface)>]
         Ldr: PEB_LDR_DATA
         ProcessParameters: UInt32
-        [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)>]
-        Reserved4: Byte array
+        SubSystemData: UInt32
+        ProcessHeap: UInt32
+        FastPebLock: UInt32
         AtlThunkSListPtr: UInt32
         Reserved5: UInt32
         Reserved6: UInt32
@@ -197,10 +200,11 @@ module Win32 =
         
         // finally create the PEB
         {Activator.CreateInstance<PEB32>() with 
-            Ldr = 
+            ProcessHeap = uint32 proc.Memory.Heap.BaseAddress
+            (*Ldr = 
                 {Activator.CreateInstance<PEB_LDR_DATA>() with
                     InMemoryOrderModuleList = Seq.head dataEntries
-                }
+                }*)
         }
 
     let createTeb(sandbox: ISandbox) =
@@ -217,10 +221,8 @@ module Win32 =
                 ProcessEnvironmentBlock = uint32 peb32Address
             }
 
-        let tebRegion = 
-            {createMemoryRegion(uint64 teb.Self, Marshal.SizeOf<TEB32>(), MemoryProtection.Read) with 
-                Type = "TEB32"
-            }
+        // for TEB I have to specify the base address
+        let tebRegion = createMemoryRegion(uint64 teb.Self, Marshal.SizeOf<TEB32>(), MemoryProtection.Read)
         proc.Memory.AddMemoryRegion(tebRegion)
         proc.Memory.WriteMemory(uint64 teb.Self, teb)
         tebRegion.BaseAddress
