@@ -132,21 +132,10 @@ type Win32ProcessContainer() as this =
             createVariableWithValue(string Register.CF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
         ] |> List.iter(fun register -> this.Variables.Add(register.Name, register))
 
-    let addStackRegion(handler: BinHandler) =
-        let stackRegion = {
-            createMemoryRegion(
-                0x19D000UL, 
-                0x3000, 
-                MemoryProtection.Read ||| MemoryProtection.Write
-            ) with 
-                Type = "Stack"
-                Info = handler.FileInfo.FilePath
-        }
-        _memoryManager.AddMemoryRegion(stackRegion)
-
+    let setupStackRegisters() =
         // set ESP value
         let esp = string Register.ESP
-        let startAddress = int32 stackRegion.BaseAddress + int32 stackRegion.Content.Length - 8
+        let startAddress = int32 _memoryManager.Stack.BaseAddress + int32 _memoryManager.Stack.Content.Length - 8
         let espValue = createVariableWithValue(esp, EmulatedType.DoubleWord, BitVector.ofInt32 startAddress 32<rt>)
         this.Variables.Add(esp, espValue)
 
@@ -154,7 +143,7 @@ type Win32ProcessContainer() as this =
         let ebp = string Register.EBP
         let ebpValue = createVariableWithValue(ebp, EmulatedType.DoubleWord, espValue.Value)
         this.Variables.Add(ebp, ebpValue)
-
+        
     let resolveIATSymbols(handler: BinHandler) =
         handler.FileInfo.GetSymbols()
         |> Seq.iter(fun symbol ->
@@ -166,7 +155,7 @@ type Win32ProcessContainer() as this =
         let pe = Utility.getPe(handler)
         mapPeHeader(handler, pe)
         mapSections(handler, pe)
-        addStackRegion(handler)
+        setupStackRegisters()
         setEntryPoint(handler)
         resolveIATSymbols(handler)
         setupRegisters()

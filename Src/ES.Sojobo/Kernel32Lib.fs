@@ -46,7 +46,7 @@ module Kernel32 =
     }
 
     let virtualAlloc(sandbox: ISandbox, lpAddress: UInt32, dwSize: UInt32, flAllocationType: UInt32, flProtect: UInt32) = 
-        let memoryManager = sandbox.GetRunningProcess().Memory        
+        let memoryManager = sandbox.GetRunningProcess().Memory
         let mutable protection: MemoryProtection option = None
        
         // check execute

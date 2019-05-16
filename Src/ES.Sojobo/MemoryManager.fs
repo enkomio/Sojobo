@@ -18,6 +18,26 @@ type private Patch = {
 type MemoryManager(pointerSize: Int32) =
     let _va = new Dictionary<UInt64, MemoryRegion>() 
     let _memoryAccessEvent = new Event<MemoryAccessOperation>()
+
+    let _stack =
+        let stack = 
+            createMemoryRegion(
+                0x18C000UL, 
+                0x4000, 
+                MemoryProtection.Read ||| MemoryProtection.Write
+            )
+        _va.Add(stack.BaseAddress, stack)
+        stack
+
+    let _heap =
+        let heap = 
+            createMemoryRegion(
+                0x520000UL, 
+                0x16000,
+                MemoryProtection.Read ||| MemoryProtection.Write
+            )
+        _va.Add(heap.BaseAddress, heap)
+        heap
     
     let rec serialize(value: Object, patches: List<Patch>) =
         // serialize object in memory
@@ -63,7 +83,9 @@ type MemoryManager(pointerSize: Int32) =
                     })
         )
 
-    member this.MemoryAccess = _memoryAccessEvent.Publish   
+    member this.MemoryAccess = _memoryAccessEvent.Publish  
+    member val Stack = _stack with get, set
+    member val Heap = _heap with get, set
     
     member this.ReadMemory(address: UInt64, size: Int32) =
         // TODO: add check on memory protection

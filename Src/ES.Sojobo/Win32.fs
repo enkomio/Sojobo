@@ -208,15 +208,11 @@ module Win32 =
         let peb = createPeb(sandbox)
         let peb32Address = proc.Memory.AllocateMemory(peb, MemoryProtection.Read)
 
-        let stack = 
-            proc.Memory.GetMemoryMap()
-            |> Seq.find(fun memRegion -> memRegion.Type.Equals("Stack", StringComparison.OrdinalIgnoreCase))
-        
         // create the TEB
         let teb =
             {Activator.CreateInstance<TEB32>() with
-                StackBase = uint32 stack.BaseAddress + uint32 stack.Content.Length
-                StackLimit = uint32 stack.BaseAddress
+                StackBase = uint32 proc.Memory.Stack.BaseAddress + uint32 proc.Memory.Stack.Content.Length
+                StackLimit = uint32 proc.Memory.Stack.BaseAddress
                 Self = 0x7ff70000u
                 ProcessEnvironmentBlock = uint32 peb32Address
             }
