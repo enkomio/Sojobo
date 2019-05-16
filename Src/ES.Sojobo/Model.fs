@@ -62,10 +62,10 @@ module Model =
     let internal createVariable(name: String, t: EmulatedType) = 
         createVariableWithValue(name, t, BitVector.zero 1<rt>)
 
-    let internal createInt32(value: Int32) =
+    let createInt32(value: Int32) =
         createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofInt32 value 32<rt>)
 
-    let internal createUInt32(value: UInt32) =
+    let createUInt32(value: UInt32) =
         createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofUInt32 value 32<rt>)
         
     let internal createMemoryRegion(baseAddr: UInt64, size: Int32, protection: MemoryProtection) = 
