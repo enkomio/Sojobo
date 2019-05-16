@@ -57,7 +57,8 @@
     <Compile Include="Win32Sandbox.fs" />
     <Compile Include="Kernel32Lib.fs" />
     <Compile Include="VCRUNTIME140Lib.fs" />
-    <Compile Include="ApiMsWinCrtRuntime.fs" />
+    <Compile Include="ApiMsWinCrtRuntimeLib.fs" />
+    <Compile Include="ADVAPI32Lib.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="FSharp.Core">
