@@ -25,22 +25,24 @@ type TestData = {
 module SerializationTests =
 
     let ``Serialize auto-referenced object``() =
-        let t1 = Activator.CreateInstance<ListEntryData>()
-        let t2 = Activator.CreateInstance<ListEntryData>()
+        let d1 = Activator.CreateInstance<ListEntryData>()
+        let d2 = Activator.CreateInstance<ListEntryData>()
 
         // set link to refer to itself
-        t1.Forward <- Activator.CreateInstance<LIST_ENTRY_FORWARD>()
-        t1.Backward <- Activator.CreateInstance<LIST_ENTRY_BACKWARD>()
+        d1.Forward <- Activator.CreateInstance<LIST_ENTRY_FORWARD>()
+        d1.Backward <- Activator.CreateInstance<LIST_ENTRY_BACKWARD>()
 
-        t2.Forward <- Activator.CreateInstance<LIST_ENTRY_FORWARD>()
-        t2.Forward.Flink <- t1.Forward
-        t2.Backward <- Activator.CreateInstance<LIST_ENTRY_BACKWARD>()
-        t2.Backward.Blink <- t2.Backward
+        d2.Forward <- Activator.CreateInstance<LIST_ENTRY_FORWARD>()        
+        d2.Backward <- Activator.CreateInstance<LIST_ENTRY_BACKWARD>()
 
-        t1.Forward.Flink <- t2.Forward
-        t1.Backward.Blink <- t2.Backward
+        d1.Forward.Flink <- d2.Forward
+        d1.Backward.Blink <- d2.Backward
 
-        let d = {D1 = t1; D2 = t2}
+        d2.Forward.Flink <- d1.Forward
+        d2.Backward.Blink <- d1.Backward
+        
+
+        let d = {D1 = d1; D2 = d2}
         let memManager = new MemoryManager(32)
         let addr = memManager.AllocateMemory(d, MemoryProtection.Read)
         let content = memManager.GetMemoryRegion(addr).Content 
