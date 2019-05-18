@@ -45,11 +45,31 @@ namespace ES.Kpot2StringExtractor
         {
             if (filename.Equals("--test", StringComparison.OrdinalIgnoreCase))
             {
-                var testFile = "KPot2_REAL_MALWARE_DO_NOT_RUN_IT.txt";
-                Console.WriteLine("[+] Running test sample: {0}", testFile);
-                var assemblyDir = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
-                var content = File.ReadAllText(Path.Combine(assemblyDir, testFile));
-                return Decrypt(content);
+                /*                 
+                This sample is taken from article: https://www.proofpoint.com/us/threat-insight/post/new-kpot-v20-stealer-brings-zero-persistence-and-memory-features-silently-steal
+                The binary is "obfuscated" with XOR, removed PE signature and base64 encoded.
+                SHA256: 67f8302a2fd28d15f62d6d20d748bfe350334e5353cbdef112bd1f8231b5599d
+                 */
+                Console.WriteLine(@"
+I'm going to run a sample of Kpot from article: https://www.proofpoint.com/us/threat-insight/post/new-kpot-v20-stealer-brings-zero-persistence-and-memory-features-silently-steal
+The binary is 'obfuscated' with XOR, removed PE signature and base64 encoded.
+Original SHA256: 67f8302a2fd28d15f62d6d20d748bfe350334e5353cbdef112bd1f8231b5599d
+Do you want to continue (It should be pretty safe to run this test) ? [Y/N]
+");
+                if (Console.ReadLine().Equals("Y", StringComparison.OrdinalIgnoreCase))
+                {
+                    var testFile = "KPot2_REAL_MALWARE_DO_NOT_RUN_IT.txt";
+                    Console.WriteLine("[+] Running test sample: {0}", testFile);
+                    var assemblyDir = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
+                    var content = File.ReadAllText(Path.Combine(assemblyDir, testFile));
+                    return Decrypt(content);
+                }
+                else
+                {
+                    Console.WriteLine("Test aborted");
+                    Environment.Exit(1);
+                    return null;
+                }
             }
             else
             {
