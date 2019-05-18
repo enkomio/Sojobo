@@ -11,6 +11,7 @@ type IProcessContainer =
         abstract Memory: MemoryManager with get
 
         /// This method is invoked before the next instruction being emulated
+        [<CLIEvent>]
         abstract Step: IEvent<IProcessContainer> with get
 
         abstract GetProgramCounter: unit -> EmulatedValue

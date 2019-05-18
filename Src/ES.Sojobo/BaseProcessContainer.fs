@@ -74,6 +74,7 @@ type BaseProcessContainer() =
         member this.GetActiveMemoryRegion() =
             this.GetActiveMemoryRegion()
 
+        [<CLIEvent>]
         member this.Step
             with get() = this.Step
 

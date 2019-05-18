@@ -14,5 +14,7 @@ type ISandbox =
         abstract Stop: unit -> unit     
         abstract GetRunningProcess: unit -> IProcessContainer
         abstract AddLibrary: Assembly-> unit
+
+        [<CLIEvent>]
         abstract SideEffect: IEvent<ISandbox * SideEffect> with get
     end

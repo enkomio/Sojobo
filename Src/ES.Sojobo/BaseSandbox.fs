@@ -52,5 +52,6 @@ type BaseSandbox() =
         member this.AddLibrary(assembly: Assembly) =
             this.AddLibrary(assembly)
         
+        [<CLIEvent>]
         member this.SideEffect
             with get() = this.SideEffect
