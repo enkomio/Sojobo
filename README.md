@@ -14,7 +14,7 @@ With _Sojobo_ you can:
  - [Download binary][2]
 
 ## Using Shed
-_Sojobo_ is intended to be used as a framework to create program analysis utilities. However, various sample utilities were created in order to show how to use the framework in a profitable way.
+_Sojobo_ is intended to be used as a framework to create program analysis utilities. However, various <a href="https://github.com/enkomio/Sojobo/tree/master/Src/Examples"><strong>sample utilities</strong></a> were created in order to show how to use the framework in a profitable way. 
 
 ## License
 
