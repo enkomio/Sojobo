@@ -20,7 +20,5 @@ _Sojobo_ is intended to be used as a framework to create program analysis utilit
 
 Copyright (C) 2019 Antonio Parata - <a href="https://twitter.com/s4tan">@s4tan</a>
 
-License: GNU General Public License, version 2 or later; see LICENSE included in this archive for details.
-
   [1]: https://github.com/enkomio/sojobo/tree/master/Src
   [2]: https://github.com/enkomio/sojobo/releases/latest
