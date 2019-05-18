@@ -58,17 +58,29 @@ type MemoryManager(pointerSize: Int32) =
         let memRegion = getMemoryRegion(address)
         BinHandler.ReadBytes(memRegion.Handler, address, size)
 
-    let rec calculateSize(objectType: Type, computedSize: Dictionary<Type, Int32>) =
+    let rec getFieldArrayLength(field: FieldInfo, computedSize: Dictionary<Type, Int32>) =
+        let arrayLength = field.GetCustomAttribute<MarshalAsAttribute>().SizeConst
+        let elementType = field.FieldType.GetElementType()
+        arrayLength * calculateSize(elementType, computedSize)
+
+    and calculateSize(objectType: Type, computedSize: Dictionary<Type, Int32>) =
         if computedSize.ContainsKey(objectType) then
             computedSize.[objectType]
-        else
+
+        elif objectType.IsValueType then
+            Marshal.SizeOf(objectType)
+
+        elif objectType.IsArray then
+            let arrayLength = objectType.GetCustomAttribute<MarshalAsAttribute>().SizeConst
+            let elementType = objectType.GetElementType()
+            arrayLength * calculateSize(elementType, computedSize)
+
+        elif objectType.IsClass then
             let flags = BindingFlags.Instance ||| BindingFlags.NonPublic ||| BindingFlags.Public        
             objectType.GetFields(flags)
             |> Array.sumBy(fun field ->
                 if field.FieldType.IsArray then
-                    let arrayLength = field.GetCustomAttribute<MarshalAsAttribute>().SizeConst
-                    let elementType = field.FieldType.GetElementType()
-                    arrayLength * calculateSize(elementType, computedSize)
+                    getFieldArrayLength(field, computedSize)
                 elif field.FieldType.IsClass then
                     pointerSize / 8
                 else
@@ -77,6 +89,8 @@ type MemoryManager(pointerSize: Int32) =
             |> fun totalSize ->
                 computedSize.[objectType] <- totalSize
                 totalSize
+        else
+            failwith("Unable to get size of type: " + objectType.FullName)
 
     let rec serializeImpl(value: Object, entries: List<MemoryEntry>, fixups: List<Fixup>, analyzedObjects: HashSet<Object>) : Byte array =
         // allocate buffer
@@ -90,9 +104,9 @@ type MemoryManager(pointerSize: Int32) =
         |> Array.iter(fun field ->
             let fieldValue = field.GetValue(value)
             if fieldValue = null then
-                if pointerSize = 32
-                then binWriter.Write(uint32 0)
-                else binWriter.Write(uint64 0)
+                let size = getFieldArrayLength(field, new Dictionary<Type, Int32>())
+                let nullValue = Array.zeroCreate<Byte>(size)
+                binWriter.Write(nullValue)
 
             elif field.FieldType.IsArray then
                 let arrayLength = field.GetCustomAttribute<MarshalAsAttribute>().SizeConst
