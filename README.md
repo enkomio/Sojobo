@@ -11,7 +11,7 @@ With _Sojobo_ you can:
 
 ## Download
  - [Source code][1]
- - [Download binary][2]
+ <!-- - [Download binary][2] -->
 
 ## Using Shed
 _Sojobo_ is intended to be used as a framework to create program analysis utilities. However, various <a href="https://github.com/enkomio/Sojobo/tree/master/Src/Examples"><strong>sample utilities</strong></a> were created in order to show how to use the framework in a profitable way. 
@@ -23,4 +23,4 @@ Copyright (C) 2019 Antonio Parata - <a href="https://twitter.com/s4tan">@s4tan</
 _Sojobo_ is licensed under the [Creative Commons](LICENSE.md).
 
   [1]: https://github.com/enkomio/sojobo/tree/master/Src
-  [2]: https://github.com/enkomio/sojobo/releases/latest
+ <!-- [2]: https://github.com/enkomio/sojobo/releases/latest -->
