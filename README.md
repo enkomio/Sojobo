@@ -1,4 +1,4 @@
-# Sojobo - A program analysis framework
+# Sojobo - A binary analysis framework
 
 _Sojobo_ is an emulator for the <a href="https://b2r2.org/" target="_blank">B2R2</a> framework. It was created to easier the analysis of potentially malicious files. It is totally developed in .NET so you don't need to install or compile any other external libraries (the project is self contained).
 
