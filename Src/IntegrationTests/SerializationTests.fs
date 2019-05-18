@@ -9,6 +9,20 @@ open System.Runtime.InteropServices
 [<CLIMutable>]
 [<ReferenceEquality>]
 [<StructLayout(LayoutKind.Sequential, Pack=1, CharSet=CharSet.Ansi)>]
+type LIST_ENTRY_FORWARD = {
+    mutable Flink: LIST_ENTRY_FORWARD
+}
+
+[<CLIMutable>]
+[<ReferenceEquality>]
+[<StructLayout(LayoutKind.Sequential, Pack=1, CharSet=CharSet.Ansi)>]
+type LIST_ENTRY_BACKWARD = {
+    mutable Blink: LIST_ENTRY_BACKWARD
+}   
+
+[<CLIMutable>]
+[<ReferenceEquality>]
+[<StructLayout(LayoutKind.Sequential, Pack=1, CharSet=CharSet.Ansi)>]
 type ListEntryData = {
     mutable Forward: LIST_ENTRY_FORWARD
     mutable Backward: LIST_ENTRY_BACKWARD
