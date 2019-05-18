@@ -162,7 +162,7 @@ type MemoryManager(pointerSize: Int32) =
             memory.UnsafeWriteMemory(address, entry.Buffer, false)
         )
 
-    let applyPatches(entriesFixup: Dictionary<Int32, MemoryEntry * UInt64>, fixups: List<Fixup>, memory: MemoryManager) =
+    let applyPatches(entriesFixup: Dictionary<Int32, MemoryEntry * UInt64>, fixups: List<Fixup>) =
         let entries = entriesFixup.Values |> Seq.map(fun (e, _) -> e)
         
         fixups
@@ -197,14 +197,12 @@ type MemoryManager(pointerSize: Int32) =
         else
             binReader.ReadBytes(size)
 
-    let rec deserialize(buffer: Byte array, objectType: Type) =
-        // create empty object
+    let rec deserialize(buffer: Byte array, objectInstance: Object, analyzedObjects: Dictionary<UInt64, Object>) =        
         use binReader = new BinaryReader(new MemoryStream(buffer))
-        let resultObject = Activator.CreateInstance(objectType)
 
         // set field values
         let flags = BindingFlags.Instance ||| BindingFlags.NonPublic ||| BindingFlags.Public        
-        objectType.GetFields(flags)
+        objectInstance.GetType().GetFields(flags)
         |> Array.iter(fun field ->
             if field.FieldType.IsArray then
                 let arrayLength = field.GetCustomAttribute<MarshalAsAttribute>().SizeConst
@@ -213,18 +211,31 @@ type MemoryManager(pointerSize: Int32) =
                 
                 for i=0 to arrayLength - 1 do                    
                     let elementBuffer = readObject(binReader, elementType)
-                    let elementObject = deserialize(elementBuffer, elementType)
+                    let elementObject = Activator.CreateInstance(elementType)
+                    deserialize(elementBuffer, elementObject, analyzedObjects)
                     arrayValue.SetValue(elementObject, i)
                     
-                field.SetValue(resultObject, arrayValue)
+                field.SetValue(objectInstance, arrayValue)
 
             elif field.FieldType.IsClass then
-                // classes are represented as pointers
-                let fieldBuffer = readObject(binReader, field.FieldType)
-                let fieldValue = deserialize(fieldBuffer, field.FieldType)
-                field.SetValue(resultObject, fieldValue)
+                let address =
+                    if pointerSize = 32
+                    then binReader.ReadUInt32() |> uint64
+                    else binReader.ReadUInt64()
+
+                if analyzedObjects.ContainsKey(address) then
+                    field.SetValue(objectInstance, analyzedObjects.[address])
+                else
+                    // set the field value                 
+                    let fieldValue = Activator.CreateInstance(field.FieldType)
+                    analyzedObjects.[address] <- fieldValue
+
+                    let size = calculateSize(field.FieldType, new Dictionary<Type, Int32>())
+                    let fieldBuffer = readMemory(address, size)
+                    deserialize(fieldBuffer, fieldValue, analyzedObjects)                    
+                    field.SetValue(objectInstance, fieldValue)
             else
-                match field.GetValue(resultObject) with
+                match field.GetValue(objectInstance) with
                 | :? Byte -> binReader.ReadByte() :> Object
                 | :? Int16 -> binReader.ReadInt16() :> Object
                 | :? UInt16 -> binReader.ReadUInt16() :> Object
@@ -232,11 +243,13 @@ type MemoryManager(pointerSize: Int32) =
                 | :? UInt32 -> binReader.ReadUInt32() :> Object
                 | :? Int64 -> binReader.ReadInt64() :> Object
                 | :? UInt64 -> binReader.ReadUInt64() :> Object
-                | t -> failwith ("Unsupported primitive value: " + t.ToString())
-                |> fun objectValue -> field.SetValue(resultObject, objectValue)
-        )
-
-        Convert.ChangeType(resultObject, objectType)        
+                | _ -> 
+                    let elementBuffer = readObject(binReader, field.FieldType)
+                    let fieldValue = Activator.CreateInstance(field.FieldType) 
+                    deserialize(elementBuffer, fieldValue, analyzedObjects)
+                    fieldValue
+                |> fun objectValue -> field.SetValue(objectInstance, objectValue)
+        )      
 
     member this.MemoryAccess = _memoryAccessEvent.Publish  
     member val Stack = _stack with get, set
@@ -249,9 +262,11 @@ type MemoryManager(pointerSize: Int32) =
 
     member this.ReadMemory<'T>(address: UInt64) =
         // read raw bytes
-        let size = Marshal.SizeOf<'T>()
+        let size = calculateSize(typeof<'T>, new Dictionary<Type, Int32>())
         let buffer = readMemory(address, size)
-        deserialize(buffer, typeof<'T>) :?> 'T
+        let objectInstance = Activator.CreateInstance<'T>()
+        deserialize(buffer, objectInstance, new Dictionary<UInt64, Object>())
+        objectInstance 
 
     member internal this.UnsafeWriteMemory(address: UInt64, value: Byte array, verifyProtection: Boolean) =        
         let region = this.GetMemoryRegion(address)
@@ -271,7 +286,7 @@ type MemoryManager(pointerSize: Int32) =
         let fixup = new List<Fixup>()
         serialize(value, entries, fixup) |> ignore
         let fixedupEntries = allocateMemoryForEntries(entries, value.GetHashCode(), address, this)
-        applyPatches(fixedupEntries, fixup, this)
+        applyPatches(fixedupEntries, fixup)
         writeEntriesToMemory(fixedupEntries.Values, this)
         
     member this.UpdateMemoryRegion(baseAddress: UInt64, memoryRegion: MemoryRegion) =

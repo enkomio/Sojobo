@@ -41,10 +41,12 @@ module SerializationTests =
         d2.Forward.Flink <- d1.Forward
         d2.Backward.Blink <- d1.Backward
         
-
-        let d = {D1 = d1; D2 = d2}
+        // serialize the data
+        let testData1 = {D1 = d1; D2 = d2}
         let memManager = new MemoryManager(32)
-        let addr = memManager.AllocateMemory(d, MemoryProtection.Read)
-        let content = memManager.GetMemoryRegion(addr).Content 
-        ()
+        let addr = memManager.AllocateMemory(testData1, MemoryProtection.Read)
+
+        // unserialize the object
+        let testData2 = memManager.ReadMemory<TestData>(addr)
+        assert(testData2.D1.Forward.Flink.Flink = testData2.D1.Forward)
 
