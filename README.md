@@ -7,7 +7,7 @@ With _Sojobo_ you can:
 * Inspect the memory of the emulated process
 * Read the process state
 * Display a disassembly of the executed code
-* Emulate function in a managed language (C# || F#)
+* Emulate functions in a managed language (C# || F#)
 
 ## Download
  - [Source code][1]
