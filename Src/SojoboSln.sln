@@ -39,6 +39,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RunShellcodeWithVirtualAllo
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{9C21785E-B8A6-4D78-86DC-21F021D237F9}"
 	ProjectSection(SolutionItems) = preProject
+		build.fsx = build.fsx
 		paket.dependencies = paket.dependencies
 	EndProjectSection
 EndProject

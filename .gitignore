@@ -1,6 +1,16 @@
 ## Sojobo files
 Src/.vs/
 Src/.vs/*
+binaries/
+build/
+
+## FAKE STUFF
+.fake/
+.paket/
+.store/
+fake/
+paket-files/
+fake.exe
 
 
 ## Ignore Visual Studio temporary files, build results, and
