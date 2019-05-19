@@ -13,6 +13,9 @@ With _Sojobo_ you can:
  - [Source code][1]
  <!-- - [Download binary][2] -->
 
+## Compile
+In order to compile Sojobo you need .NET Core to be installed and Visual Studio. To compile just run **build.bat**.
+
 ## Using Sojobo
 _Sojobo_ is intended to be used as a framework to create program analysis utilities. However, various <a href="https://github.com/enkomio/Sojobo/tree/master/Src/Examples"><strong>sample utilities</strong></a> were created in order to show how to use the framework in a profitable way. 
 
