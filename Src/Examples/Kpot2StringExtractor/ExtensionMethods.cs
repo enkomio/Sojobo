@@ -14,6 +14,11 @@ namespace ES.Kpot2StringExtractor.ExtensionMethods
             return B2R2.BitVector.ToInt32(value.Value);
         }
 
+        public static EmulatedValue New(this EmulatedValue value, Int32 newValue)
+        {
+            return new EmulatedValue(value.Name, value.IsTemp, B2R2.BitVector.OfInt32(newValue, 32), value.Type);
+        }
+
         public static UInt64 ToUInt64(this EmulatedValue value)
         {
             return B2R2.BitVector.ToUInt64(value.Value);

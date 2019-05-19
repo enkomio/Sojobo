@@ -46,6 +46,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="EncryptedString.cs" />
     <Compile Include="ExtensionMethods.cs" />
     <Compile Include="Kernel32.cs" />
     <Compile Include="Program.cs" />

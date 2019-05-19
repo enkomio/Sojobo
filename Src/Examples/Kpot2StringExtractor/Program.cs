@@ -8,28 +8,27 @@ using System.Threading.Tasks;
 using ES.Sojobo;
 using static ES.Sojobo.Model;
 using ES.Kpot2StringExtractor.ExtensionMethods;
+using System.Runtime.InteropServices;
 
 namespace ES.Kpot2StringExtractor
 {
     public class Program
     {
-        private static Int32 _retAddresDecryptString = 0x0040C928;
+        private static Int32 _decryptFunctionEndAddress = 0x0040C928;        
 
-        private static String GetOptions(String[] args)
+        private static Tuple<String, Boolean, Boolean> GetOptions(String[] args)
         {
             if (args.Length < 1)
             {
-                Console.WriteLine("Usage {0} <file name> [<offset>]]", Path.GetFileName(Assembly.GetEntryAssembly().Location));
-                Console.WriteLine("Pass '--test' as filename to run the sample released with this program.");
+                Console.WriteLine("Usage {0} <file name>", Path.GetFileName(Assembly.GetEntryAssembly().Location));
+                Console.WriteLine("Pass '--test' as first argument to run the sample released with this program.");
+                Console.WriteLine("Pass '--strings' as first argument to dump all strings in the sample released with this program.");
                 Environment.Exit(0);
             }
 
-            if (args.Length >= 2)
-            {
-                _retAddresDecryptString = Int32.Parse(args[1]);
-            }
-
-            return args[0];
+            var emulateSample = args[0].Equals("--strings", StringComparison.OrdinalIgnoreCase);
+            var printallStringsFromSample = args[0].Equals("--strings", StringComparison.OrdinalIgnoreCase);
+            return Tuple.Create<String, Boolean, Boolean>(args[0], emulateSample, printallStringsFromSample);
         }
 
         private static Byte[] Decrypt(String content)
@@ -41,46 +40,42 @@ namespace ES.Kpot2StringExtractor
             return decryptedContent;
         }
 
-        private static Byte[] GetFileContent(String filename)
+        private static Byte[] GetSampleContent()
         {
-            if (filename.Equals("--test", StringComparison.OrdinalIgnoreCase))
-            {
-                /*                 
-                This sample is taken from article: https://www.proofpoint.com/us/threat-insight/post/new-kpot-v20-stealer-brings-zero-persistence-and-memory-features-silently-steal
-                The binary is "obfuscated" with XOR, removed PE signature and base64 encoded.
-                SHA256: 67f8302a2fd28d15f62d6d20d748bfe350334e5353cbdef112bd1f8231b5599d
-                 */
-                Console.WriteLine(@"
+            /*                 
+            This sample is taken from article: https://www.proofpoint.com/us/threat-insight/post/new-kpot-v20-stealer-brings-zero-persistence-and-memory-features-silently-steal
+            The binary is "obfuscated" with XOR, removed PE signature and base64 encoded.
+            SHA256: 67f8302a2fd28d15f62d6d20d748bfe350334e5353cbdef112bd1f8231b5599d
+            */
+            Console.WriteLine(@"
 I'm going to run a sample of Kpot from article: https://www.proofpoint.com/us/threat-insight/post/new-kpot-v20-stealer-brings-zero-persistence-and-memory-features-silently-steal
 The binary is 'obfuscated' with XOR, removed PE signature and base64 encoded.
 Original SHA256: 67f8302a2fd28d15f62d6d20d748bfe350334e5353cbdef112bd1f8231b5599d
 Do you want to continue (It should be pretty safe to run this test) ? [Y/N]
 ");
-                if (Console.ReadLine().Equals("Y", StringComparison.OrdinalIgnoreCase))
-                {
-                    var testFile = "KPot2_REAL_MALWARE_DO_NOT_RUN_IT.txt";
-                    Console.WriteLine("[+] Running test sample: {0}", testFile);
-                    var assemblyDir = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
-                    var content = File.ReadAllText(Path.Combine(assemblyDir, testFile));
-                    return Decrypt(content);
-                }
-                else
-                {
-                    Console.WriteLine("Test aborted");
-                    Environment.Exit(1);
-                    return null;
-                }
+            if (Console.ReadLine().Equals("Y", StringComparison.OrdinalIgnoreCase))
+            {
+                var testFile = "KPot2_REAL_MALWARE_DO_NOT_RUN_IT.txt";
+                Console.WriteLine("[+] Running test sample: {0}", testFile);
+                var assemblyDir = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
+                var content = File.ReadAllText(Path.Combine(assemblyDir, testFile));
+                return Decrypt(content);
             }
             else
             {
-                return File.ReadAllBytes(filename);
+                Console.WriteLine("Test aborted");
+                Environment.Exit(1);
+                return null;
             }
         }
 
-        private static ISandbox CreateSandbox(String filename)
+        private static Byte[] GetFileContent(String filename)
         {
-            var content = GetFileContent(filename);
-
+            return File.ReadAllBytes(filename);
+        }
+        
+        private static ISandbox CreateSandbox(Byte[] content)
+        {
             var sandbox = new Win32Sandbox();
             sandbox.Load(content);
 
@@ -93,7 +88,7 @@ Do you want to continue (It should be pretty safe to run this test) ? [Y/N]
         private static void ProcessStep(Object sender, IProcessContainer process)
         {
             var ip = process.GetProgramCounter().ToInt32();
-            if (ip == _retAddresDecryptString)
+            if (ip == _decryptFunctionEndAddress)
             {
                 // read registers value
                 var decryptedBufferAddress = process.GetRegister("EDI").ToUInt64();
@@ -125,12 +120,47 @@ Do you want to continue (It should be pretty safe to run this test) ? [Y/N]
             }
         }
 
+        private static void DecryptStrings(IProcessContainer process)
+        {
+            Console.WriteLine("-=[ Start Dump All Strings ]=-");
+            
+            // encrypted strings
+            var encryptedStringsStartAddress = 0x00401288UL;
+            var encryptedStringsEndAddress = 0x00401838UL;
+
+            var currentOffset = encryptedStringsStartAddress;
+            while (currentOffset < encryptedStringsEndAddress)
+            {
+                var encryptedString = process.Memory.ReadMemory<EncryptedString>(currentOffset);
+                var decryptedString = encryptedString.Decrypt(process);
+                Console.WriteLine("[+] {0}", decryptedString);
+
+                // go to the next strings
+                currentOffset += 8UL; 
+            }
+
+            Console.WriteLine("-=[ Dump All Strings Completed ]=-");
+        }
+
         static void Main(string[] args)
         {
-            var filename = GetOptions(args);
-            var sandbox = CreateSandbox(filename);
-            EnableStepping(sandbox);
-            Run(sandbox);
+            var (filename, emulateSample, printAllStrings) = GetOptions(args);
+            if (printAllStrings)
+            {
+                // print all strings
+                var content = GetSampleContent();
+                var sandbox = CreateSandbox(content);
+                var process = sandbox.GetRunningProcess();
+                DecryptStrings(process);
+            }
+            else
+            {
+                // emulate content
+                var content = emulateSample ? GetSampleContent() : GetFileContent(filename);
+                var sandbox = CreateSandbox(content);
+                EnableStepping(sandbox);
+                Run(sandbox);
+            }            
         }
     }
 }

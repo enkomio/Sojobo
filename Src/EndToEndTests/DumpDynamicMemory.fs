@@ -67,7 +67,13 @@ module DumpDynamicMemory =
         // print imported function
         proc.GetImportedFunctions()
         |> Seq.iter(fun symbol ->
-            Console.WriteLine("Import: [0x{0}] {1} ({2}) from {3}", symbol.Address.ToString("X"), symbol.Name, symbol.Kind, symbol.LibraryName)            
+            Console.WriteLine(
+                "Import: [0x{0}] {1} ({2}) from {3}", 
+                symbol.Address.ToString("X"), 
+                symbol.Name, 
+                symbol.Kind, 
+                symbol.LibraryName
+            )            
         )
         
         // run the sample
