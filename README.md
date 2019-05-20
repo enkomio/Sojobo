@@ -18,6 +18,11 @@ With _Sojobo_ you can:
 
 _Sojobo_ is intended to be used as a framework to create program analysis utilities. However, various <a href="https://github.com/enkomio/Sojobo/tree/master/Src/Examples"><strong>sample utilities</strong></a> were created in order to show how to use the framework in a profitable way. 
 
+## Documentation
+The project is fully documented in F# (cit.) :) Joking apart, I plan to write some blog posts related to how to use Sojobo. Below a list of the current posts:
+
+ - <a href="https://antonioparata.blogspot.com/2019/05/sojobo-yet-another-binary-analysis.html">Sojobo - Yet another binary analysis framework</a>
+
 ## Compile
 
 In order to compile Sojobo you need .NET Core to be installed and Visual Studio. To compile just run **build.bat**.
