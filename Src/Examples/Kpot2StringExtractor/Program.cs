@@ -26,7 +26,7 @@ namespace ES.Kpot2StringExtractor
                 Environment.Exit(0);
             }
 
-            var emulateSample = args[0].Equals("--strings", StringComparison.OrdinalIgnoreCase);
+            var emulateSample = args[0].Equals("--test", StringComparison.OrdinalIgnoreCase);
             var printallStringsFromSample = args[0].Equals("--strings", StringComparison.OrdinalIgnoreCase);
             return Tuple.Create<String, Boolean, Boolean>(args[0], emulateSample, printallStringsFromSample);
         }
@@ -159,6 +159,11 @@ Do you want to continue (It should be pretty safe to run this test) ? [Y/N]
                 var content = emulateSample ? GetSampleContent() : GetFileContent(filename);
                 var sandbox = CreateSandbox(content);
                 EnableStepping(sandbox);
+
+
+                sandbox.AddLibrary(@"C:\Windows\SysWOW64\kernel32.dll");
+
+
                 Run(sandbox);
             }            
         }

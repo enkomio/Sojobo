@@ -58,7 +58,7 @@ module Utility =
         let size =  getSize(emuType)
         String.Format("T_{0}:{1}", index, size)   
 
-    let private getPe(handler: BinHandler) =
+    let getPe(handler: BinHandler) =
         let fileInfo = handler.FileInfo
         fileInfo.GetType().GetField("pe", BindingFlags.NonPublic ||| BindingFlags.Instance).GetValue(fileInfo) :?> PE
 

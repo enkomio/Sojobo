@@ -2,14 +2,12 @@
 
 open System
 open System.Reflection
-open System.Collections.Generic
 open System.IO
 open B2R2.FrontEnd
 open B2R2
 open B2R2.FrontEnd.Intel
 open ES.Sojobo.Win32
 open ES.Sojobo.Model
-open System.Reflection.PortableExecutable
 
 type Win32Sandbox() as this =
     inherit BaseSandbox()
@@ -129,11 +127,36 @@ type Win32Sandbox() as this =
                     | Some filename -> BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, filename)
                     | None -> BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, content)
 
-                Utility.mapPeHeader(handler, this.GetRunningProcess().Memory)
-                Utility.mapSections(handler, this.GetRunningProcess().Memory)
-                ()
-        
-        ()
+                // it isn't a .NET file, try to map exported functions
+                match handler.FileInfo.FileFormat with
+                | FileFormat.PEBinary ->
+                    Utility.mapPeHeader(handler, this.GetRunningProcess().Memory)
+                    Utility.mapSections(handler, this.GetRunningProcess().Memory)
+                
+                    // map callback for exported function
+                    let libraryName =
+                        match filename with
+                        | Some filename -> Path.GetFileName(filename)
+                        | _ -> String.Empty
+
+                    let pe = Utility.getPe(handler)
+                    pe.ExportMap
+                    |> Map.map(fun addr funName -> 
+                        {
+                            Address = addr
+                            Name = funName
+                            Kind = BinFile.SymbolKind.ExternFunctionType
+                            Target = BinFile.TargetKind.StaticSymbol
+                            LibraryName = libraryName
+                        }: BinFile.Symbol
+                    )
+                    |> Seq.map(fun kv -> kv.Value)
+                    |> fun symbols -> mapSymbolWithManagedFunctions(this.GetRunningProcess().Memory, symbols)
+                | _ ->
+                    // just map the file in memory
+                    this.GetRunningProcess().Memory.AllocateMemory(content, MemoryProtection.Read)
+                    |> ignore
+
 
     let resolveLibraryFunctionsFromFile(filename: String) =
         if File.Exists(filename) then

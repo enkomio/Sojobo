@@ -2,15 +2,11 @@
 
 open System
 open System.Collections.Generic
-open System.Reflection
 open B2R2
 open B2R2.FrontEnd
 open B2R2.BinFile
 open ES.Sojobo.Model
 open B2R2.FrontEnd.Intel
-open B2R2.BinFile.PE
-open Win32
-open System.Reflection.PortableExecutable
 
 type Win32ProcessContainer() as this =  
     inherit BaseProcessContainer()
@@ -79,7 +75,10 @@ type Win32ProcessContainer() as this =
     let resolveIATSymbols(handler: BinHandler) =
         handler.FileInfo.GetSymbols()
         |> Seq.iter(fun symbol ->
-            if not(String.IsNullOrEmpty(symbol.LibraryName)) && (symbol.Kind = SymbolKind.ExternFunctionType || symbol.Kind = SymbolKind.FunctionType) then 
+            if 
+                not(String.IsNullOrEmpty(symbol.LibraryName)) && 
+                (symbol.Kind = SymbolKind.ExternFunctionType || symbol.Kind = SymbolKind.FunctionType) 
+            then 
                 _iat.Add(symbol)
         )    
 
