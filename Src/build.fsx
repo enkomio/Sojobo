@@ -82,13 +82,14 @@ Core.Target.create "Compile" (fun _ ->
 
 Core.Target.create "Release" (fun _ ->
     let releaseFilename = Path.Combine(releaseDir, String.Format("ES.Sojobo.v{0}.zip", releaseVersion))
-    Directory.GetFiles(Path.Combine(buildDir, "ES.Sojobo"), "*.*", SearchOption.AllDirectories)
+    let buildDirectory = Path.Combine(buildDir, "ES.Sojobo")
+    Directory.GetFiles(buildDirectory, "*.*", SearchOption.AllDirectories)
     |> Array.filter(fun file ->
         [".pdb"] 
         |> List.contains (Path.GetExtension(file).ToLowerInvariant())
         |> not
     )
-    |> Fake.IO.Zip.zip "ES.Sojobo" releaseFilename
+    |> Fake.IO.Zip.zip buildDirectory releaseFilename
 )
 
 "Clean"        
