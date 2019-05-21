@@ -26,21 +26,20 @@ type Win32Sandbox() as this =
         let keyName = (sandbox :?> BaseSandbox).Callbacks.[uint64 programCounter]
         raise (UnhandledFunction keyName) |> ignore
 
-    let mapImportedFunctions(win32Process: IProcessContainer) =
-        let iatRegionBaseAddress = win32Process.Memory.AllocateMemory((win32Process.GetImportedFunctions() |> Seq.length) * 4, MemoryProtection.Read)
-        let iatRegion = win32Process.Memory.GetMemoryRegion(iatRegionBaseAddress)
-        win32Process.Memory.UpdateMemoryRegion(iatRegion.BaseAddress, {iatRegion with Info = "IAT"})
-
-        win32Process.GetImportedFunctions()
+    let mapSymbolWithManagedFunctions(memoryManager: MemoryManager, symbols: BinFile.Symbol seq) =
+        let regionBaseAddress = memoryManager.AllocateMemory((symbols |> Seq.length) * 4, MemoryProtection.Read)
+        let region = memoryManager.GetMemoryRegion(regionBaseAddress)
+        
+        symbols
         |> Seq.iteri(fun index symbol ->
             // obtains function offset
             let keyName = getFunctionKeyName(symbol.Name, symbol.LibraryName)
-            let offset = iatRegion.BaseAddress + uint64 (index * 4)
+            let offset = region.BaseAddress + uint64 (index * 4)
             this.Callbacks.[offset] <- keyName
 
             // write the function address
             let addressBytes = uint32 offset |> BitConverter.GetBytes
-            win32Process.Memory.UnsafeWriteMemory(symbol.Address, addressBytes, false)  
+            memoryManager.UnsafeWriteMemory(symbol.Address, addressBytes, false)  
 
             // map unhandled function if necessary
             if this.LibraryFunctions.ContainsKey(keyName) |> not then                
@@ -48,7 +47,7 @@ type Win32Sandbox() as this =
                 this.LibraryFunctions.[keyName] <- methodInfo
         )
 
-    let emulateInstruction(handler: BinHandler, instruction: Instruction, baseProcess: BaseProcessContainer) =
+    let emulateInstruction(handler: BinHandler, instruction: Instruction) =
         let block = 
             BinHandler.LiftInstr handler instruction
             |> BinHandler.Optimize
@@ -61,7 +60,7 @@ type Win32Sandbox() as this =
 
         // emulate instruction
         let handler = baseProcess.GetActiveMemoryRegion().Handler
-        emulateInstruction(handler, instruction, baseProcess)
+        emulateInstruction(handler, instruction)
 
     let executeStackFrameSetup(baseProcess: BaseProcessContainer) =
         emulateBufferInstruction(baseProcess, [|0x8Buy; 0xFFuy|]) // mov edi, edi
@@ -130,7 +129,8 @@ type Win32Sandbox() as this =
                     | Some filename -> BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, filename)
                     | None -> BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, content)
 
-                let fileRegion = this.GetRunningProcess().Memory.AllocateMemory(content, MemoryProtection.Read)
+                Utility.mapPeHeader(handler, this.GetRunningProcess().Memory)
+                Utility.mapSections(handler, this.GetRunningProcess().Memory)
                 ()
         
         ()
@@ -206,7 +206,7 @@ type Win32Sandbox() as this =
         // prepare for execution        
         resolveLibraryFunctions([Assembly(Assembly.GetExecutingAssembly())])
         resolveLibraryFunctions(this.Libraries)        
-        mapImportedFunctions(win32Process)
+        mapSymbolWithManagedFunctions(win32Process.Memory, win32Process.GetImportedFunctions())
         setupTeb()
                         
         // start execution loop
@@ -220,7 +220,7 @@ type Win32Sandbox() as this =
                 // emulate instruction
                 let instruction = win32Process.ReadNextInstruction()
                 let handler = win32Process.GetActiveMemoryRegion().Handler
-                emulateInstruction(handler, instruction, win32Process)
+                emulateInstruction(handler, instruction)
 
                 // check ending condition
                 _stopExecution <- 
