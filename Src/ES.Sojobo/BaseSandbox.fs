@@ -12,7 +12,7 @@ open B2R2.BinIR
 [<AbstractClass>]
 type BaseSandbox() =
     let _sideEffectEvent = new Event<ISandbox * SideEffect>()
-    let _assemblies = new List<Assembly>()
+    let _libraries = new List<Library>()
     let _libraryFunctions = new Dictionary<String, MethodInfo>()
     let _callbacks = new Dictionary<UInt64, String>()      
 
@@ -25,10 +25,16 @@ type BaseSandbox() =
     member this.SideEffect = _sideEffectEvent.Publish
     member internal this.Callbacks = _callbacks
     member internal this.LibraryFunctions = _libraryFunctions
-    member internal this.Assemblies = _assemblies
+    member internal this.Libraries = _libraries
 
     member this.AddLibrary(assembly: Assembly) =
-        this.Assemblies.Add(assembly) 
+        this.Libraries.Add(Assembly assembly) 
+
+    member this.AddLibrary(content: Byte array) =
+        this.Libraries.Add(Native content) 
+
+    member this.AddLibrary(filename: String) =
+        this.Libraries.Add(File filename) 
 
     member internal this.TriggerSideEffect(sideEffect: SideEffect) =
         _sideEffectEvent.Trigger(upcast this, sideEffect)
@@ -51,6 +57,12 @@ type BaseSandbox() =
 
         member this.AddLibrary(assembly: Assembly) =
             this.AddLibrary(assembly)
+
+        member this.AddLibrary(filename: String) =
+            this.AddLibrary(filename)
+
+        member this.AddLibrary(content: Byte array) =
+            this.AddLibrary(content)
         
         [<CLIEvent>]
         member this.SideEffect

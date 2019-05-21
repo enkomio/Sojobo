@@ -91,9 +91,8 @@ type Win32Sandbox() as this =
         let arrayBuffer = memWriter.ToArray()
         emulateBufferInstruction(baseProcess, arrayBuffer)
 
-    let resolveLibraryFunctions(assemblies: Assembly seq) =
-        assemblies
-        |> Seq.collect(fun assembly -> assembly.GetTypes())
+    let resolveLibraryFunctionsFromAssembly(assembly: Assembly) =
+        assembly.GetTypes()
         |> Seq.collect(fun t -> t.GetMethods())
         |> Seq.filter(fun m -> m.IsStatic && m.ReturnType = typeof<CallbackResult>)
         |> Seq.filter(fun m -> m.GetParameters().Length > 0 && m.GetParameters().[0].ParameterType = typeof<ISandbox>)
@@ -115,6 +114,14 @@ type Win32Sandbox() as this =
         |> Seq.iter(fun m ->
             let keyName = getFunctionKeyName(m.Name, m.DeclaringType.Name)
             this.LibraryFunctions.[keyName] <- m
+        )
+
+    let resolveLibraryFunctions(libraries: Library seq) =
+        libraries
+        |> Seq.iter(function
+            | Assembly assembly -> resolveLibraryFunctionsFromAssembly(assembly)
+            | Native content -> ()
+            | File filename -> ()
         )
 
     let getArgument(proc: IProcessContainer, position: Int32) =
@@ -173,8 +180,8 @@ type Win32Sandbox() as this =
         let endAddress = activeRegion.BaseAddress + uint64 activeRegion.Content.Length
         
         // prepare for execution        
-        resolveLibraryFunctions([Assembly.GetExecutingAssembly()])
-        resolveLibraryFunctions(this.Assemblies)        
+        resolveLibraryFunctions([Assembly(Assembly.GetExecutingAssembly())])
+        resolveLibraryFunctions(this.Libraries)        
         mapImportedFunctions(win32Process)
         setupTeb()
                         

@@ -31,7 +31,18 @@ type ISandbox =
         /// ISandbox * param1:Int32 * param2:UInt32 -> CallbackResult
         /// The full name (namespace included) will be matched against the exported functions
         /// and if the binary will invoke it, the associated function will be invoked instead.
-        abstract AddLibrary: Assembly-> unit
+        abstract AddLibrary: Assembly -> unit
+
+        /// Add the content of the parameter as a library. The content will be mapped into
+        /// the process address space and the exported function resolved in order to be 
+        /// emulated
+        abstract AddLibrary: content:Byte array -> unit
+
+        /// Add the content of the file as a library. If the file is a .NET assembly it will 
+        /// be inspected with the same process of the method to add an Assembly file.
+        /// If it is a native file, its content will be mapped with the same process of the
+        /// method to add a Byte array
+        abstract AddLibrary: filename:String -> unit
 
         /// This event is raised each time that an operation cause a side effect,
         // like the execution of an Interrupt or of a CPUIP instruction

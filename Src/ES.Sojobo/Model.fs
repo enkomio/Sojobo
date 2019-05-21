@@ -1,12 +1,17 @@
 ﻿namespace ES.Sojobo
 
 open System
+open System.Reflection
 open System.Reflection.PortableExecutable
 open B2R2
 open B2R2.FrontEnd
 open B2R2.BinFile
 
 module Model =
+    type internal Library =
+        | Assembly of Assembly
+        | Native of content: Byte array
+        | File of filename: String
 
     type EmulatedType =
         | Bit
