@@ -7,9 +7,9 @@ open B2R2
 open B2R2.FrontEnd
 open B2R2.BinIR
 open B2R2.BinFile.PE
+open System.Reflection.PortableExecutable
 
 module Utility =        
-
     let toArray(bitVector: BitVector) =
         let size = int32 <| BitVector.getType bitVector
         let value = BitVector.getValue bitVector
@@ -58,6 +58,78 @@ module Utility =
         let size =  getSize(emuType)
         String.Format("T_{0}:{1}", index, size)   
 
-    let getPe(handler: BinHandler) =
+    let private getPe(handler: BinHandler) =
         let fileInfo = handler.FileInfo
         fileInfo.GetType().GetField("pe", BindingFlags.NonPublic ||| BindingFlags.Instance).GetValue(fileInfo) :?> PE
+
+    let private getSectionProtection(sectionHeader: SectionHeader) =
+        let characteristics = sectionHeader.SectionCharacteristics
+        let mutable protection: MemoryProtection option = None
+        
+        if characteristics.HasFlag(SectionCharacteristics.MemRead) then 
+            protection <- Some MemoryProtection.Read
+
+        if characteristics.HasFlag(SectionCharacteristics.MemWrite) then 
+            protection <-
+                match protection with
+                | Some p -> p ||| MemoryProtection.Write
+                | None -> MemoryProtection.Write
+                |> Some
+
+        if characteristics.HasFlag(SectionCharacteristics.MemExecute) then 
+            protection <-
+                match protection with
+                | Some p -> p ||| MemoryProtection.Execute
+                | None -> MemoryProtection.Execute
+                |> Some
+
+        Option.defaultValue MemoryProtection.Read protection
+
+    let mapPeHeader(handler: BinHandler, memoryManager: MemoryManager) =
+        let pe = getPe(handler)
+        let fileInfo = handler.FileInfo
+        let struct (buffer, _) = fileInfo.BinReader.ReadBytes(int32 pe.PEHeaders.PEHeader.SizeOfHeaders, 0)
+        
+        {
+            BaseAddress = pe.PEHeaders.PEHeader.ImageBase
+            Content = buffer
+            Handler =
+                BinHandler.Init(
+                    ISA.OfString "x86", 
+                    ArchOperationMode.NoMode, 
+                    false, 
+                    pe.PEHeaders.PEHeader.ImageBase, 
+                    buffer
+                )
+            Protection = MemoryProtection.Read
+            Type = fileInfo.FilePath
+            Info = fileInfo.FilePath
+        }
+        |> memoryManager.AddMemoryRegion
+
+    
+
+    let mapSections(handler: BinHandler, memoryManager: MemoryManager) =
+        let pe = getPe(handler)
+        handler.FileInfo.GetSections()
+        |> Seq.map(fun section ->
+            let sectionHeader = 
+                pe.SectionHeaders 
+                |> Seq.find(fun sc -> sc.Name.Equals(section.Name, StringComparison.OrdinalIgnoreCase))
+            
+            let sectionSize = min sectionHeader.SizeOfRawData (int32 section.Size)            
+            let buffer = Array.zeroCreate<Byte>(max sectionHeader.SizeOfRawData (int32 section.Size))
+            Array.Copy(handler.ReadBytes(section.Address, sectionSize), buffer, sectionSize)
+                        
+            let sectionHandler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, false, section.Address, buffer)
+            (section, buffer, sectionHandler, getSectionProtection(sectionHeader))
+        ) 
+        |> Seq.map(fun (section, buffer, sectionHandler, protection) -> {
+            BaseAddress = section.Address
+            Content = buffer
+            Handler = sectionHandler
+            Protection = protection
+            Type = section.Name
+            Info = handler.FileInfo.FilePath
+        })
+        |> Seq.iter(memoryManager.AddMemoryRegion)

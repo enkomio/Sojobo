@@ -27,74 +27,6 @@ type Win32ProcessContainer() as this =
         let eip = string Register.EIP
         let eipValue = createVariableWithValue(eip, EmulatedType.DoubleWord, BitVector.ofUInt64 handler.FileInfo.EntryPoint 32<rt>)
         this.Variables.Add(eip, eipValue)
-      
-    let mapPeHeader(handler: BinHandler, pe: PE) =
-        let fileInfo = handler.FileInfo
-        let struct (buffer, _) = fileInfo.BinReader.ReadBytes(int32 pe.PEHeaders.PEHeader.SizeOfHeaders, 0)
-        
-        {
-            BaseAddress = pe.PEHeaders.PEHeader.ImageBase
-            Content = buffer
-            Handler =
-                BinHandler.Init(
-                    ISA.OfString "x86", 
-                    ArchOperationMode.NoMode, 
-                    false, 
-                    pe.PEHeaders.PEHeader.ImageBase, 
-                    buffer
-                )
-            Protection = MemoryProtection.Read
-            Type = fileInfo.FilePath
-            Info = fileInfo.FilePath
-        }
-        |> _memoryManager.AddMemoryRegion
-
-    let getSectionProtection(sectionHeader: SectionHeader) =
-        let characteristics = sectionHeader.SectionCharacteristics
-        let mutable protection: MemoryProtection option = None
-        
-        if characteristics.HasFlag(SectionCharacteristics.MemRead) then 
-            protection <- Some MemoryProtection.Read
-
-        if characteristics.HasFlag(SectionCharacteristics.MemWrite) then 
-            protection <-
-                match protection with
-                | Some p -> p ||| MemoryProtection.Write
-                | None -> MemoryProtection.Write
-                |> Some
-
-        if characteristics.HasFlag(SectionCharacteristics.MemExecute) then 
-            protection <-
-                match protection with
-                | Some p -> p ||| MemoryProtection.Execute
-                | None -> MemoryProtection.Execute
-                |> Some
-
-        Option.defaultValue MemoryProtection.Read protection
-
-    let mapSections(handler: BinHandler, pe: PE) =
-        handler.FileInfo.GetSections()
-        |> Seq.map(fun section ->
-            let sectionHeader = 
-                pe.SectionHeaders 
-                |> Seq.find(fun sc -> sc.Name.Equals(section.Name, StringComparison.OrdinalIgnoreCase))
-            
-            let sectionSize = min sectionHeader.SizeOfRawData (int32 section.Size)            
-            let buffer = Array.zeroCreate<Byte>(max sectionHeader.SizeOfRawData (int32 section.Size))
-            Array.Copy(handler.ReadBytes(section.Address, sectionSize), buffer, sectionSize)
-                        
-            let sectionHandler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, false, section.Address, buffer)
-            (section, buffer, sectionHandler, getSectionProtection(sectionHeader))
-        ) 
-        |> Seq.map(fun (section, buffer, sectionHandler, protection) -> {
-            BaseAddress = section.Address
-            Content = buffer
-            Handler = sectionHandler
-            Protection = protection
-            Type = section.Name
-            Info = handler.FileInfo.FilePath
-        })
-        |> Seq.iter(_memoryManager.AddMemoryRegion)
 
     let setupRegisters() =
         [
@@ -152,9 +84,8 @@ type Win32ProcessContainer() as this =
         )    
 
     let initialize(handler: BinHandler) =
-        let pe = Utility.getPe(handler)
-        mapPeHeader(handler, pe)
-        mapSections(handler, pe)
+        Utility.mapPeHeader(handler, _memoryManager)
+        Utility.mapSections(handler, _memoryManager)
         setupStackRegisters()
         setEntryPoint(handler)
         resolveIATSymbols(handler)

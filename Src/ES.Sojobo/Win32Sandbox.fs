@@ -9,6 +9,7 @@ open B2R2
 open B2R2.FrontEnd.Intel
 open ES.Sojobo.Win32
 open ES.Sojobo.Model
+open System.Reflection.PortableExecutable
 
 type Win32Sandbox() as this =
     inherit BaseSandbox()
@@ -116,12 +117,35 @@ type Win32Sandbox() as this =
             this.LibraryFunctions.[keyName] <- m
         )
 
+    let resolveLibraryFunctionsFromContent(content: Byte array, filename: String option) =
+        try
+            let assembly = Assembly.Load(content)
+            resolveLibraryFunctionsFromAssembly(assembly)
+        with 
+            | :? BadImageFormatException ->
+                // map the file
+                let isa = ISA.OfString "x86"
+                let handler = 
+                    match filename with
+                    | Some filename -> BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, filename)
+                    | None -> BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, content)
+
+                let fileRegion = this.GetRunningProcess().Memory.AllocateMemory(content, MemoryProtection.Read)
+                ()
+        
+        ()
+
+    let resolveLibraryFunctionsFromFile(filename: String) =
+        if File.Exists(filename) then
+            let content = File.ReadAllBytes(filename)
+            resolveLibraryFunctionsFromContent(content, Some filename)
+
     let resolveLibraryFunctions(libraries: Library seq) =
         libraries
         |> Seq.iter(function
             | Assembly assembly -> resolveLibraryFunctionsFromAssembly(assembly)
-            | Native content -> ()
-            | File filename -> ()
+            | Native content -> resolveLibraryFunctionsFromContent(content, None)
+            | File filename -> resolveLibraryFunctionsFromFile(filename)
         )
 
     let getArgument(proc: IProcessContainer, position: Int32) =
