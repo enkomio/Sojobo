@@ -144,7 +144,9 @@ module Win32 =
     let private createPeb(sandbox: ISandbox) =
         let proc = sandbox.GetRunningProcess()
         let dataEntries = new List<LDR_DATA_TABLE_ENTRY>()
-                
+                        
+        let libraries = (sandbox :?> BaseSandbox).Libraries
+
         // create the data table entries
         proc.GetImportedFunctions()            
         |> Seq.groupBy(fun s -> s.LibraryName)
@@ -161,6 +163,8 @@ module Win32 =
             let dataTableEntry =
                 {Activator.CreateInstance<LDR_DATA_TABLE_ENTRY>() with
                     FullDllName = fullNameDll
+                    DllBase = 0u
+                    EntryPoint = 0u
                 }
 
             // set link to refer to itself
