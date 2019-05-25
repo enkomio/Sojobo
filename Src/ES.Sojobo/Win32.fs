@@ -4,7 +4,8 @@ open System
 open System.Collections.Generic
 open System.Text
 open System.Runtime.InteropServices
-open System.Reflection
+open System.Reflection.PortableExecutable
+open System.IO
 open ES.Sojobo.Model
 
 (*
@@ -16,6 +17,7 @@ open ES.Sojobo.Model
         - For array type always add the "MarshalAs" with "SizeConst" property in order to know how many items must be serialized
 *)
 module Win32 =
+    
     
     // https://docs.microsoft.com/en-us/windows/desktop/api/subauth/ns-subauth-_unicode_string
     [<CLIMutable>]
@@ -140,18 +142,43 @@ module Win32 =
         Reserved6: UInt32 array
         TlsExpansionSlots: UInt32
     }
+
+    let private getLibrariesDetails(sandbox: ISandbox) =
+        (sandbox :?> BaseSandbox).Libraries
+        |> Seq.filter(fun lib -> 
+            match lib with
+            | File _ -> true
+            | _ -> false
+        )
+        |> Seq.map(fun lib ->
+            match lib with
+            | File filename -> filename
+            | _ -> failwith "createPeb"
+        )
+        |> Seq.map(fun file ->
+            let content = System.IO.File.ReadAllBytes(file)
+            let filename = System.IO.Path.GetFileName(file)
+            use memoryStream = new MemoryStream(content)
+            use peReader = new PEReader(memoryStream)
+            (filename.ToLowerInvariant(), (peReader.PEHeaders.PEHeader.ImageBase, peReader.PEHeaders.PEHeader.AddressOfEntryPoint))
+        )
+        |> dict
     
     let private createPeb(sandbox: ISandbox) =
         let proc = sandbox.GetRunningProcess()
+        let librariesDetails = getLibrariesDetails(sandbox)
         let dataEntries = new List<LDR_DATA_TABLE_ENTRY>()
                         
-        let libraries = (sandbox :?> BaseSandbox).Libraries
-
         // create the data table entries
         proc.GetImportedFunctions()            
         |> Seq.groupBy(fun s -> s.LibraryName)
         |> Seq.map(fun (libraryName, _) -> libraryName)
         |> Seq.iter(fun libraryName ->
+            let (imageBase, entryPoint) =
+                match librariesDetails.TryGetValue(libraryName.ToLowerInvariant()) with
+                | (true, (imageBase, entryPoint)) -> (uint32 imageBase, uint32 entryPoint)
+                | (false, _) -> (0u, 0u)
+
             let fullNameBytes = Encoding.Unicode.GetBytes(libraryName)
             let fullNameDll = 
                 {Activator.CreateInstance<UNICODE_STRING>() with 
@@ -163,8 +190,8 @@ module Win32 =
             let dataTableEntry =
                 {Activator.CreateInstance<LDR_DATA_TABLE_ENTRY>() with
                     FullDllName = fullNameDll
-                    DllBase = 0u
-                    EntryPoint = 0u
+                    DllBase = imageBase
+                    EntryPoint = entryPoint
                 }
 
             // set link to refer to itself
