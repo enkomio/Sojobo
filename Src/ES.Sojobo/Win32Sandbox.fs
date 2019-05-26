@@ -101,6 +101,12 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
             
     new() = new Win32Sandbox(Win32SandboxSettings.Default)
 
+    default this.AddHook(address: UInt64, callback: Action<ISandbox>) =
+        ()
+
+    default this.AddHook(symbol: String, callback: Action<ISandbox>) =
+        ()
+
     default this.Run() =            
         let win32Process = _currentProcess.Value
         let activeRegion = win32Process.GetActiveMemoryRegion()

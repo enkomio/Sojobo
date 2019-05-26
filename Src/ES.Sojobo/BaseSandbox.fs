@@ -14,6 +14,8 @@ type BaseSandbox() =
     abstract Run: unit -> unit
     abstract Stop: unit -> unit     
     abstract GetRunningProcess: unit -> IProcessContainer
+    abstract AddHook: address:UInt64 * callback:Action<ISandbox> -> unit
+    abstract AddHook: symbol:String * callback:Action<ISandbox> -> unit
 
     member this.SideEffect = _sideEffectEvent.Publish
     member val internal Libraries = new List<Library>() with get
@@ -55,6 +57,12 @@ type BaseSandbox() =
 
         member this.AddLibrary(content: Byte array) =
             this.AddLibrary(content)
+
+        member this.AddHook(address: UInt64, callback: Action<ISandbox>) =
+            this.AddHook(address, callback)
+
+        member this.AddHook(symbol: String, callback: Action<ISandbox>) =
+            this.AddHook(symbol, callback)
         
         [<CLIEvent>]
         member this.SideEffect

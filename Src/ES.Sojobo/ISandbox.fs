@@ -44,6 +44,16 @@ type ISandbox =
         /// method to add a Byte array
         abstract AddLibrary: filename:String -> unit
 
+        /// Add an hook at the specified address. The callback is invoked before the 
+        /// instruction at that address is emulated
+        abstract AddHook: address:UInt64 * callback:Action<ISandbox> -> unit
+
+        /// Add an hook at the specified symbol. A symbol is represented by the format:
+        /// <module name>!<function name>. For example to add an hook when VirtualAlloc is 
+        /// invoked, use: kernel32!VirtualAlloc.
+        /// The callback is invoked before the instruction at that address is emulated
+        abstract AddHook: symbol:String * callback:Action<ISandbox> -> unit
+
         /// This event is raised each time that an operation cause a side effect,
         // like the execution of an Interrupt or of a CPUIP instruction
         [<CLIEvent>]
