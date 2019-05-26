@@ -10,6 +10,7 @@ open B2R2.BinFile
 [<AbstractClass>]
 type BaseProcessContainer() =
     let mutable _activeRegion: MemoryRegion option = None
+    let _stepEvent = new Event<IProcessContainer>()       
 
     member val internal Variables = new Dictionary<String, EmulatedValue>() with get
     member val internal TempVariables = new Dictionary<String, EmulatedValue>() with get
@@ -39,6 +40,18 @@ type BaseProcessContainer() =
     member this.GetActiveMemoryRegion() =
         _activeRegion.Value
 
+    member this.ReadNextInstruction() =      
+        _stepEvent.Trigger(this)
+        let instruction = this.GetInstruction()
+        let programCounter = this.GetProgramCounter()
+        this.Variables.[programCounter.Name] <- 
+            {programCounter with
+                Value = BitVector.add programCounter.Value (BitVector.ofUInt32 instruction.Length 32<rt>)
+            }
+        instruction
+
+    member this.Step = _stepEvent.Publish   
+
     abstract GetProgramCounter: unit -> EmulatedValue
     abstract SetRegister: EmulatedValue -> unit
     abstract GetRegister: name: String -> EmulatedValue    
@@ -46,7 +59,6 @@ type BaseProcessContainer() =
     abstract GetInstruction: unit -> Instruction    
     abstract GetCallStack: unit -> UInt64 array
     abstract GetPointerSize: unit -> Int32    
-    abstract Step: IEvent<IProcessContainer> with get
     abstract Memory: MemoryManager with get
     
     interface IProcessContainer with

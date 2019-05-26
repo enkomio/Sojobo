@@ -14,7 +14,6 @@ type Win32ProcessContainer() as this =
     let _pointerSize = 32
     let _memoryManager = new MemoryManager(_pointerSize)
     let _iat = new List<Symbol>()
-    let _stepEvent = new Event<IProcessContainer>()       
     
     let setEntryPoint(handler: BinHandler) =
         this.UpdateActiveMemoryRegion(_memoryManager.GetMemoryRegion(handler.FileInfo.EntryPoint))
@@ -89,8 +88,7 @@ type Win32ProcessContainer() as this =
         setEntryPoint(handler)
         resolveIATSymbols(handler)
         setupRegisters()
-
-    default this.Step = _stepEvent.Publish   
+    
     default this.Memory = _memoryManager
 
     default this.GetRegister(name: String) =
@@ -117,16 +115,6 @@ type Win32ProcessContainer() as this =
     default this.GetInstruction() =
         let programCounter = this.GetProgramCounter().Value |> BitVector.toUInt64
         BinHandler.ParseInstr (this.GetActiveMemoryRegion().Handler) (programCounter)
-
-    member this.ReadNextInstruction() =      
-        _stepEvent.Trigger(this)
-        let instruction = this.GetInstruction()
-        let programCounter = this.GetProgramCounter()
-        this.Variables.[programCounter.Name] <- 
-            {programCounter with
-                Value = BitVector.add programCounter.Value (BitVector.ofUInt32 instruction.Length 32<rt>)
-            }
-        instruction
 
     default this.GetProgramCounter() =
         this.Variables.["EIP"]  
