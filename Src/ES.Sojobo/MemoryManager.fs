@@ -275,11 +275,22 @@ type MemoryManager(pointerSize: Int32) =
 
     member this.ReadMemory<'T>(address: UInt64) =
         // read raw bytes
-        let size = calculateSize(typeof<'T>, new Dictionary<Type, Int32>())
+        let objectType = typeof<'T>
+        let size = calculateSize(objectType, new Dictionary<Type, Int32>())
         let buffer = readMemory(address, size)
-        let objectInstance = Activator.CreateInstance<'T>()
+
+        let objectInstance = 
+            if objectType.IsPrimitive || objectType.IsValueType 
+            then Activator.CreateInstance<'T>() |> box
+            else Activator.CreateInstance<'T>() :> Object
+
+        // deserialize data
         deserialize(buffer, objectInstance, new Dictionary<UInt64, Object>())
-        objectInstance 
+        
+        // unbox object if necessary
+        if objectType.IsPrimitive || objectType.IsValueType 
+        then unbox objectInstance
+        else objectInstance :?> 'T
 
     member internal this.UnsafeWriteMemory(address: UInt64, value: Byte array, verifyProtection: Boolean) =        
         let region = this.GetMemoryRegion(address)
