@@ -107,8 +107,6 @@ module Utility =
         }
         |> memoryManager.AddMemoryRegion
 
-    
-
     let mapSections(handler: BinHandler, memoryManager: MemoryManager) =
         let pe = getPe(handler)
         handler.FileInfo.GetSections()
@@ -133,3 +131,7 @@ module Utility =
             Info = handler.FileInfo.FilePath
         })
         |> Seq.iter(memoryManager.AddMemoryRegion)
+
+    let getFunctionKeyName(functioName: String, libraryName: String) =
+        let keyName = String.Format("{0}::{1}", libraryName, functioName).ToLower()
+        keyName.Replace(".dll", String.Empty)

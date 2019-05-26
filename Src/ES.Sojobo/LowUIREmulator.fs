@@ -9,8 +9,8 @@ open ES.Sojobo.Model
 open B2R2.FrontEnd.Intel
 open B2R2.BinIR
 
-module LowUIREmulator =
-    let private extractBlocks(stmts: Stmt array) =
+type LowUIREmulator(sandbox: BaseSandbox) =
+    let extractBlocks(stmts: Stmt array) =
         let blocks = new Dictionary<String, List<Stmt>>()
         let mutable curList = new List<Stmt>()
         blocks.[String.Empty] <- curList
@@ -27,7 +27,7 @@ module LowUIREmulator =
 
         blocks
 
-    let rec private emulateExpr(baseProcess: BaseProcessContainer) (expr: Expr) =
+    let rec emulateExpr(baseProcess: BaseProcessContainer) (expr: Expr) =
         match expr with
         | TempVar (regType, index) ->
             baseProcess.GetOrCreateTemporaryVariable(string index, Utility.getType(regType))
@@ -149,7 +149,7 @@ module LowUIREmulator =
         // | FuncName of string  
         | _ -> failwith("Expression not yet emulated: " + expr.ToString())
 
-    and private emulateStmt(sandbox: BaseSandbox) (blocks: Dictionary<String, List<Stmt>>) (stmt: Stmt) =
+    and emulateStmt(blocks: Dictionary<String, List<Stmt>>) (stmt: Stmt) =
         match stmt with
         | ISMark _ -> ()
         | IEMark _ ->
@@ -218,7 +218,7 @@ module LowUIREmulator =
                 
             // emulate the statements
             blocks.[label] 
-            |> Seq.iter(emulateStmt sandbox blocks)
+            |> Seq.iter(emulateStmt blocks)
 
         | LMark(_) ->
             // this statement was already considered by extractBlocks
@@ -229,10 +229,23 @@ module LowUIREmulator =
         *)
 
         | _ -> failwith("Statement not yet emulated: " + stmt.ToString())
-
-    and emulateBlock(sandbox: BaseSandbox) (stmts: Stmt array) =
+        
+    member this.Emulate(stmts: Stmt array) =
         let blocks = extractBlocks(stmts)
         
         blocks.[String.Empty] 
         |> Seq.toArray
-        |> Array.iter(emulateStmt sandbox blocks)
+        |> Array.iter(emulateStmt blocks)
+
+    member this.EmulateInstruction(handler: BinHandler, instruction: Instruction) =        
+        let block = 
+            BinHandler.LiftInstr handler instruction
+            |> BinHandler.Optimize
+        this.Emulate(block)
+
+    interface ILowUIREmulator with
+        member this.Emulate(stmts: Stmt array) =
+            this.Emulate(stmts)
+
+        member this.EmulateInstruction(handler: BinHandler, instruction: Instruction) =
+            this.EmulateInstruction(handler, instruction)

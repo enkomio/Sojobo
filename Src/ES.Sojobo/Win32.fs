@@ -143,6 +143,7 @@ module Win32 =
         TlsExpansionSlots: UInt32
     }
 
+    (*
     let private getLibrariesDetails(sandbox: ISandbox) =
         (sandbox :?> BaseSandbox).Libraries
         |> Seq.filter(fun lib -> 
@@ -163,10 +164,10 @@ module Win32 =
             (filename.ToLowerInvariant(), (peReader.PEHeaders.PEHeader.ImageBase, peReader.PEHeaders.PEHeader.AddressOfEntryPoint))
         )
         |> dict
-    
+    *)
     let private createPeb(sandbox: ISandbox) =
         let proc = sandbox.GetRunningProcess()
-        let librariesDetails = getLibrariesDetails(sandbox)
+        //let librariesDetails = getLibrariesDetails(sandbox)
         let dataEntries = new List<LDR_DATA_TABLE_ENTRY>()
                         
         // create the data table entries
@@ -174,10 +175,11 @@ module Win32 =
         |> Seq.groupBy(fun s -> s.LibraryName)
         |> Seq.map(fun (libraryName, _) -> libraryName)
         |> Seq.iter(fun libraryName ->
-            let (imageBase, entryPoint) =
-                match librariesDetails.TryGetValue(libraryName.ToLowerInvariant()) with
-                | (true, (imageBase, entryPoint)) -> (uint32 imageBase, uint32 entryPoint)
-                | (false, _) -> (0u, 0u)
+            
+            let (imageBase, entryPoint) = (0u, 0u)
+                //match librariesDetails.TryGetValue(libraryName.ToLowerInvariant()) with
+                //| (true, (imageBase, entryPoint)) -> (uint32 imageBase, uint32 entryPoint)
+                //| (false, _) -> (0u, 0u)
 
             let fullNameBytes = Encoding.Unicode.GetBytes(libraryName)
             let fullNameDll = 

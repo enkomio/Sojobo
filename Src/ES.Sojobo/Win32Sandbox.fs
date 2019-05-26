@@ -20,15 +20,12 @@ type Win32SandboxSettings = {
 
 type Win32Sandbox(settings: Win32SandboxSettings) as this =
     inherit BaseSandbox()
-     
+
     let mutable _stopExecution = false
-    let mutable _currentProcess: Win32ProcessContainer option = None    
+    let mutable _currentProcess: Win32ProcessContainer option = None
+    do this.Emulator <- Some(upcast new LowUIREmulator(this))
 
-    static let notRegisteredFunction(sandbox: ISandbox) =
-        let programCounter = sandbox.GetRunningProcess().GetProgramCounter().Value |> BitVector.toUInt32
-        let keyName = (sandbox :?> BaseSandbox).Callbacks.[uint64 programCounter]
-        raise (UnhandledFunction keyName) |> ignore
-
+        (*
     let mapSymbolWithManagedFunctions(memoryManager: MemoryManager, symbols: BinFile.Symbol seq) =
         let regionBaseAddress = memoryManager.AllocateMemory((symbols |> Seq.length) * 4, MemoryProtection.Read)
         let region = memoryManager.GetMemoryRegion(regionBaseAddress)
@@ -49,13 +46,10 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
                 let methodInfo = this.GetType().GetMethod("notRegisteredFunction", BindingFlags.NonPublic ||| BindingFlags.Static)
                 this.LibraryFunctions.[keyName] <- methodInfo
         )
+        *)
 
-    let emulateInstruction(handler: BinHandler, instruction: Instruction) =
-        let block = 
-            BinHandler.LiftInstr handler instruction
-            |> BinHandler.Optimize
-        LowUIREmulator.emulateBlock this block
-            
+    
+           (* 
     let emulateBufferInstruction(baseProcess: BaseProcessContainer, buffer: Byte array) =
         // compose instruction
         let handler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
@@ -64,7 +58,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         // emulate instruction
         let handler = baseProcess.GetActiveMemoryRegion().Handler
         emulateInstruction(handler, instruction)
-
+        
     let executeStackFrameSetup(baseProcess: BaseProcessContainer) =
         emulateBufferInstruction(baseProcess, [|0x8Buy; 0xFFuy|]) // mov edi, edi
         emulateBufferInstruction(baseProcess, [|0x55uy|]) // push ebp
@@ -93,7 +87,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         binWriter.Flush()
         let arrayBuffer = memWriter.ToArray()
         emulateBufferInstruction(baseProcess, arrayBuffer)
-        (*
+        
     let resolveLibraryFunctionsFromAssembly(assembly: Assembly) =
         assembly.GetTypes()
         |> Seq.collect(fun t -> t.GetMethods())
@@ -175,7 +169,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
             | Native content -> resolveLibraryFunctionsFromContent(content, None)
             | File filename -> resolveLibraryFunctionsFromFile(filename)
         )
-        *)
+        
     let getArgument(proc: IProcessContainer, position: Int32) =
         let ebp = proc.GetRegister("EBP").Value |> BitVector.toUInt32
         let address = ebp + uint32 (position + 2) * 4ul
@@ -199,7 +193,8 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
             let eax = createVariableWithValue("EAX", EmulatedType.DoubleWord, retValue)
             baseProcess.SetRegister(eax)
         )
-
+        *)
+        (*
     let invokeLibraryFunction(sandbox: ISandbox, baseProcess: BaseProcessContainer) =
         let keyName = this.Callbacks.[baseProcess.GetProgramCounter().Value |> BitVector.toUInt64]
         let libraryFunction = this.LibraryFunctions.[keyName]
@@ -214,7 +209,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         setResult(baseProcess, libraryFunctionResult)
         executeStackFrameCleanup(baseProcess)
         executeReturn(baseProcess, libraryFunction, libraryFunctionResult)
-
+        *)
     let setupTeb() =
         let tebAddress = createTeb(this)
         if this.GetRunningProcess().GetPointerSize() = 32 then [
@@ -226,9 +221,32 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         ] 
         |> List.iter(this.GetRunningProcess().SetRegister)
 
+    let resolveEmulatedFunctions() =
+        this.Libraries
+        |> Seq.iter(fun lib ->
+            match lib with
+            | Managed lib -> lib.ResolveLibraryFunctions()
+            | _ -> ()
+        )
+
+    let mapEmulatedFunctions() =
+        this.Libraries
+        |> Seq.iter(fun lib ->
+            match lib with
+            | Managed lib -> 
+                let proc = this.GetRunningProcess()
+                lib.MapSymbolWithManagedFunctions(proc.Memory, proc.GetImportedFunctions())
+            | _ -> ()
+        )
+
+
     let prepareForExecution() =
         if settings.InitializeEnvironment then
             this.AddLibrary(Assembly.GetExecutingAssembly())
+
+        resolveEmulatedFunctions()
+        mapEmulatedFunctions()
+
         (*
             resolveLibraryFunctions([Assembly(Assembly.GetExecutingAssembly())])
 
@@ -237,20 +255,25 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         *)
         setupTeb()
 
-    let isProgramCounterMonitore(proc: IProcessContainer) =
-        let programCounter = proc.GetProgramCounter().Value |> BitVector.toUInt64
-        programCounter |> this.Callbacks.ContainsKey
+    let tryGetEmulationLibrary(proc: IProcessContainer) =
+        let programCounter = proc.GetProgramCounter().Value |> BitVector.toUInt64        
+        this.Libraries
+        |> Seq.tryFind(fun lib ->
+            match lib with
+            | Managed lib -> lib.IsLibraryCall(programCounter)
+            | _ -> false
+        )
 
     let emulateNextInstruction(proc: BaseProcessContainer, endAddress: UInt64) =
         let instruction = proc.ReadNextInstruction()
         let handler = proc.GetActiveMemoryRegion().Handler
-        emulateInstruction(handler, instruction)
+        this.Emulator.Value.EmulateInstruction(handler, instruction)
 
         // check ending condition
         _stopExecution <- 
             _stopExecution || 
             proc.GetProgramCounter().Value |> BitVector.toUInt64 >= endAddress
-
+            
     new() = new Win32Sandbox(Win32SandboxSettings.Default)
 
     default this.Run() =            
@@ -264,12 +287,9 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         // start execution loop
         _stopExecution <- false
         while not _stopExecution do
-            // check if called an emulated function
-            if isProgramCounterMonitore(win32Process) then
-                invokeLibraryFunction(this, win32Process)
-            else                    
-                // emulate instruction
-                emulateNextInstruction(win32Process, endAddress)
+            match tryGetEmulationLibrary(win32Process) with
+            | Some (Managed library) -> library.InvokeLibraryFunction(this)
+            | _ -> emulateNextInstruction(win32Process, endAddress)
 
     default this.Stop() =
         _stopExecution <- true

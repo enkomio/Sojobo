@@ -10,7 +10,6 @@ open B2R2
 open B2R2.FrontEnd
 open ES.Sojobo.Model
 
-
 type private Fixup = {
     Offset: Int64
     FieldHashCode: Int32

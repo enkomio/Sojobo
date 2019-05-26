@@ -48,7 +48,11 @@
     <Compile Include="MemoryManager.fs" />
     <Compile Include="IProcessContainer.fs" />
     <Compile Include="ISandbox.fs" />
+    <Compile Include="ILowUIREmulator.fs" />
     <Compile Include="Utility.fs" />
+    <Compile Include="ManagedLibrary.fs" />
+    <Compile Include="NativeLibrary.fs" />
+    <Compile Include="ImportedLibrary.fs" />
     <Compile Include="BaseProcessContainer.fs" />
     <Compile Include="BaseSandbox.fs" />
     <Compile Include="Win32.fs" />

@@ -3,18 +3,11 @@
 open System
 open System.Reflection
 open System.Collections.Generic
-open System.IO
-open B2R2.FrontEnd
-open B2R2
-open ES.Sojobo.Model
 open B2R2.BinIR
 
 [<AbstractClass>]
 type BaseSandbox() =
     let _sideEffectEvent = new Event<ISandbox * SideEffect>()
-    let _libraries = new List<Library>()
-    let _libraryFunctions = new Dictionary<String, MethodInfo>()
-    let _callbacks = new Dictionary<UInt64, String>()      
 
     abstract Load: String -> unit
     abstract Load: Byte array -> unit  
@@ -23,18 +16,17 @@ type BaseSandbox() =
     abstract GetRunningProcess: unit -> IProcessContainer
 
     member this.SideEffect = _sideEffectEvent.Publish
-    member internal this.Callbacks = _callbacks
-    member internal this.LibraryFunctions = _libraryFunctions
-    member internal this.Libraries = _libraries
+    member val internal Libraries = new List<Library>() with get
+    member val internal Emulator: ILowUIREmulator option = None with get, set
 
     member this.AddLibrary(assembly: Assembly) =
-        this.Libraries.Add(Assembly assembly) 
+        this.Libraries.Add(Managed <| new ManagedLibrary(assembly, this.Emulator.Value))
 
     member this.AddLibrary(content: Byte array) =
-        this.Libraries.Add(Native content) 
+        this.Libraries.Add(Native <| NativeLibrary.Create(content)) 
 
     member this.AddLibrary(filename: String) =
-        this.Libraries.Add(File filename) 
+        this.Libraries.Add(Native <| NativeLibrary.Create(filename)) 
 
     member internal this.TriggerSideEffect(sideEffect: SideEffect) =
         _sideEffectEvent.Trigger(upcast this, sideEffect)
