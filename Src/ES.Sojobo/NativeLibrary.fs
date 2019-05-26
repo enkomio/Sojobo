@@ -21,14 +21,14 @@ type NativeLibrary(content: Byte array) =
         new NativeLibrary(content, Filename = Some filename)
 
     member internal this.Load(proc: IProcessContainer) =
-        // map the file
+        // create handler
         let isa = ISA.OfString "x86"
         let handler = 
             match this.Filename with
             | Some filename -> BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, filename)
             | None -> BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, content)
 
-        // it isn't a .NET file, try to map exported functions
+        // map the file
         match handler.FileInfo.FileFormat with
         | FileFormat.PEBinary ->
             Utility.mapPeHeader(handler, proc.Memory)
