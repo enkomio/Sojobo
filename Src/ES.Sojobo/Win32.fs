@@ -18,7 +18,6 @@ open ES.Sojobo.Model
 *)
 module Win32 =
     
-    
     // https://docs.microsoft.com/en-us/windows/desktop/api/subauth/ns-subauth-_unicode_string
     [<CLIMutable>]
     [<Struct>]
@@ -142,32 +141,18 @@ module Win32 =
         Reserved6: UInt32 array
         TlsExpansionSlots: UInt32
     }
-
-    (*
-    let private getLibrariesDetails(sandbox: ISandbox) =
-        (sandbox :?> BaseSandbox).Libraries
-        |> Seq.filter(fun lib -> 
+    
+    let private getLibraryMap(sandbox: BaseSandbox) = dict <| [
+        for lib in sandbox.Libraries do
             match lib with
-            | File _ -> true
-            | _ -> false
-        )
-        |> Seq.map(fun lib ->
-            match lib with
-            | File filename -> filename
-            | _ -> failwith "createPeb"
-        )
-        |> Seq.map(fun file ->
-            let content = System.IO.File.ReadAllBytes(file)
-            let filename = System.IO.Path.GetFileName(file)
-            use memoryStream = new MemoryStream(content)
-            use peReader = new PEReader(memoryStream)
-            (filename.ToLowerInvariant(), (peReader.PEHeaders.PEHeader.ImageBase, peReader.PEHeaders.PEHeader.AddressOfEntryPoint))
-        )
-        |> dict
-    *)
-    let private createPeb(sandbox: ISandbox) =
+            | Native lib when lib.Filename.IsSome -> 
+                yield (Path.GetFileName <| lib.Filename.Value.ToLowerInvariant(), lib)
+            | _ -> ()
+    ]
+    
+    let private createPeb(sandbox: BaseSandbox) =
         let proc = sandbox.GetRunningProcess()
-        //let librariesDetails = getLibrariesDetails(sandbox)
+        let librariesDetails = getLibraryMap(sandbox)
         let dataEntries = new List<LDR_DATA_TABLE_ENTRY>()
                         
         // create the data table entries
@@ -175,12 +160,13 @@ module Win32 =
         |> Seq.groupBy(fun s -> s.LibraryName)
         |> Seq.map(fun (libraryName, _) -> libraryName)
         |> Seq.iter(fun libraryName ->
-            
-            let (imageBase, entryPoint) = (0u, 0u)
-                //match librariesDetails.TryGetValue(libraryName.ToLowerInvariant()) with
-                //| (true, (imageBase, entryPoint)) -> (uint32 imageBase, uint32 entryPoint)
-                //| (false, _) -> (0u, 0u)
+            // get details to insert into PEB
+            let (imageBase, entryPoint) =
+                match librariesDetails.TryGetValue(libraryName.ToLowerInvariant()) with
+                | (true, lib) -> (uint32 lib.BaseAddress, uint32 lib.EntryPoint)
+                | (false, _) -> (0u, 0u)
 
+            // fill UnicodeString
             let fullNameBytes = Encoding.Unicode.GetBytes(libraryName)
             let fullNameDll = 
                 {Activator.CreateInstance<UNICODE_STRING>() with 
@@ -189,6 +175,7 @@ module Win32 =
                     Buffer = proc.Memory.AllocateMemory(fullNameBytes, MemoryProtection.Read) |> uint32
                 }
                 
+            // create Data Table Entry
             let dataTableEntry =
                 {Activator.CreateInstance<LDR_DATA_TABLE_ENTRY>() with
                     FullDllName = fullNameDll
@@ -255,7 +242,7 @@ module Win32 =
             SessionId = 0u
         }
 
-    let createTeb(sandbox: ISandbox) =
+    let createTeb(sandbox: BaseSandbox) =
         let proc = sandbox.GetRunningProcess()
 
         // create the TEB
