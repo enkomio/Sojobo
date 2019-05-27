@@ -224,9 +224,20 @@ type MemoryManager(pointerSize: Int32) =
                 
                 for i=0 to arrayLength - 1 do                    
                     let elementBuffer = readObject(binReader, elementType)
-                    let elementObject = Activator.CreateInstance(elementType)
+                    let elementObject =           
+                        if elementType.IsPrimitive || elementType.IsValueType 
+                        then Activator.CreateInstance(elementType) |> box
+                        else Activator.CreateInstance(elementType)
+
                     deserialize(elementBuffer, elementObject, analyzedObjects)
-                    arrayValue.SetValue(elementObject, i)
+
+                    arrayValue.SetValue(
+                        (
+                            if elementType.IsPrimitive || elementType.IsValueType 
+                            then unbox elementObject
+                            else elementObject
+                        ), i
+                    )
                     
                 field.SetValue(objectInstance, arrayValue)
 
@@ -240,13 +251,24 @@ type MemoryManager(pointerSize: Int32) =
                     field.SetValue(objectInstance, analyzedObjects.[address])
                 else
                     // set the field value                 
-                    let fieldValue = Activator.CreateInstance(field.FieldType)
+                    let fieldValue =
+                        if field.FieldType.IsPrimitive || field.FieldType.IsValueType 
+                        then Activator.CreateInstance(field.FieldType) |> box
+                        else Activator.CreateInstance(field.FieldType)
+
                     analyzedObjects.[address] <- fieldValue
 
                     let size = calculateSize(field.FieldType, new Dictionary<Type, Int32>())
                     let fieldBuffer = readMemory(address, size)
-                    deserialize(fieldBuffer, fieldValue, analyzedObjects)                    
-                    field.SetValue(objectInstance, fieldValue)
+                    deserialize(fieldBuffer, fieldValue, analyzedObjects)   
+                    
+                    field.SetValue(
+                        (
+                            if field.FieldType.IsPrimitive || field.FieldType.IsValueType 
+                            then unbox fieldValue
+                            else fieldValue
+                        ), fieldValue
+                    )
             else
                 match field.GetValue(objectInstance) with
                 | :? Byte -> binReader.ReadByte() :> Object
@@ -258,9 +280,16 @@ type MemoryManager(pointerSize: Int32) =
                 | :? UInt64 -> binReader.ReadUInt64() :> Object
                 | _ -> 
                     let elementBuffer = readObject(binReader, field.FieldType)
-                    let fieldValue = Activator.CreateInstance(field.FieldType) 
+                    let fieldValue =
+                        if field.FieldType.IsPrimitive || field.FieldType.IsValueType 
+                        then Activator.CreateInstance(field.FieldType) |> box
+                        else Activator.CreateInstance(field.FieldType)
+
                     deserialize(elementBuffer, fieldValue, analyzedObjects)
-                    fieldValue
+
+                    if field.FieldType.IsPrimitive || field.FieldType.IsValueType 
+                    then unbox fieldValue
+                    else fieldValue
                 |> fun objectValue -> field.SetValue(objectInstance, objectValue)
         )      
 
