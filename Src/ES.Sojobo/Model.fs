@@ -3,6 +3,7 @@
 open System
 open B2R2
 open B2R2.FrontEnd
+open B2R2.BinFile
 
 module Model =
     type EmulatedType =
@@ -25,17 +26,11 @@ module Model =
         IsTemp = String.IsNullOrEmpty(name)
         Type = t
     }
-
-    [<Flags>]
-    type MemoryProtection =
-        | Read = 2
-        | Write = 4
-        | Execute = 8
-
+    
     type MemoryRegion = {
         BaseAddress: UInt64
         Content: Byte array
-        Protection: MemoryProtection
+        Permission: Permission
         Handler: BinHandler
         Type: String
         Info: String
@@ -65,7 +60,7 @@ module Model =
     let createUInt32(value: UInt32) =
         createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofUInt32 value 32<rt>)
         
-    let internal createMemoryRegion(baseAddr: UInt64, size: Int32, protection: MemoryProtection) = 
+    let internal createMemoryRegion(baseAddr: UInt64, size: Int32, permission: Permission) = 
         let content = Array.zeroCreate<Byte>(size)
         let isa = ISA.OfString "x86"        
         let handler = BinHandler.Init(isa, ArchOperationMode.NoMode, true, baseAddr, content)
@@ -73,7 +68,7 @@ module Model =
         {
             BaseAddress = baseAddr
             Content = content
-            Protection = protection
+            Permission = permission
             Handler = handler
             Type = String.Empty
             Info = String.Empty
