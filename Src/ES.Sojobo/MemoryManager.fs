@@ -6,9 +6,11 @@ open System.Collections.Generic
 open System.Runtime.InteropServices
 open System.Reflection
 open System.IO
+open System.Text
 open B2R2
 open B2R2.FrontEnd
 open ES.Sojobo.Model
+open B2R2.BinFile
 
 type private Fixup = {
     Offset: Int64
@@ -30,7 +32,7 @@ type MemoryManager(pointerSize: Int32) =
             createMemoryRegion(
                 0x18C000UL, 
                 0x4000, 
-                MemoryProtection.Read ||| MemoryProtection.Write
+                Permission.Readable ||| Permission.Writable
             )
         _va.Add(stack.BaseAddress, stack)
         stack
@@ -40,7 +42,7 @@ type MemoryManager(pointerSize: Int32) =
             createMemoryRegion(
                 0x520000UL, 
                 0x16000,
-                MemoryProtection.Read ||| MemoryProtection.Write
+                Permission.Readable ||| Permission.Writable
             )
         _va.Add(heap.BaseAddress, heap)
         heap
@@ -55,7 +57,9 @@ type MemoryManager(pointerSize: Int32) =
 
     let readMemory(address: UInt64, size: Int32) =
         let memRegion = getMemoryRegion(address)
-        BinHandler.ReadBytes(memRegion.Handler, address, size)
+        let offset = address - memRegion.BaseAddress |> int32
+        let realSize = min (memRegion.Content.Length-offset) size
+        BinHandler.ReadBytes(memRegion.Handler, address, realSize)
 
     let rec getFieldArrayLength(field: FieldInfo, computedSize: Dictionary<Type, Int32>) =
         let arrayLength = field.GetCustomAttribute<MarshalAsAttribute>().SizeConst
@@ -157,14 +161,19 @@ type MemoryManager(pointerSize: Int32) =
     let allocateMemoryForEntries(entries: MemoryEntry seq, mainHashCode: Int32, mainObjectAddress: UInt64, memory: MemoryManager) =
         let entriesFixup = new Dictionary<Int32, MemoryEntry * UInt64>()
 
-        // allocate memory for all entries
+        // allocate a big chunk of memory
+        let totalSize = entries |> Seq.sumBy(fun entry -> entry.Buffer.Length)
+        let mutable currentAddress = memory.AllocateMemory(totalSize, Permission.Readable)
+
+        // copy all entries to the just allocated memory
         entries
         |> Seq.iter(fun entry ->
             let address = 
                 if entry.HashCode = mainHashCode 
-                then createMemoryRegion(mainObjectAddress, entry.Buffer.Length, MemoryProtection.Read).BaseAddress
-                else memory.AllocateMemory(entry.Buffer.Length, MemoryProtection.Read)
+                then createMemoryRegion(mainObjectAddress, entry.Buffer.Length, Permission.Readable).BaseAddress
+                else currentAddress
             entriesFixup.[entry.HashCode] <- (entry, address)
+            currentAddress <- currentAddress + uint64 entry.Buffer.Length
         )
 
         entriesFixup
@@ -348,6 +357,14 @@ type MemoryManager(pointerSize: Int32) =
     member this.GetMemoryRegion(address: UInt64) =
         getMemoryRegion(address)
 
+    member this.IsAddressMapped(address: UInt64) =
+        _va.Values
+        |> Seq.exists(fun memRegion -> 
+            let startAddr = memRegion.BaseAddress
+            let endAddr = memRegion.BaseAddress + uint64 memRegion.Content.Length
+            address >= startAddr && address < endAddr
+        )
+
     member this.AddMemoryRegion(memRegion: MemoryRegion) =
         _va.[memRegion.BaseAddress] <- memRegion
 
@@ -362,7 +379,7 @@ type MemoryManager(pointerSize: Int32) =
         _memoryAccessEvent.Trigger(MemoryAccessOperation.Free region)
         _va.Remove(region.BaseAddress)        
 
-    member this.AllocateMemory(size: Int32, protection: MemoryProtection) =
+    member this.AllocateMemory(size: Int32, permission: Permission) =
         let baseAddress =
             this.GetMemoryMap()
             |> Seq.pairwise
@@ -378,18 +395,24 @@ type MemoryManager(pointerSize: Int32) =
                     lastRegion.BaseAddress + uint64 lastRegion.Content.Length
 
         // create the memory region
-        let region = createMemoryRegion(baseAddress, size, protection)
+        let region = createMemoryRegion(baseAddress, size, permission)
         _memoryAccessEvent.Trigger(MemoryAccessOperation.Allocate region)
         this.AddMemoryRegion(region)
         baseAddress
 
-    member this.AllocateMemory(value: Byte array, protection: MemoryProtection) =        
-        let baseAddress = this.AllocateMemory(value.Length, protection)
+    member this.AllocateMemory(value: Byte array, permission: Permission) =        
+        let baseAddress = this.AllocateMemory(value.Length, permission)
         this.WriteMemory(baseAddress, value)
         baseAddress
 
-    member this.AllocateMemory(value: Object, protection: MemoryProtection) =
+    member this.AllocateMemory(value: Object, permission: Permission) =
         let size = calculateSize(value.GetType(), new Dictionary<Type, Int32>())
-        let baseAddress = this.AllocateMemory(size, protection)
+        let baseAddress = this.AllocateMemory(size, permission)
         this.WriteMemory(baseAddress, value)
         baseAddress
+
+    member this.ReadAsciiString(address: UInt64) =
+        let memRegionContent = readMemory(address, Int32.MaxValue)
+        let indexOfNullChar = Array.IndexOf(memRegionContent, 0uy)
+        let stringBytes = Array.sub memRegionContent 0 indexOfNullChar
+        Encoding.UTF8.GetString(stringBytes)
