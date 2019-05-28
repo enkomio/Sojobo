@@ -1,15 +1,18 @@
 ﻿namespace ES.Sojobo
 
 open System
+open System.Collections.Generic
 open System.Reflection
 open ES.Sojobo.Model
 open B2R2
 open B2R2.FrontEnd
 open B2R2.BinIR
 open B2R2.BinFile.PE
+open B2R2.BinFile
 open System.Reflection.PortableExecutable
 
-module Utility =        
+module Utility = 
+
     let toArray(bitVector: BitVector) =
         let size = int32 <| BitVector.getType bitVector
         let value = BitVector.getValue bitVector
@@ -56,34 +59,34 @@ module Utility =
 
     let getTempName(index: String, emuType: EmulatedType) =
         let size =  getSize(emuType)
-        String.Format("T_{0}:{1}", index, size)   
+        "T_" + string index + ":" + string size
 
     let getPe(handler: BinHandler) =
         let fileInfo = handler.FileInfo
         fileInfo.GetType().GetField("pe", BindingFlags.NonPublic ||| BindingFlags.Instance).GetValue(fileInfo) :?> PE
 
-    let private getSectionProtection(sectionHeader: SectionHeader) =
+    let private getSectionPermission(sectionHeader: SectionHeader) =
         let characteristics = sectionHeader.SectionCharacteristics
-        let mutable protection: MemoryProtection option = None
+        let mutable permission: Permission option = None
         
         if characteristics.HasFlag(SectionCharacteristics.MemRead) then 
-            protection <- Some MemoryProtection.Read
+            permission <- Some Permission.Readable
 
         if characteristics.HasFlag(SectionCharacteristics.MemWrite) then 
-            protection <-
-                match protection with
-                | Some p -> p ||| MemoryProtection.Write
-                | None -> MemoryProtection.Write
+            permission <-
+                match permission with
+                | Some p -> p ||| Permission.Writable
+                | None -> Permission.Writable
                 |> Some
 
         if characteristics.HasFlag(SectionCharacteristics.MemExecute) then 
-            protection <-
-                match protection with
-                | Some p -> p ||| MemoryProtection.Execute
-                | None -> MemoryProtection.Execute
+            permission <-
+                match permission with
+                | Some p -> p ||| Permission.Executable
+                | None -> Permission.Executable
                 |> Some
 
-        Option.defaultValue MemoryProtection.Read protection
+        Option.defaultValue Permission.Readable permission
 
     let mapPeHeader(handler: BinHandler, memoryManager: MemoryManager) =
         let pe = getPe(handler)
@@ -101,7 +104,7 @@ module Utility =
                     pe.PEHeaders.PEHeader.ImageBase, 
                     buffer
                 )
-            Protection = MemoryProtection.Read
+            Permission = Permission.Readable
             Type = fileInfo.FilePath
             Info = fileInfo.FilePath
         }
@@ -120,18 +123,18 @@ module Utility =
             Array.Copy(handler.ReadBytes(section.Address, sectionSize), buffer, sectionSize)
                         
             let sectionHandler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, false, section.Address, buffer)
-            (section, buffer, sectionHandler, getSectionProtection(sectionHeader))
+            (section, buffer, sectionHandler, getSectionPermission(sectionHeader))
         ) 
-        |> Seq.map(fun (section, buffer, sectionHandler, protection) -> {
+        |> Seq.map(fun (section, buffer, sectionHandler, permission) -> {
             BaseAddress = section.Address
             Content = buffer
             Handler = sectionHandler
-            Protection = protection
+            Permission = permission
             Type = section.Name
             Info = handler.FileInfo.FilePath
         })
         |> Seq.iter(memoryManager.AddMemoryRegion)
 
     let getFunctionKeyName(functioName: String, libraryName: String) =
-        let keyName = String.Format("{0}::{1}", libraryName, functioName).ToLower()
+        let keyName = (libraryName + "::" + functioName).ToLower()
         keyName.Replace(".dll", String.Empty)
