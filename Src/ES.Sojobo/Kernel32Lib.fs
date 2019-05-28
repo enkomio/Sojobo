@@ -1,10 +1,13 @@
 ﻿namespace ES.Sojobo.Lib
 
 open System
+open B2R2.BinFile
 open ES.Sojobo
 open ES.Sojobo.Model
 
-module Kernel32 =
+module Kernel32 =    
+    open System.IO
+
     let queryPerformanceCounter(sandbox: ISandbox, lpPerformanceCount: UInt32) = {
         ReturnValue = Some <| createInt32(1).Value
         Convention = CallingConvention.Cdecl
@@ -47,7 +50,7 @@ module Kernel32 =
 
     let virtualAlloc(sandbox: ISandbox, lpAddress: UInt32, dwSize: UInt32, flAllocationType: UInt32, flProtect: UInt32) = 
         let memoryManager = sandbox.GetRunningProcess().Memory
-        let mutable protection: MemoryProtection option = None
+        let mutable permission: Permission option = None
        
         // check execute
         if 
@@ -56,10 +59,10 @@ module Kernel32 =
             flProtect &&& 0x40ul <> 0ul ||
             flProtect &&& 0x80ul <> 0ul
         then   
-            protection <-
-                match protection with
-                | Some p -> p ||| MemoryProtection.Execute
-                | None -> MemoryProtection.Execute
+            permission <-
+                match permission with
+                | Some p -> p ||| Permission.Executable
+                | None -> Permission.Executable
                 |> Some
 
         // check write
@@ -69,10 +72,10 @@ module Kernel32 =
             flProtect &&& 0x40ul <> 0ul ||
             flProtect &&& 0x80ul <> 0ul
         then   
-            protection <-
-                match protection with
-                | Some p -> p ||| MemoryProtection.Write
-                | None -> MemoryProtection.Write
+            permission <-
+                match permission with
+                | Some p -> p ||| Permission.Writable
+                | None -> Permission.Writable
                 |> Some
 
         // check read
@@ -82,13 +85,13 @@ module Kernel32 =
             flProtect &&& 0x02ul <> 0ul ||
             flProtect &&& 0x04ul <> 0ul
         then   
-            protection <-
-                match protection with
-                | Some p -> p ||| MemoryProtection.Read
-                | None -> MemoryProtection.Read
+            permission <-
+                match permission with
+                | Some p -> p ||| Permission.Readable
+                | None -> Permission.Readable
                 |> Some
         
-        let baseAddress = memoryManager.AllocateMemory(int32 dwSize, Option.defaultValue MemoryProtection.Read protection)
+        let baseAddress = memoryManager.AllocateMemory(int32 dwSize, Option.defaultValue Permission.Readable permission)
 
         {
             ReturnValue = Some <| createUInt32(uint32 baseAddress).Value
@@ -112,3 +115,23 @@ module Kernel32 =
         ReturnValue = Some <| createInt32(0).Value
         Convention = CallingConvention.Cdecl
     }
+
+    let loadLibraryA(sandbox: ISandbox, lpLibFileName: UInt32) = 
+        let libPath =
+            if sandbox.GetRunningProcess().GetPointerSize() = 32
+            then Environment.GetFolderPath(Environment.SpecialFolder.SystemX86)
+            else Environment.GetFolderPath(Environment.SpecialFolder.System)
+
+        let libName = sandbox.GetRunningProcess().Memory.ReadAsciiString(uint64 lpLibFileName)
+        let filename = Path.Combine(libPath, libName)
+        sandbox.AddLibrary(filename)
+
+        let libMemRegion = 
+            sandbox.GetRunningProcess().Memory.GetMemoryMap() 
+            |> Array.find(fun memRegion -> memRegion.Type.Equals(filename))
+
+        let libHandle = int32 libMemRegion.BaseAddress
+        {
+            ReturnValue = Some <| createInt32(libHandle).Value
+            Convention = CallingConvention.Cdecl
+        }
