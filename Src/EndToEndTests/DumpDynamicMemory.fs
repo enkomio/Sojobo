@@ -32,7 +32,7 @@ module DumpDynamicMemory =
             )
             |> Option.iter(fun memRegion ->
                 // a previously allocated region now is being executed, maybe unpacked code!            
-                let filename = String.Format("mem_{0}.bin", memRegion.BaseAddress)
+                let filename = String.Format("mem_dump_{0}_via_memory_check.bin", memRegion.BaseAddress)
                 File.WriteAllBytes(filename, memRegion.Content)
                 Console.WriteLine("[+] Dynamic code dumped to: {0}!", filename)
                 _memoryDumped <- true
@@ -46,17 +46,57 @@ module DumpDynamicMemory =
         ["Release"; "Debug"]
         |> Seq.map(fun dir -> Path.Combine("..", "..", "..", dir, "RunShellcodeWithVirtualAlloc.exe"))
         |> Seq.tryFind(File.Exists)
-
-    let ``dump dynamically executed memory``() =
-        let sandbox = new Win32Sandbox() 
-        let exe = 
-            match getTestFile() with
+        |> function
             | Some exe -> exe
             | None ->
                 Console.WriteLine("RunShellcodeWithVirtualAlloc.exe not found, please compile it first!")
                 Environment.Exit(1)
                 String.Empty
 
+    let ``dump freed memory by using hooks``() =
+        let mutable memoryDumped = false
+        let sandbox = new Win32Sandbox() 
+        let exe = getTestFile()
+        sandbox.Load(exe)
+
+        // add kernel32 in order to place the hook correctly
+        sandbox.AddLibrary(@"C:\Windows\SysWOW64\Kernel32.dll");
+        
+        // hook callback that will dump the memory region
+        let hookCallback(sandbox: ISandbox) =
+            // we are at tha start of the function, on top
+            // of the stack there is the return value. The stack
+            // frame is not yet created
+            let proc = sandbox.GetRunningProcess()
+            let esp = proc.GetRegister("ESP").Value |> BitVector.toUInt64
+            
+            // get address first argument by skipping return address
+            let addrRegionToFree = proc.Memory.ReadMemory<UInt32>(esp + 4UL)
+            let memRegion = proc.Memory.GetMemoryRegion(uint64 addrRegionToFree)
+
+            // dump freed memory
+            let filename = String.Format("mem_dump_{0}_via_VirtualFree_hook.bin", memRegion.BaseAddress)
+            File.WriteAllBytes(filename, memRegion.Content)
+            Console.WriteLine("[+] Dynamic code dumped to: {0}!", filename)
+            memoryDumped <- true
+
+        // add hook on VirtualFree
+        sandbox.AddHook("kernel32!VirtualFree", new Action<ISandbox>(hookCallback))
+
+        // setup handlers
+        let proc = sandbox.GetRunningProcess()
+        proc.Memory.MemoryAccess.Add(memoryAccessedHandler)
+        proc.Step.Add(writeDisassembly)
+
+        // run the sample
+        sandbox.Run()
+
+        // verify memory was dumper
+        assert(memoryDumped)
+
+    let ``dump dynamically executed memory``() =
+        let sandbox = new Win32Sandbox() 
+        let exe = getTestFile()
         sandbox.Load(exe)
 
         // setup handlers
