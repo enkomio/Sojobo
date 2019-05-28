@@ -58,4 +58,11 @@ type ISandbox =
         // like the execution of an Interrupt or of a CPUIP instruction
         [<CLIEvent>]
         abstract SideEffect: IEvent<ISandbox * SideEffect> with get
+
+        /// Return the istance of the emulator used to run the sample
+        abstract Emulator: IEmulator with get
     end
+
+type Hook =
+    | Address of address:UInt64 * callback:Action<ISandbox>
+    | Symbol  of symbol:String * callback:Action<ISandbox>
