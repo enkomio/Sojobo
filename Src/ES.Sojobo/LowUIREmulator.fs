@@ -60,7 +60,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
                 | BinOpType.OR -> BitVector.bor
                 | BinOpType.XOR -> BitVector.bxor
                 | BinOpType.CONCAT -> BitVector.concat
-                | _ -> failwith("Wrong or unsupported operation: " + binOpType.ToString())
+                | _ -> failwith("Wrong or unsupported operation")
             
             let resultValue = operation firstValue.Value secondValue.Value
             createVariableWithValue(String.Empty, Utility.getType(regType), resultValue)
@@ -78,7 +78,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
             | Word -> uint32(BitConverter.ToUInt16(bytes, 0)) |> bigint
             | DoubleWord -> uint32(BitConverter.ToUInt32(bytes, 0)) |> bigint
             | QuadWord -> uint64(BitConverter.ToUInt64(bytes, 0)) |> bigint
-            | _ -> failwith("Unexpected emu type: " + emuType.ToString())
+            | _ -> failwith("Unexpected emu type")
             |> fun bi -> createVariableWithValue(String.Empty,  Utility.getType(regType), BitVector.ofUBInt bi regType)
 
         | PCVar (regType, regName) ->
@@ -100,7 +100,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
                 | RelOpType.LE -> BitVector.le
                 | RelOpType.SLT -> BitVector.slt
                 | RelOpType.SLE -> BitVector.sle
-                | _ -> failwith("Wrong or unsupported operation: " + relOpType.ToString())
+                | _ -> failwith("Wrong or unsupported operation")
 
             let resultValue = operation firstValue.Value secondValue.Value
             createVariableWithValue(String.Empty, firstValue.Type, resultValue)
@@ -115,7 +115,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
                 match unOpType with
                 | UnOpType.NEG -> BitVector.neg
                 | UnOpType.NOT -> BitVector.bnot
-                | _ -> failwith("Wrong or unsupported operation: " + unOpType.ToString())
+                | _ -> failwith("Wrong or unsupported operation")
 
             let value = emulateExpr baseProcess targetExpr
             let resultValue = operation value.Value
@@ -147,7 +147,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
             createVariable(name, EmulatedType.DoubleWord)
 
         // | FuncName of string  
-        | _ -> failwith("Expression not yet emulated: " + expr.ToString())
+        | _ -> failwith("Expression not yet emulated")
 
     and emulateStmt(blocks: Dictionary<String, List<Stmt>>) (stmt: Stmt) =
         match stmt with
@@ -228,7 +228,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
         
         *)
 
-        | _ -> failwith("Statement not yet emulated: " + stmt.ToString())
+        | _ -> failwith("Statement not yet emulated")
         
     member this.Emulate(stmts: Stmt array) =
         let blocks = extractBlocks(stmts)
@@ -243,7 +243,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
             |> BinHandler.Optimize
         this.Emulate(block)
 
-    interface ILowUIREmulator with
+    interface IEmulator with
         member this.Emulate(stmts: Stmt array) =
             this.Emulate(stmts)
 
