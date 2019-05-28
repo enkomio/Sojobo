@@ -7,8 +7,9 @@ open System.Collections.Generic
 open B2R2
 open ES.Sojobo.Model
 open B2R2.FrontEnd
+open B2R2.BinFile
 
-type ManagedLibrary(assembly: Assembly, emulator: ILowUIREmulator) =
+type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
     let getArgument(proc: IProcessContainer, position: Int32) =
         let ebp = proc.GetRegister("EBP").Value |> BitVector.toUInt32
         let address = ebp + uint32 (position + 2) * 4ul
@@ -74,29 +75,46 @@ type ManagedLibrary(assembly: Assembly, emulator: ILowUIREmulator) =
     member val LibraryFunctions = new Dictionary<String, MethodInfo>() with get
     member val Callbacks = new Dictionary<UInt64, String>() with get, set
 
-    static member NotRegisteredFunction(sandbox: ISandbox) =
+    static member NotRegisteredFunction(keyName: String) (sandbox: ISandbox) =
         let programCounter = sandbox.GetRunningProcess().GetProgramCounter().Value |> BitVector.toUInt32        
-        raise (UnhandledFunction (programCounter.ToString())) |> ignore
+        let msg = String.Format("{0}: {1}", programCounter, keyName)
+        raise (UnhandledFunction msg) |> ignore
 
-    member internal this.MapSymbolWithManagedFunctions(memoryManager: MemoryManager, symbols: BinFile.Symbol seq) =
-        let regionBaseAddress = memoryManager.AllocateMemory((symbols |> Seq.length) * 4, MemoryProtection.Read)
+    member internal this.MapSymbolWithManagedFunctions(memoryManager: MemoryManager, symbols: BinFile.Symbol seq, exportedMethods: IDictionary<String, UInt64>) =
+        let regionBaseAddress = memoryManager.AllocateMemory((symbols |> Seq.length) * 4, Permission.Readable)
         let region = memoryManager.GetMemoryRegion(regionBaseAddress)
         
+        // map all emulated functions
+        this.LibraryFunctions
+        |> Seq.iteri(fun index kv ->
+            let offset = 
+                match exportedMethods.TryGetValue(kv.Key) with
+                | (true, address) -> address
+                | _ -> region.BaseAddress + uint64 (index * 4)
+
+            this.Callbacks.[offset] <- kv.Key
+        )
+
+        // map IAT
         symbols
-        |> Seq.iteri(fun index symbol ->
+        |> Seq.iteri(fun index symbol ->            
             // obtains function offset
             let keyName = Utility.getFunctionKeyName(symbol.Name, symbol.LibraryName)
-            let offset = region.BaseAddress + uint64 (index * 4)
-            this.Callbacks.[offset] <- keyName
-
-            // write the function address
-            let addressBytes = uint32 offset |> BitConverter.GetBytes
-            memoryManager.UnsafeWriteMemory(symbol.Address, addressBytes, false)  
+            let offset = 
+                match exportedMethods.TryGetValue(keyName) with
+                | (true, address) -> address
+                | _ -> region.BaseAddress + uint64 (index * 4)
 
             // map unhandled function if necessary
-            if this.LibraryFunctions.ContainsKey(keyName) |> not then                
-                let methodInfo = this.GetType().GetMethod("notRegisteredFunction", BindingFlags.NonPublic ||| BindingFlags.Static)
-                this.LibraryFunctions.[keyName] <- methodInfo
+            if this.LibraryFunctions.ContainsKey(keyName) then
+                this.Callbacks.[offset] <- keyName
+
+                // write the function address
+                let addressBytes = uint32 offset |> BitConverter.GetBytes
+                memoryManager.UnsafeWriteMemory(symbol.Address, addressBytes, false) 
+            else
+                let methodCallback = ManagedLibrary.NotRegisteredFunction keyName
+                this.LibraryFunctions.[keyName] <- methodCallback.GetType().GetMethods().[0]
         )
 
     member internal this.ResolveLibraryFunctions() =
