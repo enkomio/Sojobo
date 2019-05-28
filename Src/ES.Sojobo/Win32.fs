@@ -6,6 +6,7 @@ open System.Text
 open System.Runtime.InteropServices
 open System.Reflection.PortableExecutable
 open System.IO
+open B2R2.BinFile
 open ES.Sojobo.Model
 
 (*
@@ -142,38 +143,55 @@ module Win32 =
         TlsExpansionSlots: UInt32
     }
     
-    let private getLibraryMap(sandbox: BaseSandbox) = dict <| [
-        for lib in sandbox.Libraries do
-            match lib with
-            | Native lib when lib.Filename.IsSome -> 
-                yield (Path.GetFileName <| lib.Filename.Value.ToLowerInvariant(), lib)
-            | _ -> ()
-    ]
-    
     let private createPeb(sandbox: BaseSandbox) =
         let proc = sandbox.GetRunningProcess()
-        let librariesDetails = getLibraryMap(sandbox)
+        let librariesDetails = 
+            getNativeLibraries(sandbox.Libraries)
+            |> Seq.map(fun lib -> (lib.GetLibraryName().ToLowerInvariant(), lib))
+            |> dict
+
         let dataEntries = new List<LDR_DATA_TABLE_ENTRY>()
+
+        // get libraries
+        let sortedRreferencedLibraries =
+            getNativeLibraries(sandbox.Libraries)
+            |> Seq.sortByDescending(fun lib ->
+                // sort this list in order to have ntdll.dll and kernel32.dll on top
+                if lib.GetLibraryName().Equals("ntdll.dll", StringComparison.OrdinalIgnoreCase) then Int32.MaxValue
+                elif lib.GetLibraryName().Equals("kernelbase.dll", StringComparison.OrdinalIgnoreCase) then Int32.MaxValue-1
+                elif lib.GetLibraryName().Equals("kernel32.dll", StringComparison.OrdinalIgnoreCase) then Int32.MaxValue-2
+                else lib.GetLibraryName().GetHashCode()
+            )
+            |> Seq.toArray
+
+        // allocate the memory for the library unicode name
+        let regionSize =
+            sortedRreferencedLibraries
+            |> Array.sumBy(fun lib -> Encoding.Unicode.GetBytes(lib.GetLibraryName()).Length)
+        let mutable libraryNamesRegionOffset = proc.Memory.AllocateMemory(regionSize, Permission.Readable)
                         
+
         // create the data table entries
-        proc.GetImportedFunctions()            
-        |> Seq.groupBy(fun s -> s.LibraryName)
-        |> Seq.map(fun (libraryName, _) -> libraryName)
-        |> Seq.iter(fun libraryName ->
+        sortedRreferencedLibraries
+        |> Array.iter(fun lib ->
             // get details to insert into PEB
             let (imageBase, entryPoint) =
-                match librariesDetails.TryGetValue(libraryName.ToLowerInvariant()) with
+                match librariesDetails.TryGetValue(lib.GetLibraryName().ToLowerInvariant()) with
                 | (true, lib) -> (uint32 lib.BaseAddress, uint32 lib.EntryPoint)
                 | (false, _) -> (0u, 0u)
 
-            // fill UnicodeString
-            let fullNameBytes = Encoding.Unicode.GetBytes(libraryName)
+            // write UnicodeString
+            let fullNameBytes = Encoding.Unicode.GetBytes(lib.GetLibraryName())
+            proc.Memory.UnsafeWriteMemory(libraryNamesRegionOffset, fullNameBytes, false)            
+
             let fullNameDll = 
                 {Activator.CreateInstance<UNICODE_STRING>() with 
                     Length = uint16 fullNameBytes.Length
                     MaximumLength = uint16 fullNameBytes.Length   
-                    Buffer = proc.Memory.AllocateMemory(fullNameBytes, MemoryProtection.Read) |> uint32
+                    Buffer = uint32 libraryNamesRegionOffset
                 }
+
+            libraryNamesRegionOffset <- libraryNamesRegionOffset + uint64 fullNameBytes.Length
                 
             // create Data Table Entry
             let dataTableEntry =
@@ -255,7 +273,7 @@ module Win32 =
             }
 
         // for TEB I have to specify the base address
-        let tebRegion = createMemoryRegion(uint64 teb.Self, Marshal.SizeOf<TEB32>(), MemoryProtection.Read)
+        let tebRegion = createMemoryRegion(uint64 teb.Self, Marshal.SizeOf<TEB32>(), Permission.Readable)
         proc.Memory.AddMemoryRegion(tebRegion)
         proc.Memory.WriteMemory(uint64 teb.Self, teb)
         tebRegion.BaseAddress
