@@ -47,8 +47,8 @@
     <Compile Include="Model.fs" />
     <Compile Include="MemoryManager.fs" />
     <Compile Include="IProcessContainer.fs" />
+    <Compile Include="IEmulator.fs" />
     <Compile Include="ISandbox.fs" />
-    <Compile Include="ILowUIREmulator.fs" />
     <Compile Include="Utility.fs" />
     <Compile Include="ManagedLibrary.fs" />
     <Compile Include="NativeLibrary.fs" />
