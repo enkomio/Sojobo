@@ -13,14 +13,15 @@ type Win32ProcessContainer() as this =
 
     let _pointerSize = 32
     let _memoryManager = new MemoryManager(_pointerSize)
-    let _iat = new List<Symbol>()
+    let mutable _handler: BinHandler option = None
+    let mutable _iat: List<Symbol> option = None
     
-    let setEntryPoint(handler: BinHandler) =
-        this.UpdateActiveMemoryRegion(_memoryManager.GetMemoryRegion(handler.FileInfo.EntryPoint))
+    let setEntryPoint() =
+        this.UpdateActiveMemoryRegion(_memoryManager.GetMemoryRegion(_handler.Value.FileInfo.EntryPoint))
 
         // save the EIP registry value
         let eip = string Register.EIP
-        let eipValue = createVariableWithValue(eip, EmulatedType.DoubleWord, BitVector.ofUInt64 handler.FileInfo.EntryPoint 32<rt>)
+        let eipValue = createVariableWithValue(eip, EmulatedType.DoubleWord, BitVector.ofUInt64 _handler.Value.FileInfo.EntryPoint 32<rt>)
         this.Variables.Add(eip, eipValue)
 
     let setupRegisters() =
@@ -71,22 +72,23 @@ type Win32ProcessContainer() as this =
         let ebpValue = createVariableWithValue(ebp, EmulatedType.DoubleWord, espValue.Value)
         this.Variables.Add(ebp, ebpValue)
         
-    let resolveIATSymbols(handler: BinHandler) =
-        handler.FileInfo.GetSymbols()
+    let resolveIATSymbols() =
+        _iat <- Some <| new List<Symbol>()
+        _handler.Value.FileInfo.GetSymbols()
         |> Seq.iter(fun symbol ->
             if 
                 not(String.IsNullOrEmpty(symbol.LibraryName)) && 
                 (symbol.Kind = SymbolKind.ExternFunctionType || symbol.Kind = SymbolKind.FunctionType) 
             then 
-                _iat.Add(symbol)
-        )    
+                _iat.Value.Add(symbol)
+        )  
+        _iat.Value
 
-    let initialize(handler: BinHandler) =
-        Utility.mapPeHeader(handler, _memoryManager)
-        Utility.mapSections(handler, _memoryManager)
+    let initialize() =
+        Utility.mapPeHeader(_handler.Value, _memoryManager)
+        Utility.mapSections(_handler.Value, _memoryManager)
         setupStackRegisters()
-        setEntryPoint(handler)
-        resolveIATSymbols(handler)
+        setEntryPoint()
         setupRegisters()
     
     default this.Memory = _memoryManager
@@ -101,16 +103,17 @@ type Win32ProcessContainer() as this =
         
     member this.Initialize(buffer: Byte array) =
         let isa = ISA.OfString "x86"
-        let handler = BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
-        initialize(handler)
+        _handler <- Some <| BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
+        initialize()
 
     member this.Initialize(filename: String) =  
         let isa = ISA.OfString "x86"
-        let handler = BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, filename)        
-        initialize(handler)
+        _handler <- Some <| BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, filename)        
+        initialize()
 
     default this.GetImportedFunctions() =
-        _iat |> Seq.readonly    
+        Option.defaultWith(resolveIATSymbols) _iat
+        |> Seq.readonly
         
     default this.GetInstruction() =
         let programCounter = this.GetProgramCounter().Value |> BitVector.toUInt64
