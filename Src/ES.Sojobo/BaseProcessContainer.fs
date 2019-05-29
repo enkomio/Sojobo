@@ -8,12 +8,21 @@ open B2R2.FrontEnd
 open B2R2.BinFile
 
 [<AbstractClass>]
-type BaseProcessContainer() =
+type BaseProcessContainer(pointerSize: Int32) =
     let mutable _activeRegion: MemoryRegion option = None
     let _stepEvent = new Event<IProcessContainer>()       
 
     member val internal Variables = new Dictionary<String, EmulatedValue>() with get
     member val internal TempVariables = new Dictionary<String, EmulatedValue>() with get
+    member val PointerSize = pointerSize with get
+
+    abstract ProgramCounter: EmulatedValue with get
+    abstract SetRegister: EmulatedValue -> unit
+    abstract GetRegister: name: String -> EmulatedValue    
+    abstract GetImportedFunctions: unit -> Symbol seq
+    abstract GetInstruction: unit -> Instruction    
+    abstract GetCallStack: unit -> UInt64 array
+    abstract Memory: MemoryManager with get
 
     member internal this.UpdateActiveMemoryRegion(memRegion: MemoryRegion) =
         _activeRegion <- Some memRegion
@@ -40,30 +49,24 @@ type BaseProcessContainer() =
     member this.GetActiveMemoryRegion() =
         _activeRegion.Value
 
+    member this.GetPointerSize() =
+        pointerSize
+
     member this.ReadNextInstruction() =      
         _stepEvent.Trigger(this)
         let instruction = this.GetInstruction()
-        let programCounter = this.GetProgramCounter()
+        let programCounter = this.ProgramCounter
         this.Variables.[programCounter.Name] <- 
             {programCounter with
                 Value = BitVector.add programCounter.Value (BitVector.ofUInt32 instruction.Length 32<rt>)
             }
         instruction
 
-    member this.Step = _stepEvent.Publish   
-
-    abstract GetProgramCounter: unit -> EmulatedValue
-    abstract SetRegister: EmulatedValue -> unit
-    abstract GetRegister: name: String -> EmulatedValue    
-    abstract GetImportedFunctions: unit -> Symbol seq
-    abstract GetInstruction: unit -> Instruction    
-    abstract GetCallStack: unit -> UInt64 array
-    abstract GetPointerSize: unit -> Int32    
-    abstract Memory: MemoryManager with get
+    member this.Step = _stepEvent.Publish 
     
     interface IProcessContainer with
-        member this.GetProgramCounter() =
-            this.GetProgramCounter()
+        member this.ProgramCounter
+            with get() = this.ProgramCounter
 
         member this.GetPointerSize() =
             this.GetPointerSize()

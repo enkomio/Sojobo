@@ -76,7 +76,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
     member val Callbacks = new Dictionary<UInt64, String>() with get, set
 
     static member NotRegisteredFunction(keyName: String) (sandbox: ISandbox) =
-        let programCounter = sandbox.GetRunningProcess().GetProgramCounter().Value |> BitVector.toUInt32        
+        let programCounter = sandbox.GetRunningProcess().ProgramCounter.Value |> BitVector.toUInt32        
         let msg = String.Format("{0}: {1}", programCounter, keyName)
         raise (UnhandledFunction msg) |> ignore
 
@@ -147,7 +147,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
 
     member internal this.InvokeLibraryFunction(sandbox: ISandbox) =
         let proc = sandbox.GetRunningProcess()
-        let keyName = this.Callbacks.[proc.GetProgramCounter().Value |> BitVector.toUInt64]
+        let keyName = this.Callbacks.[proc.ProgramCounter.Value |> BitVector.toUInt64]
         let libraryFunction = this.LibraryFunctions.[keyName]
 
         executeStackFrameSetup(proc)

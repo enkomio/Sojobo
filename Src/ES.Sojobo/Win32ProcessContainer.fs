@@ -9,19 +9,17 @@ open ES.Sojobo.Model
 open B2R2.FrontEnd.Intel
 
 type Win32ProcessContainer() as this =  
-    inherit BaseProcessContainer()
+    inherit BaseProcessContainer(32)
 
-    let _pointerSize = 32
-    let _memoryManager = new MemoryManager(_pointerSize)
-    let mutable _handler: BinHandler option = None
-    let mutable _iat: List<Symbol> option = None
+    let _memoryManager = new MemoryManager(32)
+    let _iat = new List<Symbol>()
     
-    let setEntryPoint() =
-        this.UpdateActiveMemoryRegion(_memoryManager.GetMemoryRegion(_handler.Value.FileInfo.EntryPoint))
+    let setEntryPoint(handler: BinHandler) =
+        this.UpdateActiveMemoryRegion(_memoryManager.GetMemoryRegion(handler.FileInfo.EntryPoint))
 
         // save the EIP registry value
         let eip = string Register.EIP
-        let eipValue = createVariableWithValue(eip, EmulatedType.DoubleWord, BitVector.ofUInt64 _handler.Value.FileInfo.EntryPoint 32<rt>)
+        let eipValue = createVariableWithValue(eip, EmulatedType.DoubleWord, BitVector.ofUInt64 handler.FileInfo.EntryPoint 32<rt>)
         this.Variables.Add(eip, eipValue)
 
     let setupRegisters() =
@@ -72,24 +70,23 @@ type Win32ProcessContainer() as this =
         let ebpValue = createVariableWithValue(ebp, EmulatedType.DoubleWord, espValue.Value)
         this.Variables.Add(ebp, ebpValue)
         
-    let resolveIATSymbols() =
-        _iat <- Some <| new List<Symbol>()
-        _handler.Value.FileInfo.GetSymbols()
+    let resolveIATSymbols(handler: BinHandler) =
+        handler.FileInfo.GetSymbols()
         |> Seq.iter(fun symbol ->
             if 
                 not(String.IsNullOrEmpty(symbol.LibraryName)) && 
                 (symbol.Kind = SymbolKind.ExternFunctionType || symbol.Kind = SymbolKind.FunctionType) 
             then 
-                _iat.Value.Add(symbol)
-        )  
-        _iat.Value
+                _iat.Add(symbol)
+        )
 
-    let initialize() =
-        Utility.mapPeHeader(_handler.Value, _memoryManager)
-        Utility.mapSections(_handler.Value, _memoryManager)
+    let initialize(handler: BinHandler) =
+        Utility.mapPeHeader(handler, _memoryManager)
+        Utility.mapSections(handler, _memoryManager)
         setupStackRegisters()
-        setEntryPoint()
+        setEntryPoint(handler)
         setupRegisters()
+        resolveIATSymbols(handler)
     
     default this.Memory = _memoryManager
 
@@ -103,24 +100,23 @@ type Win32ProcessContainer() as this =
         
     member this.Initialize(buffer: Byte array) =
         let isa = ISA.OfString "x86"
-        _handler <- Some <| BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
-        initialize()
+        let handler = BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
+        initialize(handler)
 
     member this.Initialize(filename: String) =  
         let isa = ISA.OfString "x86"
-        _handler <- Some <| BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, filename)        
-        initialize()
+        let handler = BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, filename)        
+        initialize(handler)
 
     default this.GetImportedFunctions() =
-        Option.defaultWith(resolveIATSymbols) _iat
-        |> Seq.readonly
+        Seq.readonly _iat
         
     default this.GetInstruction() =
-        let programCounter = this.GetProgramCounter().Value |> BitVector.toUInt64
+        let programCounter = this.ProgramCounter.Value |> BitVector.toUInt64
         BinHandler.ParseInstr (this.GetActiveMemoryRegion().Handler) (programCounter)
 
-    default this.GetProgramCounter() =
-        this.Variables.["EIP"]  
+    default this.ProgramCounter
+        with get() = this.Variables.["EIP"]  
 
     default this.GetCallStack() = [|
         let mutable ebp = this.GetRegister("EBP").Value |> BitVector.toUInt32
@@ -130,6 +126,3 @@ type Win32ProcessContainer() as this =
             ebp <- BitConverter.ToUInt32(this.Memory.ReadMemory(uint64 ebp, 4) , 0)
             retValue <- BitConverter.ToUInt32(this.Memory.ReadMemory(ebp + 4ul |> uint64, 4) , 0)
     |]
-
-    default this.GetPointerSize() =
-        _pointerSize

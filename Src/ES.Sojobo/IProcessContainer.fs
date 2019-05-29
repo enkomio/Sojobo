@@ -15,7 +15,7 @@ type IProcessContainer =
         abstract Step: IEvent<IProcessContainer> with get
 
         /// Return the actual program counter value
-        abstract GetProgramCounter: unit -> EmulatedValue
+        abstract ProgramCounter: EmulatedValue with get
 
         /// set a specific register
         abstract SetRegister: EmulatedValue -> unit
