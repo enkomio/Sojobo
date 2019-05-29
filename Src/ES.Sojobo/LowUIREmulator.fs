@@ -1,7 +1,6 @@
 ﻿namespace ES.Sojobo
 
 open System
-open System.Collections.Generic
 open B2R2
 open B2R2.FrontEnd
 open B2R2.BinIR.LowUIR
@@ -10,23 +9,6 @@ open B2R2.FrontEnd.Intel
 open B2R2.BinIR
 
 type LowUIREmulator(sandbox: BaseSandbox) =
-    let extractBlocks(stmts: Stmt array) =
-        let blocks = new Dictionary<String, List<Stmt>>()
-        let mutable curList = new List<Stmt>()
-        blocks.[String.Empty] <- curList
-
-        // identify labels
-        stmts
-        |> Array.iter(fun stmt ->
-            match stmt with 
-            | LMark(name, n) ->
-                curList <- new List<Stmt>()
-                blocks.[name] <- curList
-            | _ -> curList.Add(stmt)
-        )
-
-        blocks
-
     let rec emulateExpr(baseProcess: BaseProcessContainer) (expr: Expr) =
         match expr with
         | TempVar (regType, index) ->
@@ -149,7 +131,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
         // | FuncName of string  
         | _ -> failwith("Expression not yet emulated")
 
-    and emulateStmt(blocks: Dictionary<String, List<Stmt>>) (stmt: Stmt) =
+    and emulateStmt(state: EmulatorExecutionState, stmt: Stmt) =
         match stmt with
         | ISMark _ -> ()
         | IEMark _ ->
@@ -190,6 +172,9 @@ type LowUIREmulator(sandbox: BaseSandbox) =
             let destMemRegion = baseProcess.Memory.GetMemoryRegion(programCounter.Value |> BitVector.toUInt64)
             baseProcess.UpdateActiveMemoryRegion(destMemRegion)
 
+            // stop execution, see: https://github.com/B2R2-org/B2R2/issues/15#issuecomment-496872936
+            state.Stop()
+
         | InterCJmp (conditionExpr, currentProgramCounter, trueDestAddrExpr, falseDesAddrExpr) ->
             let baseProcess = sandbox.GetRunningProcess() :?> BaseProcessContainer
             let conditionValue = emulateExpr baseProcess conditionExpr
@@ -204,6 +189,9 @@ type LowUIREmulator(sandbox: BaseSandbox) =
             // update the active memory region
             let destMemRegion = baseProcess.Memory.GetMemoryRegion(baseProcess.GetProgramCounter().Value |> BitVector.toUInt64)
             baseProcess.UpdateActiveMemoryRegion(destMemRegion)
+
+            // stop execution, see: https://github.com/B2R2-org/B2R2/issues/15#issuecomment-496872936
+            state.Stop()
             
         | SideEffect sideEffect ->
             sandbox.TriggerSideEffect(sideEffect)
@@ -216,32 +204,30 @@ type LowUIREmulator(sandbox: BaseSandbox) =
                 then (emulateExpr baseProcess trueDestAddrExpr).Name
                 else (emulateExpr baseProcess falseDesAddrExpr).Name
                 
-            // emulate the statements
-            blocks.[label] 
-            |> Seq.iter(emulateStmt blocks)
+            // jump to given statement
+            state.JumpTo(label)
 
         | LMark(_) ->
-            // this statement was already considered by extractBlocks
+            // this statement was already considered
             ()
-        (*        
-        | Jmp of Expr
-        
-        *)
+             
+        | Jmp(labelExpr) ->
+            let baseProcess = sandbox.GetRunningProcess() :?> BaseProcessContainer
+            let label = (emulateExpr baseProcess labelExpr).Name
 
-        | _ -> failwith("Statement not yet emulated")
+            // jump to given statement
+            state.JumpTo(label)
         
     member this.Emulate(stmts: Stmt array) =
-        let blocks = extractBlocks(stmts)
-        
-        blocks.[String.Empty] 
-        |> Seq.toArray
-        |> Array.iter(emulateStmt blocks)
+        let state = new EmulatorExecutionState(stmts)
+        while state.HasMoreStatement() do
+            let stmt = state.GetStatement()
+            emulateStmt(state, stmt)
 
-    member this.EmulateInstruction(handler: BinHandler, instruction: Instruction) =        
-        let block = 
-            BinHandler.LiftInstr handler instruction
-            |> BinHandler.Optimize
-        this.Emulate(block)
+    member this.EmulateInstruction(handler: BinHandler, instruction: Instruction) =
+        BinHandler.LiftInstr handler instruction
+        |> BinHandler.Optimize
+        |> this.Emulate
 
     interface IEmulator with
         member this.Emulate(stmts: Stmt array) =
