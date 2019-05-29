@@ -6,11 +6,11 @@ open System.Collections.Generic
 open System.Reflection
 open B2R2
 open B2R2.FrontEnd.Intel
-open ES.Sojobo.Win32
-open ES.Sojobo.Model
-open System.Reflection.PortableExecutable
+open B2R2.BinFile
 open B2R2.FrontEnd
 open B2R2.BinFile.PE
+open ES.Sojobo.Win32
+open ES.Sojobo.Model
 
 [<CLIMutable>]
 type Win32SandboxSettings = {
@@ -121,7 +121,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         setupTeb()
 
     let tryGetEmulationLibrary(proc: IProcessContainer) =
-        let programCounter = proc.GetProgramCounter().Value |> BitVector.toUInt64        
+        let programCounter = proc.ProgramCounter.Value |> BitVector.toUInt64        
         this.Libraries
         |> Seq.tryFind(fun lib ->
             match lib with
@@ -164,6 +164,17 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
             |> Seq.distinctBy(fun symbol -> symbol.LibraryName)
             |> Seq.map(fun lib -> lib.LibraryName)
             |> Seq.iter(fun libName -> loadLibraryFile(libName, loadedLibraries))
+
+    let run() =
+        _stopExecution <- Some false
+        while not _stopExecution.Value do
+            let programCounter = _currentProcess.Value.ProgramCounter.Value |> BitVector.toUInt64
+            match tryGetEmulationLibrary(_currentProcess.Value) with
+            | Some (Managed library) -> 
+                invokeRegisteredHook(programCounter)
+                library.InvokeLibraryFunction(this)
+            | _ -> 
+                emulateNextInstruction(_currentProcess.Value, programCounter)
             
     new() = new Win32Sandbox(Win32SandboxSettings.Default)   
     
@@ -187,29 +198,34 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         // initialize structures and hooks    
         prepareForExecution()
                         
-        // start execution loop
-        _stopExecution <- Some false
-        while not _stopExecution.Value do
-            let programCounter = _currentProcess.Value.GetProgramCounter().Value |> BitVector.toUInt64
-            match tryGetEmulationLibrary(_currentProcess.Value) with
-            | Some (Managed library) -> 
-                invokeRegisteredHook(programCounter)
-                library.InvokeLibraryFunction(this)
-            | _ -> 
-                emulateNextInstruction(_currentProcess.Value, programCounter)
+        // start execution loop in a try catch to catch expection
+        try
+            run()
+        with _ ->
+            let pc = this.GetRunningProcess().ProgramCounter.Value |> BitVector.toInt32
+            let snapshotManager = new SnapshotManager(this)
+            let snapshot = snapshotManager.TakeSnaphot()
+            let filename = String.Format("crashdump_0x{0}_{1}.dump", pc, DateTime.UtcNow.ToString("yyyyMMdd"))
+            snapshot.SaveTo(filename)
+            reraise()
 
     default this.Stop() =
         _stopExecution <- Some true
+
+    default this.CreateEmptyProcess() =
+        _currentProcess <- new Win32ProcessContainer() |> Some
         
     default this.Load(filename: String) =
-        _currentProcess <- new Win32ProcessContainer() |> Some
+        this.CreateEmptyProcess()
         _currentProcess.Value.Initialize(filename)
         loadReferencedLibraries()
 
     default this.Load(buffer: Byte array) =
-        _currentProcess <- new Win32ProcessContainer() |> Some
+        this.CreateEmptyProcess()
         _currentProcess.Value.Initialize(buffer)
         loadReferencedLibraries()
 
     default this.GetRunningProcess() =
         _currentProcess.Value :> IProcessContainer
+
+    

@@ -22,7 +22,7 @@ module Utility =
         | 32 -> BitConverter.GetBytes(uint32 value)
         | 64 -> BitConverter.GetBytes(uint64 value)
         | _ -> failwith("Unexpected size: " + string size)
-
+        
     let getType(regType: RegType) =
         match (RegType.toBitWidth regType) with
         | 1 -> EmulatedType.Bit
@@ -55,7 +55,9 @@ module Utility =
         let handler = processContainer.GetActiveMemoryRegion().Handler
         let instruction = processContainer.GetInstruction()
         BinHandler.LiftInstr handler instruction
-        |> Array.map(LowUIR.Pp.stmtToString)
+        |> Array.map(fun stmt ->
+            String.Format("type: {0,-10} => {1}", stmt.GetType().Name, LowUIR.Pp.stmtToString(stmt))
+        )
 
     let getTempName(index: String, emuType: EmulatedType) =
         let size =  getSize(emuType)

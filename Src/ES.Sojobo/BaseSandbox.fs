@@ -4,6 +4,7 @@ open System
 open System.Reflection
 open System.Collections.Generic
 open B2R2.BinIR
+open ES.Sojobo.Model
 
 [<AbstractClass>]
 type BaseSandbox() =
@@ -14,6 +15,7 @@ type BaseSandbox() =
     abstract Run: unit -> unit
     abstract Stop: unit -> unit     
     abstract GetRunningProcess: unit -> IProcessContainer
+    abstract CreateEmptyProcess: unit -> unit
 
     member this.SideEffect = _sideEffectEvent.Publish
     member val internal Libraries = new List<Library>() with get
@@ -69,7 +71,7 @@ type BaseSandbox() =
 
         member this.AddHook(symbol: String, callback: Action<ISandbox>) =
             this.AddHook(symbol, callback)
-        
+
         [<CLIEvent>]
         member this.SideEffect
             with get() = this.SideEffect

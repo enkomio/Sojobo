@@ -27,7 +27,7 @@ type MemoryManager(pointerSize: Int32) =
     let _va = new Dictionary<UInt64, MemoryRegion>() 
     let _memoryAccessEvent = new Event<MemoryAccessOperation>()
 
-    let _stack =
+    let createStack() =
         let stack = 
             createMemoryRegion(
                 0x18C000UL, 
@@ -37,7 +37,7 @@ type MemoryManager(pointerSize: Int32) =
         _va.Add(stack.BaseAddress, stack)
         stack
 
-    let _heap =
+    let createHeap() =
         let heap = 
             createMemoryRegion(
                 0x520000UL, 
@@ -303,8 +303,11 @@ type MemoryManager(pointerSize: Int32) =
         )      
 
     member this.MemoryAccess = _memoryAccessEvent.Publish  
-    member val Stack = _stack with get, set
-    member val Heap = _heap with get, set
+    member val Stack = createStack() with get, set
+    member val Heap = createHeap() with get, set
+
+    member internal this.Clear() =
+        _va.Clear()
     
     member this.ReadMemory(address: UInt64, size: Int32) =
         // TODO: add check on memory protection
@@ -377,7 +380,13 @@ type MemoryManager(pointerSize: Int32) =
     member this.FreeMemoryRegion(address: UInt64) =        
         let region = this.GetMemoryRegion(address)
         _memoryAccessEvent.Trigger(MemoryAccessOperation.Free region)
-        _va.Remove(region.BaseAddress)        
+        _va.Remove(region.BaseAddress) 
+        
+    member internal this.AllocateMemory(baseAddress: UInt64, size: Int32, permission: Permission) =
+        let region = createMemoryRegion(baseAddress, size, permission)
+        _memoryAccessEvent.Trigger(MemoryAccessOperation.Allocate region)
+        this.AddMemoryRegion(region)
+        baseAddress
 
     member this.AllocateMemory(size: Int32, permission: Permission) =
         let baseAddress =
@@ -395,10 +404,7 @@ type MemoryManager(pointerSize: Int32) =
                     lastRegion.BaseAddress + uint64 lastRegion.Content.Length
 
         // create the memory region
-        let region = createMemoryRegion(baseAddress, size, permission)
-        _memoryAccessEvent.Trigger(MemoryAccessOperation.Allocate region)
-        this.AddMemoryRegion(region)
-        baseAddress
+        this.AllocateMemory(baseAddress, size, permission)
 
     member this.AllocateMemory(value: Byte array, permission: Permission) =        
         let baseAddress = this.AllocateMemory(value.Length, permission)

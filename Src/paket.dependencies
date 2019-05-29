@@ -3,6 +3,7 @@ source https://nuget.org/api/v2
 
 nuget FSharpLog
 nuget System.Reflection.Metadata
+nuget Newtonsoft.Json
 nuget Argu
 
 group FakeBuild

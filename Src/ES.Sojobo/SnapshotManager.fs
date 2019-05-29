@@ -43,6 +43,7 @@ type SnapshotManager(sandbox: BaseSandbox) =
                     baseProcess.Variables
                     |> Seq.map(fun kv -> {
                         Name = kv.Key
+                        Size = Utility.getSize(kv.Value.Type)
                         Value = kv.Value.Value
                         IsTemp = kv.Value.IsTemp
                     })

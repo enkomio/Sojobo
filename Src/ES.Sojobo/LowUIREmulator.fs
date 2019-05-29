@@ -178,7 +178,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
         | InterCJmp (conditionExpr, currentProgramCounter, trueDestAddrExpr, falseDesAddrExpr) ->
             let baseProcess = sandbox.GetRunningProcess() :?> BaseProcessContainer
             let conditionValue = emulateExpr baseProcess conditionExpr
-            {baseProcess.GetProgramCounter() with
+            {baseProcess.ProgramCounter with
                 Value =
                     if BitVector.isTrue conditionValue.Value
                     then (emulateExpr baseProcess trueDestAddrExpr).Value
@@ -187,7 +187,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
             |> baseProcess.SetRegister
 
             // update the active memory region
-            let destMemRegion = baseProcess.Memory.GetMemoryRegion(baseProcess.GetProgramCounter().Value |> BitVector.toUInt64)
+            let destMemRegion = baseProcess.Memory.GetMemoryRegion(baseProcess.ProgramCounter.Value |> BitVector.toUInt64)
             baseProcess.UpdateActiveMemoryRegion(destMemRegion)
 
             // stop execution, see: https://github.com/B2R2-org/B2R2/issues/15#issuecomment-496872936

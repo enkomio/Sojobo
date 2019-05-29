@@ -3,6 +3,7 @@
 open System
 open B2R2.BinIR
 open System.Reflection
+open ES.Sojobo.Model
 
 exception UnhandledFunction of string
 
