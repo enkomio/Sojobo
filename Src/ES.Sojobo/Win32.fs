@@ -107,6 +107,7 @@ module Win32 =
     
     // https://docs.microsoft.com/en-us/windows/desktop/api/winternl/ns-winternl-_teb
     // https://www.nirsoft.net/kernel_struct/vista/TEB.html
+    // https://en.wikipedia.org/wiki/Win32_Thread_Information_Block
     [<CLIMutable>]
     [<ReferenceEquality>]
     [<StructLayout(LayoutKind.Sequential, Pack=1, CharSet=CharSet.Ansi)>]
