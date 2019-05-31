@@ -85,8 +85,34 @@ Do you want to continue (It should be pretty safe to run this test) ? [Y/N]
             return sandbox;
         }
 
+        private static void PrintRegisters(IProcessContainer proc)
+        {
+            var registers = new [] { "EAX" };
+            foreach(var register in registers)
+            {
+                var addr = proc.GetRegister(register).ToUInt64();
+                var region = 0UL;
+                if (proc.Memory.IsAddressMapped(addr))
+                {
+                    region = proc.Memory.GetMemoryRegion(addr).BaseAddress;
+                }
+                
+                Console.WriteLine("{0}=[{1}]:{2}", register, region, addr);
+            }
+            Console.ReadLine();
+        }
+
+        private static Boolean _enableDebugger = false;
         private static void ProcessStep(Object sender, IProcessContainer process)
         {
+            var text = Utility.formatCurrentInstruction(process);
+            Console.WriteLine(text);
+
+            if (_enableDebugger)
+            {
+                PrintRegisters(process);
+            }
+
             var ip = process.GetProgramCounter().ToInt32();
             if (ip == _decryptFunctionEndAddress)
             {
@@ -109,15 +135,20 @@ Do you want to continue (It should be pretty safe to run this test) ? [Y/N]
 
         private static void Run(ISandbox sandbox)
         {
+            Console.WriteLine("-=[ Start Emulation ]=-");
+            sandbox.Run();
+            /*
             try
             {
                 Console.WriteLine("-=[ Start Emulation ]=-");
                 sandbox.Run();
             }
-            catch {
-                /* Exception due to some limitation in this emulator */
+            catch (Exception e) {
+                Console.WriteLine("EX: " + e.ToString());
+                // Exception due to some limitation in this emulator
                 Console.WriteLine("-=[ Emulation Completed ]=-");
             }
+        */
         }
 
         private static void DecryptStrings(IProcessContainer process)
@@ -158,11 +189,13 @@ Do you want to continue (It should be pretty safe to run this test) ? [Y/N]
                 // emulate content
                 var content = emulateSample ? GetSampleContent() : GetFileContent(filename);
                 var sandbox = CreateSandbox(content);
-                EnableStepping(sandbox);
+                //EnableStepping(sandbox);
 
 
-                sandbox.AddLibrary(@"C:\Windows\SysWOW64\kernel32.dll");
-
+                /////////////
+                sandbox.AddHook(0x00406663, (s) => {
+                    //_enableDebugger = true;                    
+                });
 
                 Run(sandbox);
             }            
