@@ -17,9 +17,14 @@ type Win32SandboxSettings = {
     /// This settings will initialize the environment by loading
     /// missing libraries or setup default hook for emulated functions
     InitializeEnvironment: Boolean
+
+    /// If it is true, when the sandbox encounter a not handled exception
+    /// before to exit it will save a snapshot of the system to filesystem
+    SaveSnapshotOnException: Boolean
 } with
     static member Default = {
         InitializeEnvironment = true
+        SaveSnapshotOnException = true
     }
 
 type Win32Sandbox(settings: Win32SandboxSettings) as this =
@@ -202,11 +207,12 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         try
             run()
         with _ ->
-            let pc = this.GetRunningProcess().ProgramCounter.Value |> BitVector.toInt32
-            let snapshotManager = new SnapshotManager(this)
-            let snapshot = snapshotManager.TakeSnaphot()
-            let filename = String.Format("crashdump_0x{0}_{1}.dump", pc, DateTime.UtcNow.ToString("yyyyMMdd"))
-            snapshot.SaveTo(filename)
+            if settings.SaveSnapshotOnException then
+                let pc = this.GetRunningProcess().ProgramCounter.Value |> BitVector.toInt32
+                let snapshotManager = new SnapshotManager(this)
+                let snapshot = snapshotManager.TakeSnaphot()
+                let filename = String.Format("crashdump_0x{0}_{1}.dump", pc, DateTime.UtcNow.ToString("yyyyMMdd"))
+                snapshot.SaveTo(filename)
             reraise()
 
     default this.Stop() =
