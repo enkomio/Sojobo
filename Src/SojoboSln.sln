@@ -49,10 +49,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kpot2StringExtractor", "Exa
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Examples", "Examples", "{06BCBAB7-1B48-441C-845A-26BCC1688D8A}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "B2R2Tests", "ThirdPart\B2R2Tests\B2R2Tests.fsproj", "{6CB0A95B-14A6-4E4F-A44C-9E5A3B957859}"
+EndProject
 Global
-	GlobalSection(Performance) = preSolution
-		HasPerformanceSessions = true
-	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Debug|x64 = Debug|x64
@@ -252,6 +251,18 @@ Global
 		{21B72156-96B8-43B9-901F-E2A0E45044CF}.Release|x64.Build.0 = Release|Any CPU
 		{21B72156-96B8-43B9-901F-E2A0E45044CF}.Release|x86.ActiveCfg = Release|Any CPU
 		{21B72156-96B8-43B9-901F-E2A0E45044CF}.Release|x86.Build.0 = Release|Any CPU
+		{6CB0A95B-14A6-4E4F-A44C-9E5A3B957859}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6CB0A95B-14A6-4E4F-A44C-9E5A3B957859}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6CB0A95B-14A6-4E4F-A44C-9E5A3B957859}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{6CB0A95B-14A6-4E4F-A44C-9E5A3B957859}.Debug|x64.Build.0 = Debug|Any CPU
+		{6CB0A95B-14A6-4E4F-A44C-9E5A3B957859}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{6CB0A95B-14A6-4E4F-A44C-9E5A3B957859}.Debug|x86.Build.0 = Debug|Any CPU
+		{6CB0A95B-14A6-4E4F-A44C-9E5A3B957859}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6CB0A95B-14A6-4E4F-A44C-9E5A3B957859}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6CB0A95B-14A6-4E4F-A44C-9E5A3B957859}.Release|x64.ActiveCfg = Release|Any CPU
+		{6CB0A95B-14A6-4E4F-A44C-9E5A3B957859}.Release|x64.Build.0 = Release|Any CPU
+		{6CB0A95B-14A6-4E4F-A44C-9E5A3B957859}.Release|x86.ActiveCfg = Release|Any CPU
+		{6CB0A95B-14A6-4E4F-A44C-9E5A3B957859}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -273,8 +284,12 @@ Global
 		{125B3129-C3DE-424A-AB45-DC2484F6A436} = {0F05462B-35E6-4CE8-A9B6-F411FE10E86C}
 		{7CCD2061-BC98-4994-B306-B89C6C87DC59} = {0F05462B-35E6-4CE8-A9B6-F411FE10E86C}
 		{21B72156-96B8-43B9-901F-E2A0E45044CF} = {06BCBAB7-1B48-441C-845A-26BCC1688D8A}
+		{6CB0A95B-14A6-4E4F-A44C-9E5A3B957859} = {61E1DB06-9F1D-49A3-B6A2-1D141D0E15A2}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {8FAD91D9-3BDC-4C7B-B895-574883F738E4}
+	EndGlobalSection
+	GlobalSection(Performance) = preSolution
+		HasPerformanceSessions = true
 	EndGlobalSection
 EndGlobal
