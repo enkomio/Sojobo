@@ -50,7 +50,10 @@
     <None Include="App.config" />
     <Content Include="packages.config" />
     <Compile Include="AssemblyInfo.fs" />
+    <Compile Include="Utility.fs" />
     <Compile Include="DumpDynamicMemory.fs" />
+    <Compile Include="SnapshotTests.fs" />
+    <Compile Include="AnalysisTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
