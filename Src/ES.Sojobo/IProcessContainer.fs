@@ -19,13 +19,7 @@ type IProcessContainer =
 
         /// Return the actual program counter value
         abstract ProgramCounter: EmulatedValue with get
-
-        /// set a specific register
-        abstract SetRegister: EmulatedValue -> unit
-
-        /// get the value of the specified register
-        abstract GetRegister: name: String -> EmulatedValue
-
+        
         /// get the memory region that is currenlty being executed by the process
         abstract GetActiveMemoryRegion: unit -> MemoryRegion
 

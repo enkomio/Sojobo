@@ -11,7 +11,7 @@ open B2R2.BinFile
 
 type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
     let getArgument(proc: IProcessContainer, position: Int32) =
-        let ebp = proc.GetRegister("EBP").Value |> BitVector.toUInt32
+        let ebp = proc.Cpu.GetRegister("EBP").Value |> BitVector.toUInt32
         let address = ebp + uint32 (position + 2) * 4ul
         let buffer = proc.Memory.ReadMemory(uint64 address, sizeof<UInt32>)
         let varName = Helpers.getTempName(string position, EmulatedType.DoubleWord)        
@@ -31,7 +31,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
         callbackResult.ReturnValue
         |> Option.iter(fun retValue ->
             let eax = createVariableWithValue("EAX", EmulatedType.DoubleWord, retValue)
-            proc.SetRegister(eax)
+            proc.Cpu.SetRegister(eax)
         )
 
     let emulateBufferInstruction(proc: IProcessContainer, buffer: Byte array) =

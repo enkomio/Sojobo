@@ -5,29 +5,57 @@ open System.Collections.Generic
 open ES.Sojobo.Model
 
 type Cpu() =
-    member val internal Variables = new Dictionary<String, EmulatedValue>() with get
-    member val internal TempVariables = new Dictionary<String, EmulatedValue>() with get
-    (*
-    static member internal GetTempName(index: String, emuType: EmulatedType) =
-        let size =  getSize(emuType)
-        "T_" + string index + ":" + string size
+    let _variables = new Dictionary<String, EmulatedValue>()
+    let _tempVariables = new Dictionary<String, EmulatedValue>()
+
+    member internal this.GetTemporaryVariable(name: String) =
+        _tempVariables.[name]
+
+    member internal this.GetVariable(name: String) =
+        _variables.[name]
 
     member internal this.GetOrCreateTemporaryVariable(index: String, emuType: EmulatedType) =
-        let name = Utility.getTempName(index, emuType)
-        match this.TempVariables.TryGetValue(name) with
+        let name = Helpers.getTempName(index, emuType)
+        match _tempVariables.TryGetValue(name) with
         | (true, value) -> value
         | _ -> 
             let variable = {createVariable(name, emuType) with IsTemp = true}
-            this.TempVariables.[name] <- variable
+            _tempVariables.[name] <- variable
             variable    
 
     member internal this.GetVariable(name: String, emuType: EmulatedType) =        
-        match this.Variables.TryGetValue(name) with
+        match _variables.TryGetValue(name) with
         | (true, value) -> value
         | _ ->
-            let name = Utility.getTempName(name, emuType)
-            this.TempVariables.[name]
+            let name = Helpers.getTempName(name, emuType)
+            _tempVariables.[name]
 
     member internal this.ClearTemporaryVariables() =
-        this.TempVariables.Clear()
-        *)
+        _tempVariables.Clear()
+
+    member internal this.AddTemporaryVariable(name: string, value: EmulatedValue) =
+        _tempVariables.[name] <- value
+
+    member internal this.TryGetTemporaryVariable(name: String) =
+        match _tempVariables.TryGetValue(name) with
+        | (true, value) -> Some value
+        | _ -> None
+
+    member internal this.TryGetVariable(name: String) =
+        match _variables.TryGetValue(name) with
+        | (true, value) -> Some value
+        | _ -> None
+
+    member internal this.SetVariable(register: EmulatedValue) =
+        _variables.[register.Name] <- register
+
+    member internal this.GetAllVariables() =
+        new Dictionary<String, EmulatedValue>(_variables)
+
+    member this.GetRegister(name: String) =
+        _variables.[name]
+
+    member this.SetRegister(value: EmulatedValue) =
+        if value.IsTemp
+        then _variables.[value.Name] <- value
+        else _tempVariables.[value.Name] <- value

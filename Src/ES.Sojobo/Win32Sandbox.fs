@@ -44,7 +44,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
             createVariableWithValue(string Register.FSBase, EmulatedType.QuadWord, BitVector.ofUInt64 tebAddress 64<rt>)
             createVariableWithValue(string Register.FS, EmulatedType.QuadWord, BitVector.ofUInt64 tebAddress 64<rt>)        
         ] 
-        |> List.iter(this.GetRunningProcess().SetRegister)
+        |> List.iter(this.GetRunningProcess().Cpu.SetRegister)
 
     let resolveEmulatedFunctions() =
         getManagedLibraries(this.Libraries)

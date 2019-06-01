@@ -19,9 +19,8 @@ type Win32ProcessContainer() as this =
         this.UpdateActiveMemoryRegion(_memoryManager.GetMemoryRegion(handler.FileInfo.EntryPoint))
 
         // save the EIP registry value
-        let eip = string Register.EIP
-        let eipValue = createVariableWithValue(eip, EmulatedType.DoubleWord, BitVector.ofUInt64 handler.FileInfo.EntryPoint 32<rt>)
-        this.Variables.Add(eip, eipValue)
+        let eipValue = createVariableWithValue(string Register.EIP, EmulatedType.DoubleWord, BitVector.ofUInt64 handler.FileInfo.EntryPoint 32<rt>)
+        this.Cpu.SetRegister(eipValue)
 
     let setupRegisters() =
         [
@@ -57,19 +56,17 @@ type Win32ProcessContainer() as this =
             createVariableWithValue(string Register.AF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
             createVariableWithValue(string Register.PF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
             createVariableWithValue(string Register.CF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
-        ] |> List.iter(fun register -> this.Variables.Add(register.Name, register))
+        ] |> List.iter(fun register -> this.Cpu.SetRegister(register))
 
     let setupStackRegisters() =
         // set ESP value
-        let esp = string Register.ESP
         let startAddress = int32 _memoryManager.Stack.BaseAddress + int32 _memoryManager.Stack.Content.Length - 8
-        let espValue = createVariableWithValue(esp, EmulatedType.DoubleWord, BitVector.ofInt32 startAddress 32<rt>)
-        this.Variables.Add(esp, espValue)
+        let espValue = createVariableWithValue(string Register.ESP, EmulatedType.DoubleWord, BitVector.ofInt32 startAddress 32<rt>)
+        this.Cpu.SetRegister(espValue)
 
         // set EBP value equals to ESP
-        let ebp = string Register.EBP
-        let ebpValue = createVariableWithValue(ebp, EmulatedType.DoubleWord, espValue.Value)
-        this.Variables.Add(ebp, ebpValue)
+        let ebpValue = createVariableWithValue(string Register.EBP, EmulatedType.DoubleWord, espValue.Value)
+        this.Cpu.SetRegister(ebpValue)
         
     let resolveIATSymbols(handler: BinHandler) =
         handler.FileInfo.GetSymbols()
@@ -91,14 +88,6 @@ type Win32ProcessContainer() as this =
     
     default this.Memory = _memoryManager
     default this.Cpu = _cpu
-
-    default this.GetRegister(name: String) =
-        this.Variables.[name]
-
-    default this.SetRegister(value: EmulatedValue) =
-        if value.IsTemp
-        then this.TempVariables.[value.Name] <- value
-        else this.Variables.[value.Name] <- value
         
     member this.Initialize(buffer: Byte array) =
         let isa = ISA.OfString "x86"
@@ -118,10 +107,10 @@ type Win32ProcessContainer() as this =
         BinHandler.ParseInstr (this.GetActiveMemoryRegion().Handler) (programCounter)
 
     default this.ProgramCounter
-        with get() = this.Variables.["EIP"]  
+        with get() = this.Cpu.GetRegister("EIP")
 
     default this.GetCallStack() = [|
-        let mutable ebp = this.GetRegister("EBP").Value |> BitVector.toUInt32
+        let mutable ebp = this.Cpu.GetRegister("EBP").Value |> BitVector.toUInt32
         let mutable retValue = BitConverter.ToUInt32(this.Memory.ReadMemory(ebp + 4ul |> uint64, 4) , 0)
         while retValue <> 0ul do
             yield uint64 retValue

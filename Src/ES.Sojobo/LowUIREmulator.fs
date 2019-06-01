@@ -12,7 +12,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
     let rec emulateExpr(baseProcess: BaseProcessContainer) (expr: Expr) =
         match expr with
         | TempVar (regType, index) ->
-            baseProcess.GetOrCreateTemporaryVariable(string index, Helpers.getType(regType))
+            baseProcess.Cpu.GetOrCreateTemporaryVariable(string index, Helpers.getType(regType))
 
         | Num number ->
             let size = Helpers.getType(BitVector.getType number)
@@ -20,7 +20,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
 
         | Var (regType, registerId, _, _) ->
             let register = Register.ofRegID registerId            
-            baseProcess.GetVariable(string register, Helpers.getType(regType))
+            baseProcess.Cpu.GetVariable(string register, Helpers.getType(regType))
 
         | BinOp (binOpType, regType, firstOp, secondOp, _, _) ->
             let firstValue = emulateExpr baseProcess firstOp
@@ -64,7 +64,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
             |> fun bi -> createVariableWithValue(String.Empty,  Helpers.getType(regType), BitVector.ofUBInt bi regType)
 
         | PCVar (regType, regName) ->
-            baseProcess.GetVariable(regName, Helpers.getType(regType))
+            baseProcess.Cpu.GetVariable(regName, Helpers.getType(regType))
 
         | RelOp (relOpType, firstExpr, secondExpr, exprInfo, consInfo) ->
             let firstValue = emulateExpr baseProcess firstExpr
@@ -136,7 +136,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
         | ISMark _ -> ()
         | IEMark _ ->
             let baseProcess = sandbox.GetRunningProcess() :?> BaseProcessContainer
-            baseProcess.ClearTemporaryVariables()
+            baseProcess.Cpu.ClearTemporaryVariables()
 
         | Put (destination, source) -> 
             let baseProcess = sandbox.GetRunningProcess() :?> BaseProcessContainer
@@ -145,7 +145,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
                 {emulateExpr baseProcess destination with
                     Value = sourceValue.Value
                 }
-            baseProcess.SetRegister(destinationValue)
+            baseProcess.Cpu.SetRegister(destinationValue)
 
         | Store (_, destination, source) ->
             let baseProcess = sandbox.GetRunningProcess() :?> BaseProcessContainer
@@ -166,7 +166,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
                 {emulateExpr baseProcess programCounterExpr with
                     Value = destAddr.Value
                 }
-            baseProcess.SetRegister(programCounter)
+            baseProcess.Cpu.SetRegister(programCounter)
             
             // update the active memory region
             let destMemRegion = baseProcess.Memory.GetMemoryRegion(programCounter.Value |> BitVector.toUInt64)
@@ -184,7 +184,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
                     then (emulateExpr baseProcess trueDestAddrExpr).Value
                     else (emulateExpr baseProcess falseDesAddrExpr).Value
             }
-            |> baseProcess.SetRegister
+            |> baseProcess.Cpu.SetRegister
 
             // update the active memory region
             let destMemRegion = baseProcess.Memory.GetMemoryRegion(baseProcess.ProgramCounter.Value |> BitVector.toUInt64)
