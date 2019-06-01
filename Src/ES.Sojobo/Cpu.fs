@@ -57,5 +57,5 @@ type Cpu() =
 
     member this.SetRegister(value: EmulatedValue) =
         if value.IsTemp
-        then _variables.[value.Name] <- value
-        else _tempVariables.[value.Name] <- value
+        then _tempVariables.[value.Name] <- value
+        else _variables.[value.Name] <- value
