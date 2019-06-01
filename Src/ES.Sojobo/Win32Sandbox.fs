@@ -56,7 +56,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         |> Array.collect(fun lib ->
             lib.Exports
             |> Seq.map(fun kv ->
-                let keyName = Utility.getFunctionKeyName(kv.Value, lib.Filename.Value |> Path.GetFileName)
+                let keyName = Helpers.getFunctionKeyName(kv.Value, lib.Filename.Value |> Path.GetFileName)
                 (keyName, kv.Key)
             )
             |> Seq.toArray
@@ -154,7 +154,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
 
             // load also all referenced DLL
             let handler = BinHandler.Init(ISA.OfString "x86", libName)
-            Utility.getPe(handler).ImportMap 
+            Helpers.getPe(handler).ImportMap 
             |> Seq.map(fun kv -> 
                 match kv.Value with
                 | ImportByOrdinal (_, dllname) -> dllname

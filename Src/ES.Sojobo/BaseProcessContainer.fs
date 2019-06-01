@@ -29,7 +29,7 @@ type BaseProcessContainer(pointerSize: Int32) =
         _activeRegion <- Some memRegion
 
     member internal this.GetOrCreateTemporaryVariable(index: String, emuType: EmulatedType) =
-        let name = Utility.getTempName(index, emuType)
+        let name = Helpers.getTempName(index, emuType)
         match this.TempVariables.TryGetValue(name) with
         | (true, value) -> value
         | _ -> 
@@ -41,7 +41,7 @@ type BaseProcessContainer(pointerSize: Int32) =
         match this.Variables.TryGetValue(name) with
         | (true, value) -> value
         | _ ->
-            let name = Utility.getTempName(name, emuType)
+            let name = Helpers.getTempName(name, emuType)
             this.TempVariables.[name]
 
     member internal this.ClearTemporaryVariables() =

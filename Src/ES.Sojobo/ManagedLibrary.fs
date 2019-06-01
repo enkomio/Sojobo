@@ -14,7 +14,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
         let ebp = proc.GetRegister("EBP").Value |> BitVector.toUInt32
         let address = ebp + uint32 (position + 2) * 4ul
         let buffer = proc.Memory.ReadMemory(uint64 address, sizeof<UInt32>)
-        let varName = Utility.getTempName(string position, EmulatedType.DoubleWord)        
+        let varName = Helpers.getTempName(string position, EmulatedType.DoubleWord)        
         {createVariable(varName, EmulatedType.DoubleWord) with Value = BitVector.ofArr(buffer)}
 
     let getArguments(proc: IProcessContainer, mi: MethodInfo) =
@@ -99,7 +99,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
         symbols
         |> Seq.iteri(fun index symbol ->            
             // obtains function offset
-            let keyName = Utility.getFunctionKeyName(symbol.Name, symbol.LibraryName)
+            let keyName = Helpers.getFunctionKeyName(symbol.Name, symbol.LibraryName)
             let offset = 
                 match exportedMethods.TryGetValue(keyName) with
                 | (true, address) -> address
@@ -138,7 +138,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
                 true
         )
         |> Seq.iter(fun m ->
-            let keyName = Utility.getFunctionKeyName(m.Name, m.DeclaringType.Name)
+            let keyName = Helpers.getFunctionKeyName(m.Name, m.DeclaringType.Name)
             this.LibraryFunctions.[keyName] <- m
         )
 

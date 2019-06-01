@@ -43,7 +43,7 @@ type SnapshotManager(sandbox: BaseSandbox) =
                     baseProcess.Variables
                     |> Seq.map(fun kv -> {
                         Name = kv.Key
-                        Size = Utility.getSize(kv.Value.Type)
+                        Size = Helpers.getSize(kv.Value.Type)
                         Value = kv.Value.Value
                         IsTemp = kv.Value.IsTemp
                     })
@@ -91,6 +91,6 @@ type SnapshotManager(sandbox: BaseSandbox) =
             Name = register.Name
             Value = register.Value
             IsTemp = register.IsTemp
-            Type = Utility.getType(register.Value |> BitVector.getType)
+            Type = Helpers.getType(register.Value |> BitVector.getType)
         })
         |> Array.iter(sandbox.GetRunningProcess().SetRegister)

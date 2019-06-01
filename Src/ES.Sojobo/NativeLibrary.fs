@@ -21,7 +21,7 @@ type NativeLibrary(content: Byte array) =
         new NativeLibrary(content, Filename = Some filename)
 
     member private this.SetProperties(handler: BinHandler) =
-        let pe = Utility.getPe(handler)
+        let pe = Helpers.getPe(handler)
         this.EntryPoint <- uint64 pe.PEHeaders.PEHeader.AddressOfEntryPoint
         this.BaseAddress <- uint64 pe.PEHeaders.PEHeader.ImageBase
         this.Exports <- pe.ExportMap     
@@ -44,7 +44,7 @@ type NativeLibrary(content: Byte array) =
         // map the file
         match handler.FileInfo.FileFormat with
         | FileFormat.PEBinary ->
-            let pe = Utility.getPe(handler)
+            let pe = Helpers.getPe(handler)
             if proc.Memory.IsAddressMapped(pe.PEHeaders.PEHeader.ImageBase) then
                 // must relocate the library
                 handler <- this.Relocate(pe, handler)

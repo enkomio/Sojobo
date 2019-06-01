@@ -12,15 +12,15 @@ type LowUIREmulator(sandbox: BaseSandbox) =
     let rec emulateExpr(baseProcess: BaseProcessContainer) (expr: Expr) =
         match expr with
         | TempVar (regType, index) ->
-            baseProcess.GetOrCreateTemporaryVariable(string index, Utility.getType(regType))
+            baseProcess.GetOrCreateTemporaryVariable(string index, Helpers.getType(regType))
 
         | Num number ->
-            let size = Utility.getType(BitVector.getType number)
+            let size = Helpers.getType(BitVector.getType number)
             createVariableWithValue(String.Empty, size, number)
 
         | Var (regType, registerId, _, _) ->
             let register = Register.ofRegID registerId            
-            baseProcess.GetVariable(string register, Utility.getType(regType))
+            baseProcess.GetVariable(string register, Helpers.getType(regType))
 
         | BinOp (binOpType, regType, firstOp, secondOp, _, _) ->
             let firstValue = emulateExpr baseProcess firstOp
@@ -45,13 +45,13 @@ type LowUIREmulator(sandbox: BaseSandbox) =
                 | _ -> failwith("Wrong or unsupported operation")
             
             let resultValue = operation firstValue.Value secondValue.Value
-            createVariableWithValue(String.Empty, Utility.getType(regType), resultValue)
+            createVariableWithValue(String.Empty, Helpers.getType(regType), resultValue)
 
         | Load (_, regType, expr, _, _) ->             
             let memAddressValue = (emulateExpr baseProcess expr).Value
             let memAddress = BitVector.toUInt64 memAddressValue
-            let emuType = Utility.getType(regType)
-            let numBytes = Utility.getSize(emuType) / 8
+            let emuType = Helpers.getType(regType)
+            let numBytes = Helpers.getSize(emuType) / 8
             let bytes = baseProcess.Memory.ReadMemory(memAddress, numBytes)
                         
             // convert the readed bytes to emulated value
@@ -61,10 +61,10 @@ type LowUIREmulator(sandbox: BaseSandbox) =
             | DoubleWord -> uint32(BitConverter.ToUInt32(bytes, 0)) |> bigint
             | QuadWord -> uint64(BitConverter.ToUInt64(bytes, 0)) |> bigint
             | _ -> failwith("Unexpected emu type")
-            |> fun bi -> createVariableWithValue(String.Empty,  Utility.getType(regType), BitVector.ofUBInt bi regType)
+            |> fun bi -> createVariableWithValue(String.Empty,  Helpers.getType(regType), BitVector.ofUBInt bi regType)
 
         | PCVar (regType, regName) ->
-            baseProcess.GetVariable(regName, Utility.getType(regType))
+            baseProcess.GetVariable(regName, Helpers.getType(regType))
 
         | RelOp (relOpType, firstExpr, secondExpr, exprInfo, consInfo) ->
             let firstValue = emulateExpr baseProcess firstExpr
@@ -90,7 +90,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
         | Extract(targetExpr, regType, startPos, _, _) ->
             let targetValue = emulateExpr baseProcess targetExpr
             let extractionResult = BitVector.extract targetValue.Value regType startPos
-            createVariableWithValue(String.Empty, Utility.getType(regType), extractionResult)
+            createVariableWithValue(String.Empty, Helpers.getType(regType), extractionResult)
 
         | UnOp (unOpType, targetExpr, _, _) ->
             let operation =
@@ -104,7 +104,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
             createVariableWithValue(String.Empty, value.Type, resultValue)
 
         | Undefined (regType, txt) ->
-            createVariable(String.Empty, Utility.getType(regType))
+            createVariable(String.Empty, Helpers.getType(regType))
                           
         | Cast (castKind, regType, expr, exprInfo, consInfo)->
             let valueToCast = emulateExpr baseProcess expr
@@ -115,7 +115,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
                 | _ -> raise IllegalASTTypeException
             
             {valueToCast with 
-                Type = Utility.getType(regType)
+                Type = Helpers.getType(regType)
                 Value = castedValue
             }
 
@@ -154,7 +154,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
 
             // extract info
             let memAddress = BitVector.toUInt64 destinationValue.Value          
-            let bytes = Utility.toArray(sourceValue.Value)
+            let bytes = Helpers.toArray(sourceValue.Value)
             
             // write value
             baseProcess.Memory.WriteMemory(memAddress, bytes)
