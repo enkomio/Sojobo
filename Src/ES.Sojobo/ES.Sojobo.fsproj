@@ -45,6 +45,7 @@
     <Content Include="packages.config" />
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Model.fs" />
+    <Compile Include="Cpu.fs" />
     <Compile Include="MemoryManager.fs" />
     <Compile Include="IProcessContainer.fs" />
     <Compile Include="IEmulator.fs" />

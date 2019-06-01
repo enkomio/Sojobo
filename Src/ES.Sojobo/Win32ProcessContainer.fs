@@ -13,6 +13,7 @@ type Win32ProcessContainer() as this =
 
     let _memoryManager = new MemoryManager(32)
     let _iat = new List<Symbol>()
+    let _cpu = new Cpu()
     
     let setEntryPoint(handler: BinHandler) =
         this.UpdateActiveMemoryRegion(_memoryManager.GetMemoryRegion(handler.FileInfo.EntryPoint))
@@ -89,6 +90,7 @@ type Win32ProcessContainer() as this =
         resolveIATSymbols(handler)
     
     default this.Memory = _memoryManager
+    default this.Cpu = _cpu
 
     default this.GetRegister(name: String) =
         this.Variables.[name]
