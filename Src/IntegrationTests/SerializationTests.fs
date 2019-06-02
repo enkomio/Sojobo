@@ -37,6 +37,7 @@ type TestData = {
 }
 
 module SerializationTests =
+    open B2R2.BinFile
 
     let ``Serialize auto-referenced object``() =
         let d1 = Activator.CreateInstance<ListEntryData>()
@@ -58,7 +59,7 @@ module SerializationTests =
         // serialize the data
         let testData1 = {D1 = d1; D2 = d2}
         let memManager = new MemoryManager(32)
-        let addr = memManager.AllocateMemory(testData1, MemoryProtection.Read)
+        let addr = memManager.AllocateMemory(testData1, Permission.Readable)
 
         // unserialize the object
         let testData2 = memManager.ReadMemory<TestData>(addr)
