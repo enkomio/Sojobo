@@ -13,7 +13,7 @@ module internal Utility =
     let debuggerBreak(activeProcess: IProcessContainer) =
         ["EAX"; "EBX"; "ECX"; "EDX"; "ESI"; "EDI"]
         |> List.iter(fun register ->
-            let address = activeProcess.GetRegister(register).Value |> BitVector.toUInt64
+            let address = activeProcess.Cpu.GetRegister(register).Value |> BitVector.toUInt64
             let region =
                 if activeProcess.Memory.IsAddressMapped(address)
                 then activeProcess.Memory.GetMemoryRegion(address).BaseAddress
