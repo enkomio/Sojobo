@@ -53,7 +53,7 @@ module DumpDynamicMemory =
             // of the stack there is the return value. The stack
             // frame is not yet created
             let proc = sandbox.GetRunningProcess()
-            let esp = proc.GetRegister("ESP").Value |> BitVector.toUInt64
+            let esp = proc.Cpu.GetRegister("ESP").Value |> BitVector.toUInt64
             
             // get address first argument by skipping return address
             let addrRegionToFree = proc.Memory.ReadMemory<UInt32>(esp + 4UL)
