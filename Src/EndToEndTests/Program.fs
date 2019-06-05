@@ -3,7 +3,7 @@
 module Program =
     [<EntryPoint>]
     let main argv =
-        //AnalysisTests.``graph generation``()
+        AnalysisTests.``graph generation``()
 
         SnapshotTests.``test snapshot creation and loading``()
 
