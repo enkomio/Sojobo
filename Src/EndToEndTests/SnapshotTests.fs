@@ -22,9 +22,11 @@ module SnapshotTests =
             ES.EndToEndTests.Utility.writeDisassembly(proc)
             //ES.EndToEndTests.Utility.writeIR(proc)
 
+            (*
             if Utility.isInRange(proc, 0x19145DUL, 0x191470UL) then
                 Utility.debuggerBreak(proc)
-            
+            *)
+
             if 0x401061 = (proc.ProgramCounter.Value |> BitVector.toInt32) then
                 // just finished to compute fibonacci
                 snapshot <- Some <| snapshotManager.TakeSnaphot()
@@ -39,5 +41,5 @@ module SnapshotTests =
         snapshotManager.LoadSnapshot(snapshot.Value)
 
         // verify
-        let eax = sandbox.GetRunningProcess().GetRegister("EAX").Value |> BitVector.toInt32
+        let eax = sandbox.GetRunningProcess().Cpu.GetRegister("EAX").Value |> BitVector.toInt32
         assert(eax = 8)
