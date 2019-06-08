@@ -52,6 +52,9 @@
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
+    <Reference Include="B2R2.BinFile">
+      <HintPath>..\ThirdPart\B2R2\src\BinFile\bin\Debug\netstandard2.0\B2R2.BinFile.dll</HintPath>
+    </Reference>
     <Reference Include="FSharp.Core">
       <HintPath>..\packages\FSharp.Core.4.5.2\lib\net45\FSharp.Core.dll</HintPath>
     </Reference>
