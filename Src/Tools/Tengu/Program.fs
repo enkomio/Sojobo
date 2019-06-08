@@ -20,8 +20,11 @@ module Program =
     let _logger =
         log "Tangu"
         |> info "Start" "-=[ Start Analysis ]=-"
+        |> info "Details" "File: {0} PID: {1}"
         |> info "Completed" "-=[ Analysis Completed ]=-"
         |> info "MemoryDumped" "Dynamic code dumped to: {0}"
+        |> info "SavedMetrics" "Saved metrics to: {0}"
+        |> error "Exception" "PC: {0} - Error: {1}"
         |> build
 
     let writeDisassembly(proc: IProcessContainer) =
@@ -34,7 +37,7 @@ module Program =
 
     let stepHandler(settings: Settings) (proc: IProcessContainer) =
         _instructionCounter <- _instructionCounter + 1
-        if settings.NumberOfInstructionToEmulate >= _instructionCounter then
+        if _instructionCounter  >= settings.NumberOfInstructionToEmulate then
             _sandbox.Stop()
 
         if settings.PrintDisassembly then writeDisassembly(proc)
@@ -43,8 +46,21 @@ module Program =
         _metrics.EmulatedInstruction(proc.GetInstruction(), _instructionCounter)
         _dumper.Step(proc.ProgramCounter.Value |> BitVector.toUInt32)
 
+    let getFileContent(settings: Settings) =
+        if settings.DecodeContent then
+            let buffer = 
+                Convert.FromBase64String(File.ReadAllText(settings.Filename))
+                |> Array.map(fun b -> b ^^^ 0xAAuy)
+            
+            buffer.[0] <- byte 'M'
+            buffer.[1] <- byte 'Z'
+            
+            buffer
+        else
+            File.ReadAllBytes(settings.Filename)
+
     let initialize(settings: Settings) =
-        _sandbox.Load(File.ReadAllBytes(settings.Filename))
+        _sandbox.Load(getFileContent(settings))
 
         // setup handlers
         let proc = _sandbox.GetRunningProcess()
@@ -54,20 +70,24 @@ module Program =
         // add this file as library for method hooking
         _sandbox.AddLibrary(typeof<Dumper>.Assembly)
 
-    let runSample() =
+    let runSample(settings: Settings) =
         try
             _logger?Start()
+            _logger?Details(settings.Filename, _sandbox.GetRunningProcess().Pid)
+
             // run the sample till the end or exception
             _sandbox.Run()
-        with _ ->
+        with e ->
             // Exception due to some limitation in this emulator
-            ()
+            _logger?Exception(_sandbox.GetRunningProcess().ProgramCounter.Value, e)
 
         _logger?Completed()
 
     let getResultDir() =
-        let curDir = Path.GetFileName(Assembly.GetEntryAssembly().Location)
-        Path.Combine(curDir, _sandbox.GetRunningProcess().Pid.ToString())
+        let curDir = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location)
+        let directory = Path.Combine(curDir, "Result", "PID_" + _sandbox.GetRunningProcess().Pid.ToString())
+        Directory.CreateDirectory(directory) |> ignore
+        directory
 
     let collectInformation() =
         // save unpacked memory
@@ -89,7 +109,9 @@ module Program =
                 .AppendLine() 
             |> ignore
         )
-        File.WriteAllText(Path.Combine(getResultDir(), "metrics_stack_frame.txt"), sb.ToString())
+        let file = Path.Combine(getResultDir(), "metrics_stack_frame.txt")
+        File.WriteAllText(file, sb.ToString())
+        _logger?SavedMetrics(file)
 
     let configureLogging(logLevel: LogLevel) =
         let logProvider = new LogProvider()
@@ -104,7 +126,7 @@ module Program =
         | Some settings->            
             initialize(settings)
             configureLogging(LogLevel.Informational)
-            runSample()
+            runSample(settings)
             collectInformation()
             0
         | None -> 
