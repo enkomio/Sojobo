@@ -70,6 +70,9 @@ module Program =
         // add this file as library for method hooking
         _sandbox.AddLibrary(typeof<Dumper>.Assembly)
 
+        // add all the specified input libraries
+        settings.Libs |> Array.iter(_sandbox.AddLibrary)
+
     let runSample(settings: Settings) =
         try
             _logger?Start()
