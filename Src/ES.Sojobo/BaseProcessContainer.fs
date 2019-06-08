@@ -10,7 +10,8 @@ open B2R2.BinFile
 [<AbstractClass>]
 type BaseProcessContainer(pointerSize: Int32) =
     let mutable _activeRegion: MemoryRegion option = None
-    let _stepEvent = new Event<IProcessContainer>()       
+    let _stepEvent = new Event<IProcessContainer>()   
+    let _pid = Guid.NewGuid().GetHashCode() |> uint32
 
     member val PointerSize = pointerSize with get
 
@@ -41,7 +42,7 @@ type BaseProcessContainer(pointerSize: Int32) =
         instruction
 
     member this.Step = _stepEvent.Publish 
-    member this.Pid = Guid.NewGuid().GetHashCode() |> uint32
+    member this.Pid = _pid
     
     interface IProcessContainer with
         member this.ProgramCounter
