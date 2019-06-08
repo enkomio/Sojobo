@@ -10,21 +10,24 @@ module Cli =
         NumberOfInstructionToEmulate: Int32
         PrintDisassembly: Boolean
         PrintIR: Boolean
+        DecodeContent: Boolean
     }
 
     type CLIArguments =
         | [<MainCommand; Last>] File of file:string   
-        | InstructionCount of count:Int32
-        | PrintDisassembly of Boolean
-        | PrintIR of Boolean
+        | Instruction of count:Int32
+        | Print_Disassembly
+        | Print_IR
+        | Decode_Content
     with
         interface IArgParserTemplate with
             member s.Usage =
                 match s with
                 | File _ -> "the PE file to analyze."
-                | PrintDisassembly _ -> "print the disassembly of the emulated instruction (default true)."
-                | PrintIR _ -> "print the IR code of the emulated instruction (default false)."
-                | InstructionCount _ -> "the number of instructions to emulate (default 10000)."
+                | Print_Disassembly -> "print the disassembly of the emulated instruction."
+                | Print_IR -> "print the IR code of the emulated instruction."
+                | Instruction _ -> "the number of instructions to emulate (default 10000)."
+                | Decode_Content -> "decode the content of the file (previously encoded with MakeSafePE)."
 
     let private printColor(msg: String, color: ConsoleColor) =
         Console.ForegroundColor <- color
@@ -60,9 +63,10 @@ module Cli =
                 match results.TryGetResult(<@ File @>) with
                 | Some filename when File.Exists(filename) -> Some <| {
                         Filename = filename
-                        PrintDisassembly = results.GetResult(<@ PrintDisassembly @>, true)
-                        PrintIR = results.GetResult(<@ PrintIR @>, false)
-                        NumberOfInstructionToEmulate = results.GetResult(<@ InstructionCount @>, 10000)
+                        PrintDisassembly = results.Contains(<@ Print_Disassembly @>)
+                        PrintIR = results.Contains(<@ Print_IR @>)
+                        DecodeContent = results.Contains(<@ Decode_Content @>)
+                        NumberOfInstructionToEmulate = results.GetResult(<@ Instruction @>, 10000)
                     } 
                 | Some filename ->
                     printError(String.Format("File {0} doesn't exists", filename))
