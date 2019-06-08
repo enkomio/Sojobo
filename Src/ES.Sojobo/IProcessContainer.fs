@@ -14,7 +14,7 @@ type IProcessContainer =
         abstract Cpu: Cpu with get
 
         /// Return the Pid valued of the emulated process
-        abstract Pid: Int32 with get
+        abstract Pid: UInt32 with get
 
         /// This method is invoked before the next instruction being emulated
         [<CLIEvent>]
