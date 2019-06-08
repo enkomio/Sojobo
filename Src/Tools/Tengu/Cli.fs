@@ -11,6 +11,7 @@ module Cli =
         PrintDisassembly: Boolean
         PrintIR: Boolean
         DecodeContent: Boolean
+        Libs: String array
     }
 
     type CLIArguments =
@@ -18,6 +19,7 @@ module Cli =
         | Instruction of count:Int32
         | Print_Disassembly
         | Print_IR
+        | Lib of String
         | Decode_Content
     with
         interface IArgParserTemplate with
@@ -26,6 +28,7 @@ module Cli =
                 | File _ -> "the PE file to analyze."
                 | Print_Disassembly -> "print the disassembly of the emulated instruction."
                 | Print_IR -> "print the IR code of the emulated instruction."
+                | Lib _ -> "library to include for the emulation."
                 | Instruction _ -> "the number of instructions to emulate (default 10000)."
                 | Decode_Content -> "decode the content of the file (previously encoded with MakeSafePE)."
 
@@ -59,13 +62,14 @@ module Cli =
             if results.IsUsageRequested then
                 printUsage(parser.PrintUsage())
                 None
-            else
+            else                
                 match results.TryGetResult(<@ File @>) with
                 | Some filename when File.Exists(filename) -> Some <| {
                         Filename = filename
                         PrintDisassembly = results.Contains(<@ Print_Disassembly @>)
                         PrintIR = results.Contains(<@ Print_IR @>)
                         DecodeContent = results.Contains(<@ Decode_Content @>)
+                        Libs = results.GetResults(<@ Lib @>) |> Seq.toArray
                         NumberOfInstructionToEmulate = results.GetResult(<@ Instruction @>, 10000)
                     } 
                 | Some filename ->
