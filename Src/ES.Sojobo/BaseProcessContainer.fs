@@ -41,6 +41,7 @@ type BaseProcessContainer(pointerSize: Int32) =
         instruction
 
     member this.Step = _stepEvent.Publish 
+    member this.Pid = Guid.NewGuid().GetHashCode()
     
     interface IProcessContainer with
         member this.ProgramCounter
@@ -70,3 +71,6 @@ type BaseProcessContainer(pointerSize: Int32) =
 
         member this.Cpu
             with get() = this.Cpu
+
+        member this.Pid
+            with get() = this.Pid
