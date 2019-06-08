@@ -14,7 +14,7 @@ namespace ES.Kpot2StringExtractor
 {
     public class Program
     {
-        private static Int32 _decryptFunctionEndAddress = 0x0040C928;        
+        private static readonly Int32 _decryptFunctionEndAddress = 0x0040C928;
 
         private static Tuple<String, Boolean, Boolean> GetOptions(String[] args)
         {
@@ -90,7 +90,7 @@ Do you want to continue (It should be pretty safe to run this test) ? [Y/N]
             var registers = new [] { "EAX" };
             foreach(var register in registers)
             {
-                var addr = proc.GetRegister(register).ToUInt64();
+                var addr = proc.Cpu.GetRegister(register).ToUInt64();
                 var region = 0UL;
                 if (proc.Memory.IsAddressMapped(addr))
                 {
@@ -113,12 +113,12 @@ Do you want to continue (It should be pretty safe to run this test) ? [Y/N]
                 PrintRegisters(process);
             }
 
-            var ip = process.GetProgramCounter().ToInt32();
+            var ip = process.ProgramCounter.ToInt32();
             if (ip == _decryptFunctionEndAddress)
             {
                 // read registers value
-                var decryptedBufferAddress = process.GetRegister("EDI").ToUInt64();
-                var bufferLength = process.GetRegister("EAX").ToInt32();
+                var decryptedBufferAddress = process.Cpu.GetRegister("EDI").ToUInt64();
+                var bufferLength = process.Cpu.GetRegister("EAX").ToInt32();
                 
                 // read decrypted string
                 var decryptedBuffer = process.Memory.ReadMemory(decryptedBufferAddress, bufferLength);
@@ -132,23 +132,27 @@ Do you want to continue (It should be pretty safe to run this test) ? [Y/N]
             var process = sandbox.GetRunningProcess();
             process.Step += ProcessStep;
         }
-
-        private static void Run(ISandbox sandbox)
+        
+        private static void Run(ISandbox sandbox, Boolean controlledEnv = true)
         {
             Console.WriteLine("-=[ Start Emulation ]=-");
-            sandbox.Run();
-            /*
-            try
+            if (controlledEnv)
             {
-                Console.WriteLine("-=[ Start Emulation ]=-");
+                try
+                {
+                    sandbox.Run();
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine("EX: " + e.ToString());
+                    // Exception due to some limitation in this emulator
+                    Console.WriteLine("-=[ Emulation Completed ]=-");
+                }
+            }
+            else
+            {
                 sandbox.Run();
             }
-            catch (Exception e) {
-                Console.WriteLine("EX: " + e.ToString());
-                // Exception due to some limitation in this emulator
-                Console.WriteLine("-=[ Emulation Completed ]=-");
-            }
-        */
         }
 
         private static void DecryptStrings(IProcessContainer process)
@@ -189,15 +193,14 @@ Do you want to continue (It should be pretty safe to run this test) ? [Y/N]
                 // emulate content
                 var content = emulateSample ? GetSampleContent() : GetFileContent(filename);
                 var sandbox = CreateSandbox(content);
-                //EnableStepping(sandbox);
+                EnableStepping(sandbox);
 
-
-                /////////////
+                // change this value to some address that you want to trace better
                 sandbox.AddHook(0x00406663, (s) => {
-                    //_enableDebugger = true;                    
+                    _enableDebugger = true;                    
                 });
 
-                Run(sandbox);
+                Run(sandbox, false);
             }            
         }
     }
