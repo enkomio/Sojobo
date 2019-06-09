@@ -213,8 +213,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         prepareForExecution()
                         
         // start execution loop in a try catch to catch expection
-        try
-            run()
+        try run()
         with _ ->
             if settings.SaveSnapshotOnException then
                 let pc = this.GetRunningProcess().ProgramCounter.Value |> BitVector.toInt32
