@@ -109,9 +109,18 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         resolveEmulatedFunctions()
         mapEmulatedFunctions()
 
+    let loadProjectLibrariesFromFilesystem() =
+        Directory.GetFiles(Path.GetDirectoryName(Assembly.GetEntryAssembly().Location), "*.dll")        
+        |> Array.filter(fun dllFile -> Path.GetFileName(dllFile).StartsWith("ES.Sojobo"))
+        |> Array.filter(fun dllFile -> dllFile.Equals(Assembly.GetExecutingAssembly().Location) |> not)
+        |> Array.iter(fun dllFile ->
+            try this.AddLibrary(Assembly.LoadFile(dllFile))
+            with _ -> ()
+        )
+
     let prepareForExecution() =
         if settings.InitializeEnvironment then
-            this.AddLibrary(Assembly.GetExecutingAssembly())
+            loadProjectLibrariesFromFilesystem()
 
         // setup the native libraries
         mapNativeLibraries()
