@@ -79,6 +79,11 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\ES.Sojobo.Kernel32\ES.Sojobo.Kernel32.fsproj">
+      <Name>ES.Sojobo.Kernel32</Name>
+      <Project>{a13162ae-2a9a-4e9f-9f92-97f0ab3be91a}</Project>
+      <Private>True</Private>
+    </ProjectReference>
     <ProjectReference Include="..\ES.Sojobo\ES.Sojobo.fsproj">
       <Name>ES.Sojobo</Name>
       <Project>{993ea649-3fa2-4f27-abbd-2ef650b9f4c8}</Project>
