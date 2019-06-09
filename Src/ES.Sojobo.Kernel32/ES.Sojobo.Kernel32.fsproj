@@ -5,13 +5,13 @@
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>c40fa5ee-0a2c-4c54-a155-14c08fe1b29a</ProjectGuid>
-    <OutputType>Exe</OutputType>
+    <ProjectGuid>a13162ae-2a9a-4e9f-9f92-97f0ab3be91a</ProjectGuid>
+    <OutputType>Library</OutputType>
     <RootNamespace>ES.Sojobo.Kernel32</RootNamespace>
     <AssemblyName>ES.Sojobo.Kernel32</AssemblyName>
+    <UseStandardResourceNames>true</UseStandardResourceNames>
     <TargetFrameworkVersion>v4.7</TargetFrameworkVersion>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
-    <UseStandardResourceNames>true</UseStandardResourceNames>
     <Name>ES.Sojobo.Kernel32</Name>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
@@ -22,9 +22,7 @@
     <OutputPath>bin\$(Configuration)\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <WarningLevel>3</WarningLevel>
-    <PlatformTarget>AnyCPU</PlatformTarget>
     <DocumentationFile>bin\$(Configuration)\$(AssemblyName).XML</DocumentationFile>
-    <Prefer32Bit>true</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -33,9 +31,7 @@
     <OutputPath>bin\$(Configuration)\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <WarningLevel>3</WarningLevel>
-    <PlatformTarget>AnyCPU</PlatformTarget>
     <DocumentationFile>bin\$(Configuration)\$(AssemblyName).XML</DocumentationFile>
-    <Prefer32Bit>true</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup>
     <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>
@@ -46,18 +42,11 @@
   <Import Project="$(FSharpTargetsPath)" />
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
-    <None Include="App.config" />
     <Content Include="packages.config" />
     <None Include="paket.references" />
     <Compile Include="Kernel32Lib.fs" />
   </ItemGroup>
   <ItemGroup>
-    <Reference Include="B2R2.BinIR">
-      <HintPath>..\ThirdPart\B2R2\src\BinIR\bin\Debug\netstandard2.0\B2R2.BinIR.dll</HintPath>
-    </Reference>
-    <Reference Include="B2R2.Core">
-      <HintPath>..\Examples\Kpot2StringExtractor\bin\Debug\B2R2.Core.dll</HintPath>
-    </Reference>
     <Reference Include="B2R2.FrontEnd.Core">
       <HintPath>..\Examples\Kpot2StringExtractor\bin\Debug\B2R2.FrontEnd.Core.dll</HintPath>
     </Reference>
@@ -82,6 +71,16 @@
     <ProjectReference Include="..\ThirdPart\B2R2\src\BinFile\B2R2.BinFile.fsproj">
       <Name>B2R2.BinFile</Name>
       <Project>{815d72b9-c83f-4ef2-9fcb-1b1cabf29026}</Project>
+      <Private>True</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\ThirdPart\B2R2\src\BinIR\B2R2.BinIR.fsproj">
+      <Name>B2R2.BinIR</Name>
+      <Project>{3b620c49-b570-4a68-bfbe-44f1ff2c03f6}</Project>
+      <Private>True</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\ThirdPart\B2R2\src\Core\B2R2.Core.fsproj">
+      <Name>B2R2.Core</Name>
+      <Project>{dcb290b6-b373-42be-81cc-12431957721b}</Project>
       <Private>True</Private>
     </ProjectReference>
   </ItemGroup>
