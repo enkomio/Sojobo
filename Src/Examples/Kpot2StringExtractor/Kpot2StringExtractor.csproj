@@ -61,6 +61,10 @@
       <Project>{5c754325-c9b2-4f2b-8281-911288bda423}</Project>
       <Name>ES.Sojobo.ADVAPI32</Name>
     </ProjectReference>
+    <ProjectReference Include="..\..\ES.Sojobo.USERENV\ES.Sojobo.USERENV.fsproj">
+      <Project>{46bbfab7-63ce-4d75-a702-d9b6993ab0ab}</Project>
+      <Name>ES.Sojobo.USERENV</Name>
+    </ProjectReference>
     <ProjectReference Include="..\..\ES.Sojobo.VCRUNTIME140\ES.Sojobo.VCRUNTIME140.fsproj">
       <Project>{e6c7a156-5bac-4f7d-af38-5224e1fea43b}</Project>
       <Name>ES.Sojobo.VCRUNTIME140</Name>

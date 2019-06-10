@@ -64,7 +64,6 @@
     <Compile Include="SnapshotManager.fs" />
     <Compile Include="Win32Sandbox.fs" />
     <Compile Include="ApiMsWinCrtRuntimeLib.fs" />
-    <Compile Include="USERENVLib.fs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ThirdPart\B2R2\src\FrontEnd\Optimizer\B2R2.FrontEnd.Optimizer.fsproj">
