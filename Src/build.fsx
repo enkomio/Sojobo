@@ -14,6 +14,7 @@ open Fake
 open Fake.Core.TargetOperators
 open Fake.DotNet
 open Fake.Core
+open Fake.IO
  
 // The name of the project
 let project = "Sojobo"
@@ -27,8 +28,25 @@ let authors = "Enkomio"
 // Build dir
 let buildDir = "build"
 
+// Extension to not include in release
+let forbiddenExtensions = [".pdb"]
+
 // Package dir
 let releaseDir = "binaries"
+
+// project names
+let fsharpProjects = [
+    "ES.Sojobo"
+    "ES.Sojobo.ADVAPI32"
+    "ES.Sojobo.ApiMsWinCrtRuntime"
+    "ES.Sojobo.Kernel32"
+    "ES.Sojobo.USERENV"
+    "ES.Sojobo.VCRUNTIME140"
+]
+
+let csharpProjects = [
+    "ES.Sojobo.CSharp"
+]
 
 // set the script dir as current
 Directory.SetCurrentDirectory(__SOURCE_DIRECTORY__)
@@ -53,24 +71,54 @@ Core.Target.create "Clean" (fun _ ->
 )
 
 Core.Target.create "SetAssemblyInfo" (fun _ ->
-    let fileName = Path.Combine("ES.Sojobo", "AssemblyInfo.fs")    
-    AssemblyInfoFile.createFSharp fileName [         
-        DotNet.AssemblyInfo.Title project
-        DotNet.AssemblyInfo.Product project
-        DotNet.AssemblyInfo.Guid "274BAD77-1F86-4CBC-A5B6-1FF724940C53"
-        DotNet.AssemblyInfo.Company authors
-        DotNet.AssemblyInfo.Description summary
-        DotNet.AssemblyInfo.Version releaseVersion        
-        DotNet.AssemblyInfo.FileVersion releaseVersion
-        DotNet.AssemblyInfo.InformationalVersion releaseVersion
-        DotNet.AssemblyInfo.Metadata("BuildDate", DateTime.UtcNow.ToString("yyyy-MM-dd")) 
-    ]
+    fsharpProjects
+    |> List.iter(fun projName ->
+        let fileName = Path.Combine(projName, "AssemblyInfo.fs")    
+        AssemblyInfoFile.createFSharp fileName [         
+            DotNet.AssemblyInfo.Title project
+            DotNet.AssemblyInfo.Product project
+            DotNet.AssemblyInfo.Guid "274BAD77-1F86-4CBC-A5B6-1FF724940C53"
+            DotNet.AssemblyInfo.Company authors
+            DotNet.AssemblyInfo.Description summary
+            DotNet.AssemblyInfo.Version releaseVersion        
+            DotNet.AssemblyInfo.FileVersion releaseVersion
+            DotNet.AssemblyInfo.InformationalVersion releaseVersion
+            DotNet.AssemblyInfo.Metadata("BuildDate", DateTime.UtcNow.ToString("yyyy-MM-dd")) 
+        ]
+    )    
+
+    csharpProjects
+    |> List.iter(fun projName ->
+        let fileName = Path.Combine(projName, "AssemblyInfo.cs")    
+        AssemblyInfoFile.createCSharp fileName [         
+            DotNet.AssemblyInfo.Title project
+            DotNet.AssemblyInfo.Product project
+            DotNet.AssemblyInfo.Guid "274BAD77-1F86-4CBC-A5B6-1FF724940C53"
+            DotNet.AssemblyInfo.Company authors
+            DotNet.AssemblyInfo.Description summary
+            DotNet.AssemblyInfo.Version releaseVersion        
+            DotNet.AssemblyInfo.FileVersion releaseVersion
+            DotNet.AssemblyInfo.InformationalVersion releaseVersion
+            DotNet.AssemblyInfo.Metadata("BuildDate", DateTime.UtcNow.ToString("yyyy-MM-dd")) 
+        ]
+    )    
 )
 
 Core.Target.create "Compile" (fun _ ->
-    ["ES.Sojobo"]
+    fsharpProjects
     |> List.iter(fun projectName ->
         let project = Path.Combine(projectName, projectName + ".fsproj")        
+        let buildAppDir = Path.Combine(buildDir, projectName)
+        Fake.IO.Directory.ensure buildAppDir
+
+        // compile
+        DotNet.MSBuild.runRelease id buildAppDir "Build" [project]
+        |> Trace.logItems "Build Output: "
+    )
+
+    csharpProjects
+    |> List.iter(fun projectName ->
+        let project = Path.Combine(projectName, projectName + ".csproj")        
         let buildAppDir = Path.Combine(buildDir, projectName)
         Fake.IO.Directory.ensure buildAppDir
 
@@ -81,15 +129,26 @@ Core.Target.create "Compile" (fun _ ->
 )
 
 Core.Target.create "Release" (fun _ ->
-    let releaseFilename = Path.Combine(releaseDir, String.Format("ES.Sojobo.v{0}.zip", releaseVersion))
+    let releaseDirectory = Path.Combine(releaseDir, String.Format("ES.Sojobo.v{0}", releaseVersion))
+    Directory.CreateDirectory(releaseDirectory) |> ignore
+
+    // copy all files in the release dir    
+    fsharpProjects@csharpProjects
+    |> List.map(fun projName -> Path.Combine(buildDir, projName))
+    |> List.iter(fun projDir -> 
+        Shell.copyDir releaseDirectory projDir (fun _ -> true)
+    )
+    
+    // create zip file
     let buildDirectory = Path.Combine(buildDir, "ES.Sojobo")
-    Directory.GetFiles(buildDirectory, "*.*", SearchOption.AllDirectories)
+    let releaseFilename = releaseDirectory + ".zip"
+    Directory.GetFiles(releaseDirectory, "*.*", SearchOption.AllDirectories)
     |> Array.filter(fun file ->
         [".pdb"] 
         |> List.contains (Path.GetExtension(file).ToLowerInvariant())
         |> not
     )
-    |> Fake.IO.Zip.zip buildDirectory releaseFilename
+    |> Fake.IO.Zip.zip releaseDirectory releaseFilename
 )
 
 "Clean"        
