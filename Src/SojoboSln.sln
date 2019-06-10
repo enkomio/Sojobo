@@ -65,6 +65,8 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "ES.Sojobo.USERENV", "ES.Soj
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "ES.Sojobo.ApiMsWinCrtRuntime", "ES.Sojobo.ApiMsWinCrtRuntime\ES.Sojobo.ApiMsWinCrtRuntime.fsproj", "{CA513033-6E03-4AE1-89FD-BB71729C83FB}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ES.Sojobo.CSharp", "ES.Sojobo.CSharp\ES.Sojobo.CSharp.csproj", "{C7C79DDD-F41B-4D7A-A301-48C7C8367CF4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -349,6 +351,18 @@ Global
 		{CA513033-6E03-4AE1-89FD-BB71729C83FB}.Release|x64.Build.0 = Release|Any CPU
 		{CA513033-6E03-4AE1-89FD-BB71729C83FB}.Release|x86.ActiveCfg = Release|Any CPU
 		{CA513033-6E03-4AE1-89FD-BB71729C83FB}.Release|x86.Build.0 = Release|Any CPU
+		{C7C79DDD-F41B-4D7A-A301-48C7C8367CF4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C7C79DDD-F41B-4D7A-A301-48C7C8367CF4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C7C79DDD-F41B-4D7A-A301-48C7C8367CF4}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C7C79DDD-F41B-4D7A-A301-48C7C8367CF4}.Debug|x64.Build.0 = Debug|Any CPU
+		{C7C79DDD-F41B-4D7A-A301-48C7C8367CF4}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C7C79DDD-F41B-4D7A-A301-48C7C8367CF4}.Debug|x86.Build.0 = Debug|Any CPU
+		{C7C79DDD-F41B-4D7A-A301-48C7C8367CF4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C7C79DDD-F41B-4D7A-A301-48C7C8367CF4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C7C79DDD-F41B-4D7A-A301-48C7C8367CF4}.Release|x64.ActiveCfg = Release|Any CPU
+		{C7C79DDD-F41B-4D7A-A301-48C7C8367CF4}.Release|x64.Build.0 = Release|Any CPU
+		{C7C79DDD-F41B-4D7A-A301-48C7C8367CF4}.Release|x86.ActiveCfg = Release|Any CPU
+		{C7C79DDD-F41B-4D7A-A301-48C7C8367CF4}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
