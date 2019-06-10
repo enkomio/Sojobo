@@ -63,6 +63,8 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "ES.Sojobo.ADVAPI32", "ES.So
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "ES.Sojobo.USERENV", "ES.Sojobo.USERENV\ES.Sojobo.USERENV.fsproj", "{46BBFAB7-63CE-4D75-A702-D9B6993AB0AB}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "ES.Sojobo.ApiMsWinCrtRuntime", "ES.Sojobo.ApiMsWinCrtRuntime\ES.Sojobo.ApiMsWinCrtRuntime.fsproj", "{CA513033-6E03-4AE1-89FD-BB71729C83FB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -335,6 +337,18 @@ Global
 		{46BBFAB7-63CE-4D75-A702-D9B6993AB0AB}.Release|x64.Build.0 = Release|Any CPU
 		{46BBFAB7-63CE-4D75-A702-D9B6993AB0AB}.Release|x86.ActiveCfg = Release|Any CPU
 		{46BBFAB7-63CE-4D75-A702-D9B6993AB0AB}.Release|x86.Build.0 = Release|Any CPU
+		{CA513033-6E03-4AE1-89FD-BB71729C83FB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CA513033-6E03-4AE1-89FD-BB71729C83FB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CA513033-6E03-4AE1-89FD-BB71729C83FB}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{CA513033-6E03-4AE1-89FD-BB71729C83FB}.Debug|x64.Build.0 = Debug|Any CPU
+		{CA513033-6E03-4AE1-89FD-BB71729C83FB}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{CA513033-6E03-4AE1-89FD-BB71729C83FB}.Debug|x86.Build.0 = Debug|Any CPU
+		{CA513033-6E03-4AE1-89FD-BB71729C83FB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CA513033-6E03-4AE1-89FD-BB71729C83FB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CA513033-6E03-4AE1-89FD-BB71729C83FB}.Release|x64.ActiveCfg = Release|Any CPU
+		{CA513033-6E03-4AE1-89FD-BB71729C83FB}.Release|x64.Build.0 = Release|Any CPU
+		{CA513033-6E03-4AE1-89FD-BB71729C83FB}.Release|x86.ActiveCfg = Release|Any CPU
+		{CA513033-6E03-4AE1-89FD-BB71729C83FB}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

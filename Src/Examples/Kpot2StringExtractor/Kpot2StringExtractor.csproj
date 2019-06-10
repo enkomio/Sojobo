@@ -61,6 +61,14 @@
       <Project>{5c754325-c9b2-4f2b-8281-911288bda423}</Project>
       <Name>ES.Sojobo.ADVAPI32</Name>
     </ProjectReference>
+    <ProjectReference Include="..\..\ES.Sojobo.ApiMsWinCrtRuntime\ES.Sojobo.ApiMsWinCrtRuntime.fsproj">
+      <Project>{ca513033-6e03-4ae1-89fd-bb71729c83fb}</Project>
+      <Name>ES.Sojobo.ApiMsWinCrtRuntime</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\ES.Sojobo.Kernel32\ES.Sojobo.Kernel32.fsproj">
+      <Project>{a13162ae-2a9a-4e9f-9f92-97f0ab3be91a}</Project>
+      <Name>ES.Sojobo.Kernel32</Name>
+    </ProjectReference>
     <ProjectReference Include="..\..\ES.Sojobo.USERENV\ES.Sojobo.USERENV.fsproj">
       <Project>{46bbfab7-63ce-4d75-a702-d9b6993ab0ab}</Project>
       <Name>ES.Sojobo.USERENV</Name>
