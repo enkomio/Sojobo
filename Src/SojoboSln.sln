@@ -59,6 +59,8 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "ES.Sojobo.Kernel32", "ES.So
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "ES.Sojobo.VCRUNTIME140", "ES.Sojobo.VCRUNTIME140\ES.Sojobo.VCRUNTIME140.fsproj", "{E6C7A156-5BAC-4F7D-AF38-5224E1FEA43B}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "ES.Sojobo.ADVAPI32", "ES.Sojobo.ADVAPI32\ES.Sojobo.ADVAPI32.fsproj", "{5C754325-C9B2-4F2B-8281-911288BDA423}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -307,6 +309,18 @@ Global
 		{E6C7A156-5BAC-4F7D-AF38-5224E1FEA43B}.Release|x64.Build.0 = Release|Any CPU
 		{E6C7A156-5BAC-4F7D-AF38-5224E1FEA43B}.Release|x86.ActiveCfg = Release|Any CPU
 		{E6C7A156-5BAC-4F7D-AF38-5224E1FEA43B}.Release|x86.Build.0 = Release|Any CPU
+		{5C754325-C9B2-4F2B-8281-911288BDA423}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5C754325-C9B2-4F2B-8281-911288BDA423}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5C754325-C9B2-4F2B-8281-911288BDA423}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{5C754325-C9B2-4F2B-8281-911288BDA423}.Debug|x64.Build.0 = Debug|Any CPU
+		{5C754325-C9B2-4F2B-8281-911288BDA423}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{5C754325-C9B2-4F2B-8281-911288BDA423}.Debug|x86.Build.0 = Debug|Any CPU
+		{5C754325-C9B2-4F2B-8281-911288BDA423}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5C754325-C9B2-4F2B-8281-911288BDA423}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5C754325-C9B2-4F2B-8281-911288BDA423}.Release|x64.ActiveCfg = Release|Any CPU
+		{5C754325-C9B2-4F2B-8281-911288BDA423}.Release|x64.Build.0 = Release|Any CPU
+		{5C754325-C9B2-4F2B-8281-911288BDA423}.Release|x86.ActiveCfg = Release|Any CPU
+		{5C754325-C9B2-4F2B-8281-911288BDA423}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

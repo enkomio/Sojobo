@@ -63,9 +63,7 @@
     <Compile Include="LowUIREmulator.fs" />
     <Compile Include="SnapshotManager.fs" />
     <Compile Include="Win32Sandbox.fs" />
-    <Compile Include="VCRUNTIME140Lib.fs" />
     <Compile Include="ApiMsWinCrtRuntimeLib.fs" />
-    <Compile Include="ADVAPI32Lib.fs" />
     <Compile Include="USERENVLib.fs" />
   </ItemGroup>
   <ItemGroup>
