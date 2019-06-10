@@ -22,6 +22,8 @@ _Sojobo_ is intended to be used as a framework to create program analysis utilit
 The project is fully documented in F# (cit.) :) Joking apart, I plan to write some blog posts related to how to use Sojobo. Below a list of the current posts:
 
  - <a href="https://antonioparata.blogspot.com/2019/05/sojobo-yet-another-binary-analysis.html">Sojobo - Yet another binary analysis framework</a>
+ 
+You can also read the <strong><a href="https://github.com/enkomio/Sojobo/blob/master/RELEASE_NOTES.md">API documentation</a></strong>.
 
 ## Compile
 
