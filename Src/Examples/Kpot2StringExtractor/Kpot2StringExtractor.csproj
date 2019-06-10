@@ -48,7 +48,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="EncryptedString.cs" />
-    <Compile Include="ExtensionMethods.cs" />
     <Compile Include="Kernel32.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -64,6 +63,10 @@
     <ProjectReference Include="..\..\ES.Sojobo.ApiMsWinCrtRuntime\ES.Sojobo.ApiMsWinCrtRuntime.fsproj">
       <Project>{ca513033-6e03-4ae1-89fd-bb71729c83fb}</Project>
       <Name>ES.Sojobo.ApiMsWinCrtRuntime</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\ES.Sojobo.CSharp\ES.Sojobo.CSharp.csproj">
+      <Project>{c7c79ddd-f41b-4d7a-a301-48c7c8367cf4}</Project>
+      <Name>ES.Sojobo.CSharp</Name>
     </ProjectReference>
     <ProjectReference Include="..\..\ES.Sojobo.Kernel32\ES.Sojobo.Kernel32.fsproj">
       <Project>{a13162ae-2a9a-4e9f-9f92-97f0ab3be91a}</Project>

@@ -1,4 +1,5 @@
 ﻿using ES.Sojobo;
+using ES.Sojobo.CSharp;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,10 +14,8 @@ namespace Kpot2StringExtractor
     {
         public static CallbackResult GetLastError(ISandbox sandbox)
         {
-            var pointerSize = 32;
-            var functionReturnValue = B2R2.BitVector.OfInt32(0x57, pointerSize);
-            var returnValue = new Microsoft.FSharp.Core.FSharpOption<B2R2.BitVector>(functionReturnValue);
-            return new CallbackResult(returnValue, CallingConvention.Cdecl);
+            var functionReturnValue = BitVectorFactory.Create(0x57);
+            return new CallbackResult(functionReturnValue.ToOption(), CallingConvention.Cdecl);
         }
     }
 }

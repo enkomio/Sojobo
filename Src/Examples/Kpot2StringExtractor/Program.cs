@@ -1,14 +1,9 @@
-﻿using System;
-using System.Reflection;
+﻿using ES.Sojobo;
+using System;
 using System.IO;
-using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
-using System.Threading.Tasks;
-using ES.Sojobo;
-using static ES.Sojobo.Model;
-using ES.Kpot2StringExtractor.ExtensionMethods;
-using System.Runtime.InteropServices;
 
 namespace ES.Kpot2StringExtractor
 {
