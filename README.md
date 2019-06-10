@@ -23,7 +23,7 @@ The project is fully documented in F# (cit.) :) Joking apart, I plan to write so
 
  - <a href="https://antonioparata.blogspot.com/2019/05/sojobo-yet-another-binary-analysis.html">Sojobo - Yet another binary analysis framework</a>
  
-You can also read the <strong><a href="https://github.com/enkomio/Sojobo/blob/master/RELEASE_NOTES.md">API documentation</a></strong>.
+You can also read the <strong><a href="https://github.com/enkomio/Sojobo/blob/master/DOCUMENTATION.md">API documentation</a></strong>.
 
 ## Compile
 
