@@ -78,6 +78,23 @@
   <Target Name="AfterBuild">
   </Target>
   -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\ES.Sojobo\ES.Sojobo.fsproj">
+      <Name>ES.Sojobo</Name>
+      <Project>{993ea649-3fa2-4f27-abbd-2ef650b9f4c8}</Project>
+      <Private>True</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\..\ThirdPart\B2R2\src\BinFile\B2R2.BinFile.fsproj">
+      <Name>B2R2.BinFile</Name>
+      <Project>{815d72b9-c83f-4ef2-9fcb-1b1cabf29026}</Project>
+      <Private>True</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\..\ThirdPart\B2R2\src\BinIR\B2R2.BinIR.fsproj">
+      <Name>B2R2.BinIR</Name>
+      <Project>{3b620c49-b570-4a68-bfbe-44f1ff2c03f6}</Project>
+      <Private>True</Private>
+    </ProjectReference>
+  </ItemGroup>
   <Choose>
     <When Condition="$(TargetFrameworkIdentifier) == '.NETFramework' And ($(TargetFrameworkVersion) == 'v4.5' Or $(TargetFrameworkVersion) == 'v4.5.1' Or $(TargetFrameworkVersion) == 'v4.5.2' Or $(TargetFrameworkVersion) == 'v4.5.3' Or $(TargetFrameworkVersion) == 'v4.6' Or $(TargetFrameworkVersion) == 'v4.6.1' Or $(TargetFrameworkVersion) == 'v4.6.2' Or $(TargetFrameworkVersion) == 'v4.6.3' Or $(TargetFrameworkVersion) == 'v4.7' Or $(TargetFrameworkVersion) == 'v4.7.1' Or $(TargetFrameworkVersion) == 'v4.7.2')">
       <ItemGroup>
@@ -127,23 +144,6 @@
       <Private>True</Private>
       <Paket>True</Paket>
     </Reference>
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\ES.Sojobo\ES.Sojobo.fsproj">
-      <Name>ES.Sojobo</Name>
-      <Project>{993ea649-3fa2-4f27-abbd-2ef650b9f4c8}</Project>
-      <Private>True</Private>
-    </ProjectReference>
-    <ProjectReference Include="..\..\ThirdPart\B2R2\src\BinFile\B2R2.BinFile.fsproj">
-      <Name>B2R2.BinFile</Name>
-      <Project>{815d72b9-c83f-4ef2-9fcb-1b1cabf29026}</Project>
-      <Private>True</Private>
-    </ProjectReference>
-    <ProjectReference Include="..\..\ThirdPart\B2R2\src\BinIR\B2R2.BinIR.fsproj">
-      <Name>B2R2.BinIR</Name>
-      <Project>{3b620c49-b570-4a68-bfbe-44f1ff2c03f6}</Project>
-      <Private>True</Private>
-    </ProjectReference>
   </ItemGroup>
   <Choose>
     <When Condition="($(TargetFrameworkIdentifier) == '.NETCoreApp' And ($(TargetFrameworkVersion) == 'v1.0' Or $(TargetFrameworkVersion) == 'v1.1')) Or ($(TargetFrameworkIdentifier) == '.NETStandard' And ($(TargetFrameworkVersion) == 'v1.3' Or $(TargetFrameworkVersion) == 'v1.4' Or $(TargetFrameworkVersion) == 'v1.5' Or $(TargetFrameworkVersion) == 'v1.6')) Or ($(TargetFrameworkIdentifier) == '.NETCore' And $(TargetFrameworkVersion) == 'v5.0')">
