@@ -43,7 +43,7 @@ module Program =
         if settings.PrintDisassembly then writeDisassembly(proc)
         if settings.PrintIR then writeIR(proc)
 
-        _metrics.EmulatedInstruction(proc.GetInstruction(), _instructionCounter)
+        _metrics.EmulatedInstruction(proc, _instructionCounter)
         _dumper.Step(proc.ProgramCounter.Value |> BitVector.toUInt32)
 
     let getFileContent(settings: Settings) =
@@ -104,11 +104,16 @@ module Program =
 
         // save metricts
         let sb = new StringBuilder()
-        sb.AppendLine("Instruction counter, Stack frame counter") |> ignore
+        sb.AppendLine("Instruction counter, Stack frame counter, Operation type, Function Address") |> ignore
         _metrics.GetMetrics()
         |> Array.iter(fun metric -> 
             sb
-                .AppendFormat("{0}, {1}", metric.InstructionCounter, metric.StackFrameCounter)
+                .AppendFormat("{0}, {1}, {2}, {3}", 
+                    metric.InstructionCounter, 
+                    metric.StackFrameCounter,
+                    metric.OperationType,
+                    metric.FunctionAddress
+                )
                 .AppendLine() 
             |> ignore
         )
