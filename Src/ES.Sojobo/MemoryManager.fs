@@ -57,6 +57,10 @@ type MemoryManager(pointerSize: Int32) =
 
     let readMemory(address: UInt64, size: Int32) =
         let memRegion = getMemoryRegion(address)
+        if memRegion.Permission <> Permission.Readable then
+            // TODO: add check on memory protection
+            ()
+
         let offset = address - memRegion.BaseAddress |> int32
         let realSize = min (memRegion.Content.Length-offset) size
         BinHandler.ReadBytes(memRegion.Handler, address, realSize)
@@ -309,9 +313,8 @@ type MemoryManager(pointerSize: Int32) =
     member internal this.Clear() =
         _va.Clear()
     
-    member this.ReadMemory(address: UInt64, size: Int32) =
-        // TODO: add check on memory protection
-        _memoryAccessEvent.Trigger(MemoryAccessOperation.Read address)
+    member this.ReadMemory(address: UInt64, size: Int32) =        
+        _memoryAccessEvent.Trigger(MemoryAccessOperation.Read address)        
         readMemory(address, size)
 
     member this.ReadMemory<'T>(address: UInt64) =
@@ -333,9 +336,12 @@ type MemoryManager(pointerSize: Int32) =
         then unbox objectInstance
         else objectInstance :?> 'T
 
+    member this.GetMemoryRegion(address: UInt64) =
+        getMemoryRegion(address)
+
     member internal this.UnsafeWriteMemory(address: UInt64, value: Byte array, verifyProtection: Boolean) =        
         let region = this.GetMemoryRegion(address)
-        if verifyProtection then    
+        if verifyProtection && region.Permission <> Permission.Writable then
             // TODO: add check on memory protection
             ()
 
@@ -356,9 +362,6 @@ type MemoryManager(pointerSize: Int32) =
         
     member this.UpdateMemoryRegion(baseAddress: UInt64, memoryRegion: MemoryRegion) =
         _va.[baseAddress] <- memoryRegion
-
-    member this.GetMemoryRegion(address: UInt64) =
-        getMemoryRegion(address)
 
     member this.IsAddressMapped(address: UInt64) =
         _va.Values
