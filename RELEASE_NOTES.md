@@ -1,4 +1,4 @@
-### 1.1.0 - XX/XX/2019
+### 1.1.0 - 10/06/2019
 * Added support to load external libraries
 * PEB->Ldr is correctly initialized according to the loaded modules
 * It is now possible to set memory hooks

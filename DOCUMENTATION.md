@@ -109,3 +109,9 @@ You can read specific registry value or set its value by using the ``Cpu`` objec
 
 ## C# binding
 B2R2, Sojobo and all their tools are written in F#. This may cause some trouble to an C# developer, so I created a new project ``ES.Sojobo.CSharp`` that makes some tasks easier. If you plan to write your own tool in C# make sure to reference this library and use its extension methods or factory methods to created object that are not very friendly to create in C# (like the F# _Option_ type).
+
+## Snapshot Manager
+What a sandbox would be without a snapshot capability? :) 
+_Sojobo_ allows to created sandbox snapshot by using the ``SnapshotManager`` object. You can also save the snapshot to filesystem or read a previously saved snapshot. This is very handy if you reach a point in the execution that must be analyzed more in depth.
+
+For a full example on how to use the ``SnapshotManager`` take a look at <a href="https://github.com/enkomio/Sojobo/blob/master/Src/EndToEndTests/SnapshotTests.fs">this test</a>
