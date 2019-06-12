@@ -11,6 +11,8 @@ module Cli =
         PrintDisassembly: Boolean
         PrintIR: Boolean
         DecodeContent: Boolean
+        SaveSnapshotOnExit: Boolean
+        Snapshot: String
         Libs: String array
     }
 
@@ -19,13 +21,15 @@ module Cli =
         | Instruction of count:Int32
         | Print_Disassembly
         | Print_IR
-        | Lib of String
+        | Snapshot of name:String
+        | Lib of name:String
         | Decode_Content
     with
         interface IArgParserTemplate with
             member s.Usage =
                 match s with
                 | File _ -> "the PE file to analyze."
+                | Snapshot _ -> "create a snapshot file when the emulation ends."
                 | Print_Disassembly -> "print the disassembly of the emulated instruction."
                 | Print_IR -> "print the IR code of the emulated instruction."
                 | Lib _ -> "library to include for the emulation."
@@ -71,6 +75,8 @@ module Cli =
                         DecodeContent = results.Contains(<@ Decode_Content @>)
                         Libs = results.GetResults(<@ Lib @>) |> Seq.toArray
                         NumberOfInstructionToEmulate = results.GetResult(<@ Instruction @>, 10000)
+                        SaveSnapshotOnExit = results.Contains(<@ Snapshot @>)
+                        Snapshot = results.GetResult(<@ Snapshot @>, String.Empty)
                     } 
                 | Some filename ->
                     printError(String.Format("File {0} doesn't exists", filename))
