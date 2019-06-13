@@ -25,11 +25,19 @@ type NativeLibrary(content: Byte array) =
     override this.ToString() =
         String.Format("{0}:0x{1}", defaultArg this.Filename "N/A", this.BaseAddress.ToString("X"))
 
+    member internal this.SetProperties(entryPoint: UInt64, baseAddress: UInt64, exports: Map<UInt64, String>) =
+        this.EntryPoint <- entryPoint
+        this.BaseAddress <- baseAddress
+        this.Exports <- exports
+        _isLoaded <- true
+
     member private this.SetProperties(handler: BinHandler) =
         let pe = Helpers.getPe(handler)
-        this.EntryPoint <- uint64 pe.PEHeaders.PEHeader.AddressOfEntryPoint
-        this.BaseAddress <- uint64 pe.PEHeaders.PEHeader.ImageBase
-        this.Exports <- pe.ExportMap     
+        this.SetProperties(
+            uint64 pe.PEHeaders.PEHeader.AddressOfEntryPoint, 
+            uint64 pe.PEHeaders.PEHeader.ImageBase, 
+            pe.ExportMap 
+        )
         
     member private this.Relocate(pe: PE, handler: BinHandler) =
         // TODO: to be implemented
@@ -40,6 +48,9 @@ type NativeLibrary(content: Byte array) =
 
     member this.IsLoaded() =
         _isLoaded
+
+    member internal this.MarkAsLoaded() =
+        _isLoaded <- true
 
     member internal this.Load(proc: IProcessContainer) =
         // create handler
@@ -59,6 +70,5 @@ type NativeLibrary(content: Byte array) =
             else
                 Utility.mapPeHeader(handler, proc.Memory)
                 Utility.mapSections(handler, proc.Memory)
-                this.SetProperties(handler)  
-                _isLoaded <- true
+                this.SetProperties(handler) 
         | _ -> ()

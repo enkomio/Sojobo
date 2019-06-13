@@ -33,6 +33,13 @@ module Model =
         IsTemp: Boolean
     }
 
+    type LibrarySnapshot = {
+        Name: String
+        EntryPoint: UInt64
+        BaseAddress: UInt64
+        Exports: Map<UInt64, String>
+    }
+
     type MemoryRegionSnapshot = {
         Id: Guid
         BaseAddress: UInt64
@@ -48,6 +55,7 @@ module Model =
         StackRegionId: Guid
         VirtualAddressSpace: MemoryRegionSnapshot array
         Registers: RegisterSnapshot array
+        Libraries: LibrarySnapshot array
     } with
         member this.SaveTo(stream: Stream) =
             let serializedValue = JsonConvert.SerializeObject(this, Formatting.Indented, new BitVectorSerializer())

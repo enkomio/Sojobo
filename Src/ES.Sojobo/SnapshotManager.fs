@@ -10,7 +10,7 @@ type SnapshotManager(sandbox: BaseSandbox) =
         let mutable stackMemoryRegionId = Guid.Empty
         let mutable heapMemoryRegionId = Guid.Empty
 
-        let addressSpace =
+        let virtualAddressSpace =
             sandbox.GetRunningProcess().Memory.GetMemoryMap()
             |> Array.filter(fun region -> region.Content.Length > 0)
             |> Array.map(fun memRegion -> 
@@ -37,7 +37,7 @@ type SnapshotManager(sandbox: BaseSandbox) =
             Date = DateTime.UtcNow
             HeapRegionId = heapMemoryRegionId
             StackRegionId = stackMemoryRegionId
-            VirtualAddressSpace = addressSpace
+            VirtualAddressSpace = virtualAddressSpace
             Registers =
                 match sandbox.GetRunningProcess() with
                 | :? BaseProcessContainer as baseProcess ->
@@ -50,13 +50,22 @@ type SnapshotManager(sandbox: BaseSandbox) =
                     })
                     |> Seq.toArray
                 | _ -> Array.empty
+            Libraries = 
+                getNativeLibraries(sandbox.Libraries)
+                |> Array.filter(fun lib -> lib.Filename.IsSome)
+                |> Array.map(fun lib -> {
+                    Name = lib.GetLibraryName()
+                    EntryPoint = lib.EntryPoint
+                    Exports = lib.Exports
+                    BaseAddress = lib.BaseAddress
+                })
         }
 
     member this.LoadSnapshot(snapshot: Snapshot) =
         // cleanup stuff
         sandbox.ResetProcessState()
         let memory = sandbox.GetRunningProcess().Memory
-        
+
         // setup Virtual Address Space
         snapshot.VirtualAddressSpace
         |> Array.iter(fun memRegion ->
@@ -83,6 +92,18 @@ type SnapshotManager(sandbox: BaseSandbox) =
                 memory.Stack <- allocatedMemoryRegion
             elif memRegion.Id = snapshot.HeapRegionId then
                 memory.Heap <- allocatedMemoryRegion
+        )
+
+        // setup loaded libraries info
+        snapshot.Libraries
+        |> Array.iter(fun snapshotLib ->
+            getNativeLibraries(sandbox.Libraries)
+            |> Array.tryFind(fun lib -> lib.GetLibraryName().Equals(snapshotLib.Name, StringComparison.OrdinalIgnoreCase))
+            |> function
+                | Some lib -> 
+                    lib.SetProperties(snapshotLib.EntryPoint, snapshotLib.BaseAddress, lib.Exports)
+                | None -> ()
+                
         )
 
         // setup registers
