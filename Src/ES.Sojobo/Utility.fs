@@ -24,6 +24,11 @@ module Utility =
                     match processContainer.TryGetSymbol(uint64 disp.Value) with
                     | Some symbol -> functionName <- String.Format("; <&{0}> [{1}]", symbol.Name, symbol.LibraryName)
                     | None -> ()
+                | OprReg reg ->
+                    let register = processContainer.Cpu.GetRegister(reg.ToString())
+                    match processContainer.TryGetSymbol(register.Value |> BitVector.toUInt64) with
+                    | Some symbol -> functionName <- String.Format("; <&{0}> [{1}]", symbol.Name, symbol.LibraryName)
+                    | None -> ()
                 | _ -> ()
             | _ -> ()
 
