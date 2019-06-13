@@ -24,6 +24,9 @@ module Program =
         |> info "MemoryDumped" "Dynamic code dumped to: {0}"
         |> info "SavedMetrics" "Saved metrics to: {0}"
         |> info "SnapshotSaved" "Sandbox snapshot saved to: {0}"
+        |> info "LoadLibrary" "Loaded library: {0}"
+        |> info "SnapshotLoaded" "Loaded snapshot from: {0}"
+        |> warning "SnapshotNotFound" "Snapshot file '{0}' not found, ignore loading."
         |> error "Exception" "PC: {0} - Error: {1}"
         |> build
 
@@ -60,8 +63,6 @@ module Program =
             File.ReadAllBytes(settings.Filename)
 
     let private initialize(settings: Settings) =
-        _sandbox.Load(getFileContent(settings))
-
         // setup handlers
         let proc = _sandbox.GetRunningProcess()
         proc.Memory.MemoryAccess.Add(_dumper.MemoryAccessedHandler proc)
@@ -71,7 +72,11 @@ module Program =
         _sandbox.AddLibrary(typeof<Dumper>.Assembly)
 
         // add all the specified input libraries
-        settings.Libs |> Array.iter(_sandbox.AddLibrary)
+        settings.Libs 
+        |> Array.iter(fun lib -> 
+            _logger?LoadLibrary(lib)
+            _sandbox.AddLibrary(lib)
+        )
 
     let private runSample(settings: Settings) =
         try
@@ -80,11 +85,12 @@ module Program =
 
             // run the sample till the end or exception
             _sandbox.Run()
+            _logger?Completed()
+            true
         with e ->
             // Exception due to some limitation in this emulator
             _logger?Exception(_sandbox.GetRunningProcess().ProgramCounter.Value, e)
-
-        _logger?Completed()
+            false        
 
     let private getResultDir() =
         let curDir = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location)
@@ -130,19 +136,33 @@ module Program =
     let private saveSnapshot(settings: Settings) =
         if settings.SaveSnapshotOnExit then
             let snapshotManager = new SnapshotManager(_sandbox)
-            snapshotManager.TakeSnaphot().SaveTo(settings.Snapshot)
-            _logger?SnapshotSaved(settings.Snapshot)
+            snapshotManager.TakeSnaphot().SaveTo(settings.SnapshotToSave)
+            _logger?SnapshotSaved(settings.SnapshotToSave)
+
+    let private loadSnapshot(settings: Settings) =
+        if settings.LoadSnapshotOnStart then
+            if File.Exists(settings.SnapshotToLoad) then
+                let snapshotManager = new SnapshotManager(_sandbox)
+                let snapshot = Model.Snapshot.Read(settings.SnapshotToLoad)
+                snapshotManager.LoadSnapshot(snapshot)
+                _logger?SnapshotLoaded(settings.SnapshotToLoad)
+            else
+                _logger?SnapshotNotFound(settings.SnapshotToLoad)
 
     [<EntryPoint>]
     let main argv = 
         Cli.printBanner()        
         match getSettings(argv) with
-        | Some settings->            
-            initialize(settings)
+        | Some settings->     
+            _sandbox.Load(getFileContent(settings))
+
             configureLogging(LogLevel.Informational)
-            runSample(settings)
-            collectInformation()
-            saveSnapshot(settings)
+            loadSnapshot(settings)
+            initialize(settings)            
+            if runSample(settings) then
+                // the emulation ended correctly
+                collectInformation()
+                saveSnapshot(settings)
             0
         | None -> 
             1

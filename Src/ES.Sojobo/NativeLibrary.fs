@@ -49,9 +49,6 @@ type NativeLibrary(content: Byte array) =
     member this.IsLoaded() =
         _isLoaded
 
-    member internal this.MarkAsLoaded() =
-        _isLoaded <- true
-
     member internal this.Load(proc: IProcessContainer) =
         // create handler
         let isa = ISA.OfString "x86"
