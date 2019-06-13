@@ -25,8 +25,7 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
     <DocumentationFile>bin\$(Configuration)\$(AssemblyName).XML</DocumentationFile>
     <Prefer32Bit>true</Prefer32Bit>
-    <StartArguments>
-    </StartArguments>
+    <StartArguments>--decode-content --print-disassembly --instruction 100000 ..\..\..\..\..\TestBinaries\7d7667ddce8fd69a0fd50bb08c287d10_KPot2_REAL_MALWARE_DO_NOT_RUN_IT.txt</StartArguments>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -80,6 +79,31 @@
   </Target>
   -->
   <ItemGroup>
+    <ProjectReference Include="..\..\ES.Sojobo.ADVAPI32\ES.Sojobo.ADVAPI32.fsproj">
+      <Name>ES.Sojobo.ADVAPI32</Name>
+      <Project>{5c754325-c9b2-4f2b-8281-911288bda423}</Project>
+      <Private>True</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\..\ES.Sojobo.ApiMsWinCrtRuntime\ES.Sojobo.ApiMsWinCrtRuntime.fsproj">
+      <Name>ES.Sojobo.ApiMsWinCrtRuntime</Name>
+      <Project>{ca513033-6e03-4ae1-89fd-bb71729c83fb}</Project>
+      <Private>True</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\..\ES.Sojobo.Kernel32\ES.Sojobo.Kernel32.fsproj">
+      <Name>ES.Sojobo.Kernel32</Name>
+      <Project>{a13162ae-2a9a-4e9f-9f92-97f0ab3be91a}</Project>
+      <Private>True</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\..\ES.Sojobo.USERENV\ES.Sojobo.USERENV.fsproj">
+      <Name>ES.Sojobo.USERENV</Name>
+      <Project>{46bbfab7-63ce-4d75-a702-d9b6993ab0ab}</Project>
+      <Private>True</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\..\ES.Sojobo.VCRUNTIME140\ES.Sojobo.VCRUNTIME140.fsproj">
+      <Name>ES.Sojobo.VCRUNTIME140</Name>
+      <Project>{e6c7a156-5bac-4f7d-af38-5224e1fea43b}</Project>
+      <Private>True</Private>
+    </ProjectReference>
     <ProjectReference Include="..\..\ES.Sojobo\ES.Sojobo.fsproj">
       <Name>ES.Sojobo</Name>
       <Project>{993ea649-3fa2-4f27-abbd-2ef650b9f4c8}</Project>

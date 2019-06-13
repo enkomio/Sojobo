@@ -78,8 +78,8 @@ module Cli =
                         SaveSnapshotOnExit = results.Contains(<@ Snapshot @>)
                         Snapshot = results.GetResult(<@ Snapshot @>, String.Empty)
                     } 
-                | Some filename ->
-                    printError(String.Format("File {0} doesn't exists", filename))
+                | Some filename ->                    
+                    printError(String.Format("File {0} doesn't exists", Path.GetFullPath(filename)))
                     None
                 | _ ->
                     printUsage(parser.PrintUsage())  
