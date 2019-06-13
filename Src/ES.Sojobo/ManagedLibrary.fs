@@ -9,12 +9,12 @@ open ES.Sojobo.Model
 open B2R2.FrontEnd
 open B2R2.BinFile
 
-type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
+type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32) =
     let getArgument(proc: IProcessContainer, position: Int32) =
         let ebp = proc.Cpu.GetRegister("EBP").Value |> BitVector.toUInt32
         let address = ebp + uint32 (position + 2) * 4ul
         let buffer = proc.Memory.ReadMemory(uint64 address, sizeof<UInt32>)
-        let varName = Helpers.getTempName(string position, EmulatedType.DoubleWord)        
+        let varName = Helpers.getTempName(string position, EmulatedType.DoubleWord)            
         {createVariable(varName, EmulatedType.DoubleWord) with Value = BitVector.ofArr(buffer)}
 
     let getArguments(proc: IProcessContainer, mi: MethodInfo) =
@@ -51,9 +51,9 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
     let executeStackFrameCleanup(proc: IProcessContainer) =
         emulateBufferInstruction(proc, [|0x8Buy; 0xE5uy|]) // mov esp, ebp
         emulateBufferInstruction(proc, [|0x5Duy|]) // pop ebp
-
+        
     let executeReturn(proc: IProcessContainer, mi: MethodInfo, callbackResult: CallbackResult) =
-        let bytesToPop = (mi.GetParameters().Length - 1) * 4 
+        let bytesToPop = (mi.GetParameters().Length - 1) * (pointerSize / 8)
         
         // compose buffer
         use memWriter = new MemoryStream()
@@ -89,20 +89,20 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
             let offset = 
                 match exportedMethods.TryGetValue(kv.Key) with
                 | (true, address) -> address
-                | _ -> region.BaseAddress + uint64 (index * 4)
+                | _ -> region.BaseAddress + uint64 (index * (pointerSize / 8))
 
             this.Callbacks.[offset] <- kv.Key
         )
 
-    member private this.MapImportAddressTableMethods(memoryManager: MemoryManager, symbols: BinFile.Symbol seq, region: MemoryRegion, exportedMethods: IDictionary<String, UInt64>) =
-        symbols
+    member private this.MapImportAddressTableMethods(memoryManager: MemoryManager, importedSymbols: BinFile.Symbol seq, region: MemoryRegion, exportedMethods: IDictionary<String, UInt64>) =
+        importedSymbols
         |> Seq.iteri(fun index symbol ->            
             // obtains function offset
             let keyName = Helpers.getFunctionKeyName(symbol.Name, symbol.LibraryName)
             let offset = 
                 match exportedMethods.TryGetValue(keyName) with
                 | (true, address) -> address
-                | _ -> region.BaseAddress + uint64 (index * 4)
+                | _ -> region.BaseAddress + uint64 (index * (pointerSize / 8))
 
             // map unhandled function if necessary
             if this.EmulatedMethods.ContainsKey(keyName) then
@@ -117,11 +117,12 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
         )
 
     member internal this.MapSymbolWithManagedMethods(memoryManager: MemoryManager, symbols: BinFile.Symbol seq, exportedMethods: IDictionary<String, UInt64>) =
-        let regionBaseAddress = memoryManager.AllocateMemory((symbols |> Seq.length) * 4, Permission.Readable)
-        let region = memoryManager.GetMemoryRegion(regionBaseAddress)
-        
-        this.MapEmulatedMethods(region, exportedMethods)
-        this.MapImportAddressTableMethods(memoryManager, symbols, region, exportedMethods)
+        let iatRegion =
+            memoryManager.AllocateMemory((symbols |> Seq.length) * (pointerSize / 8), Permission.Readable)
+            |> memoryManager.GetMemoryRegion
+                
+        this.MapImportAddressTableMethods(memoryManager, symbols, iatRegion, exportedMethods)
+        this.MapEmulatedMethods(iatRegion, exportedMethods)
 
     member internal this.ResolveLibraryFunctions() =
         assembly.GetTypes()

@@ -29,7 +29,8 @@ type BaseSandbox() =
         this.Hooks.Add(Symbol(symbol, callback))
 
     member this.AddLibrary(assembly: Assembly) =
-        this.Libraries.Add(Managed <| new ManagedLibrary(assembly, this.Emulator.Value))
+        let library = new ManagedLibrary(assembly, this.Emulator.Value, this.GetRunningProcess().GetPointerSize())
+        this.Libraries.Add(Managed library)
 
     member this.AddLibrary(content: Byte array) =
         this.Libraries.Add(Native <| NativeLibrary.Create(content)) 
