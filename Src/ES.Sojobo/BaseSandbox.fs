@@ -3,8 +3,8 @@
 open System
 open System.Reflection
 open System.Collections.Generic
+open System.IO
 open B2R2.BinIR
-open ES.Sojobo.Model
 
 [<AbstractClass>]
 type BaseSandbox() =
@@ -37,7 +37,12 @@ type BaseSandbox() =
 
     abstract AddLibrary: filename:String -> unit
     default this.AddLibrary(filename: String) =
-        this.Libraries.Add(Native <| NativeLibrary.Create(filename)) 
+        try
+            // first try to load the library as an Assembly
+            let assembly = Assembly.LoadFile(Path.GetFullPath(filename))
+            this.AddLibrary(assembly)
+        with :? BadImageFormatException ->
+            this.Libraries.Add(Native <| NativeLibrary.Create(filename)) 
 
     member internal this.TriggerSideEffect(sideEffect: SideEffect) =
         _sideEffectEvent.Trigger(upcast this, sideEffect)
