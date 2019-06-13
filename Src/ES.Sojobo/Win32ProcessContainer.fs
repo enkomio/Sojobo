@@ -39,6 +39,7 @@ type Win32ProcessContainer() as this =
                 not(String.IsNullOrEmpty(symbol.LibraryName)) && 
                 (symbol.Kind = SymbolKind.ExternFunctionType || symbol.Kind = SymbolKind.FunctionType) 
             then 
+                this.SetSymbol(symbol)
                 _iat.Add(symbol)
         )
 

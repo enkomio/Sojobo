@@ -21,13 +21,9 @@ module Utility =
             | OneOperand op ->
                 match op with
                 | OprMem (_, _, disp, _) when disp.IsSome ->
-                    processContainer.GetImportedFunctions()
-                    |> Seq.tryFind(fun importedFunction ->
-                        importedFunction.Address = uint64 disp.Value
-                    )
-                    |> function
-                        | Some symbol -> functionName <- String.Format("; <&{0}> [{1}]", symbol.Name, symbol.LibraryName)
-                        | None -> ()
+                    match processContainer.TryGetSymbol(uint64 disp.Value) with
+                    | Some symbol -> functionName <- String.Format("; <&{0}> [{1}]", symbol.Name, symbol.LibraryName)
+                    | None -> ()
                 | _ -> ()
             | _ -> ()
 

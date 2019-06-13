@@ -38,5 +38,11 @@ type IProcessContainer =
         abstract GetCallStack: unit -> UInt64 array
 
         /// Get the size in bit of the pointer for the current process
-        abstract GetPointerSize: unit -> Int32        
+        abstract GetPointerSize: unit -> Int32    
+        
+        /// Try to get a symbol defined at the specified address
+        abstract TryGetSymbol: UInt64 -> Symbol option
+
+        /// Add a new symbol to the list
+        abstract SetSymbol: Symbol -> unit
     end

@@ -11,6 +11,7 @@ open B2R2.BinFile
 type BaseProcessContainer(pointerSize: Int32) =
     let mutable _activeRegion: MemoryRegion option = None
     let _stepEvent = new Event<IProcessContainer>()   
+    let _symbols = new Dictionary<UInt64, Symbol>()
     let _pid = Guid.NewGuid().GetHashCode() |> uint32
 
     member val PointerSize = pointerSize with get
@@ -42,7 +43,15 @@ type BaseProcessContainer(pointerSize: Int32) =
         instruction
 
     member this.Step = _stepEvent.Publish 
-    member this.Pid = _pid
+    member this.Pid = _pid    
+
+    member this.TryGetSymbol(address: UInt64) =
+        match _symbols.TryGetValue(address) with
+        | (true, symbol) -> Some symbol
+        | _ -> None
+
+    member this.SetSymbol(symbol: Symbol) =
+        _symbols.[symbol.Address] <- symbol
     
     interface IProcessContainer with
         member this.ProgramCounter
@@ -62,6 +71,12 @@ type BaseProcessContainer(pointerSize: Int32) =
         
         member this.GetActiveMemoryRegion() =
             this.GetActiveMemoryRegion()
+
+        member this.TryGetSymbol(address: UInt64) =
+            this.TryGetSymbol(address)
+
+        member this.SetSymbol(symbol: Symbol) =
+            this.SetSymbol(symbol)
 
         [<CLIEvent>]
         member this.Step
