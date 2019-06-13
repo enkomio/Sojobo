@@ -52,6 +52,9 @@ type BaseProcessContainer(pointerSize: Int32) =
 
     member this.SetSymbol(symbol: Symbol) =
         _symbols.[symbol.Address] <- symbol
+
+    member internal this.ResetState() =
+        this.Memory.Clear()
     
     interface IProcessContainer with
         member this.ProgramCounter

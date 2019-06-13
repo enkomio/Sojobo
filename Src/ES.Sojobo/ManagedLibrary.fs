@@ -112,7 +112,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
         assembly
 
     member internal this.MapSymbolWithManagedMethods(memoryManager: MemoryManager, symbols: BinFile.Symbol seq, exportedMethods: IDictionary<String, UInt64>) =
-        if this.EmulatedMethods.Count > 0 then
+        if this.EmulatedMethods.Count > 0 && (symbols |> Seq.length) > 0 then
             let iatRegion =
                 memoryManager.AllocateMemory((symbols |> Seq.length) * (pointerSize / 8), Permission.Readable)
                 |> memoryManager.GetMemoryRegion

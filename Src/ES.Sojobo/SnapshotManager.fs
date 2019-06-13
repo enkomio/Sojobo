@@ -12,6 +12,7 @@ type SnapshotManager(sandbox: BaseSandbox) =
 
         let addressSpace =
             sandbox.GetRunningProcess().Memory.GetMemoryMap()
+            |> Array.filter(fun region -> region.Content.Length > 0)
             |> Array.map(fun memRegion -> 
                 let regionSnapshot =  {
                     Id = Guid.NewGuid()
@@ -53,10 +54,9 @@ type SnapshotManager(sandbox: BaseSandbox) =
 
     member this.LoadSnapshot(snapshot: Snapshot) =
         // cleanup stuff
-        sandbox.CreateEmptyProcess()
+        sandbox.ResetProcessState()
         let memory = sandbox.GetRunningProcess().Memory
-        memory.Clear()        
-
+        
         // setup Virtual Address Space
         snapshot.VirtualAddressSpace
         |> Array.iter(fun memRegion ->

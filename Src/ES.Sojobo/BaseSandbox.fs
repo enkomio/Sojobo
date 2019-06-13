@@ -15,7 +15,7 @@ type BaseSandbox() =
     abstract Run: unit -> unit
     abstract Stop: unit -> unit     
     abstract GetRunningProcess: unit -> IProcessContainer
-    abstract CreateEmptyProcess: unit -> unit
+    abstract ResetProcessState: unit -> unit
 
     member this.SideEffect = _sideEffectEvent.Publish
     member val internal Libraries = new List<Library>() with get

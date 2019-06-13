@@ -233,16 +233,18 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
     default this.Stop() =
         _stopExecution <- Some true
 
-    default this.CreateEmptyProcess() =
-        _currentProcess <- new Win32ProcessContainer() |> Some
+    default this.ResetProcessState() =
+        match _currentProcess with
+        | Some proc -> proc.ResetState()
+        | _ ->_currentProcess <- new Win32ProcessContainer() |> Some
         
     default this.Load(filename: String) =
-        this.CreateEmptyProcess()
+        this.ResetProcessState()
         _currentProcess.Value.Initialize(filename)
         loadReferencedLibraries()
 
     default this.Load(buffer: Byte array) =
-        this.CreateEmptyProcess()
+        this.ResetProcessState()
         _currentProcess.Value.Initialize(buffer)
         loadReferencedLibraries()
 

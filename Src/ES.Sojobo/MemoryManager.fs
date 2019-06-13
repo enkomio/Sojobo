@@ -401,7 +401,7 @@ type MemoryManager(pointerSize: Int32) =
                 let lastRegion = memoryMap |> Array.last
                 lastRegion.BaseAddress + uint64 lastRegion.Content.LongLength
             else
-                this.GetMemoryMap()
+                memoryMap
                 |> Seq.pairwise
                 |> Seq.tryFind(fun (m1, m2) ->
                     let availableSize = m2.BaseAddress - (m1.BaseAddress + uint64 m1.Content.LongLength)
