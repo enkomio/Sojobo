@@ -1,13 +1,12 @@
 ﻿namespace ES.Sojobo.Lib
 
 open System
+open System.IO
 open B2R2.BinFile
 open ES.Sojobo
 open ES.Sojobo.Model
 
-module Kernel32 =    
-    open System.IO
-
+module Kernel32 =
     let queryPerformanceCounter(sandbox: ISandbox, lpPerformanceCount: UInt32) = {
         ReturnValue = Some <| createInt32(1).Value
         Convention = CallingConvention.Cdecl
