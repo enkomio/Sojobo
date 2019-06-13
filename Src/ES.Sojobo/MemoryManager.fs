@@ -392,19 +392,27 @@ type MemoryManager(pointerSize: Int32) =
         baseAddress
 
     member this.AllocateMemory(size: Int32, permission: Permission) =
+        let memoryMap = this.GetMemoryMap()
         let baseAddress =
-            this.GetMemoryMap()
-            |> Seq.pairwise
-            |> Seq.tryFind(fun (m1, m2) ->
-                let availableSize = m2.BaseAddress - (m1.BaseAddress + uint64 m1.Content.Length)
-                availableSize > uint64 size
-            )
-            |> function
-                | Some (m1, _) -> 
-                    m1.BaseAddress + uint64 m1.Content.Length
-                | None -> 
-                    let lastRegion = this.GetMemoryMap() |> Array.last
-                    lastRegion.BaseAddress + uint64 lastRegion.Content.Length
+            if memoryMap.Length = 0 then
+                // default initial allocation address
+                0x400000UL
+            elif memoryMap.Length = 1 then
+                let lastRegion = memoryMap |> Array.last
+                lastRegion.BaseAddress + uint64 lastRegion.Content.LongLength
+            else
+                this.GetMemoryMap()
+                |> Seq.pairwise
+                |> Seq.tryFind(fun (m1, m2) ->
+                    let availableSize = m2.BaseAddress - (m1.BaseAddress + uint64 m1.Content.LongLength)
+                    availableSize > uint64 size
+                )
+                |> function
+                    | Some (m1, _) -> 
+                        m1.BaseAddress + uint64 m1.Content.LongLength
+                    | None -> 
+                        let lastRegion = memoryMap |> Array.last
+                        lastRegion.BaseAddress + uint64 lastRegion.Content.LongLength
 
         // create the memory region
         this.AllocateMemory(baseAddress, size, permission)

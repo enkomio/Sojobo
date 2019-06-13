@@ -1,5 +1,6 @@
 ﻿namespace ES.Sojobo
 
+open System
 open System.Collections.Generic
 
 type Library =

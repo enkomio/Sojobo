@@ -73,7 +73,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
         emulateBufferInstruction(proc, arrayBuffer)
 
     member val EmulatedMethods = new Dictionary<String, MethodInfo>() with get
-    member val Callbacks = new Dictionary<UInt64, String>() with get, set
+    member val Callbacks = new Dictionary<UInt64, String>() with get, set    
     
     override this.ToString() =
         String.Format("Name: {0}, #Callbacks {1}", assembly.FullName, this.Callbacks.Count)
@@ -107,6 +107,9 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
                 let addressBytes = uint32 offset |> BitConverter.GetBytes
                 memoryManager.UnsafeWriteMemory(symbol.Address, addressBytes, false)
         )
+
+    member internal this.GetAssembly() =
+        assembly
 
     member internal this.MapSymbolWithManagedMethods(memoryManager: MemoryManager, symbols: BinFile.Symbol seq, exportedMethods: IDictionary<String, UInt64>) =
         if this.EmulatedMethods.Count > 0 then

@@ -156,6 +156,7 @@ module Win32 =
         // get libraries
         let sortedRreferencedLibraries =
             getNativeLibraries(sandbox.Libraries)
+            |> Seq.filter(fun lib -> lib.IsLoaded())
             |> Seq.sortByDescending(fun lib ->
                 // sort this list in order to have ntdll.dll and kernel32.dll on top
                 if lib.GetLibraryName().Equals("ntdll.dll", StringComparison.OrdinalIgnoreCase) then Int32.MaxValue
@@ -171,7 +172,6 @@ module Win32 =
             |> Array.sumBy(fun lib -> Encoding.Unicode.GetBytes(lib.GetLibraryName()).Length)
         let mutable libraryNamesRegionOffset = proc.Memory.AllocateMemory(regionSize, Permission.Readable)
                         
-
         // create the data table entries
         sortedRreferencedLibraries
         |> Array.iter(fun lib ->

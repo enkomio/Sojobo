@@ -7,6 +7,8 @@ open B2R2.FrontEnd
 open B2R2.BinFile.PE
 
 type NativeLibrary(content: Byte array) =
+    let mutable _isLoaded = false
+
     member val Filename: String option = None with get, set
     member val Content = content with get
     member val EntryPoint = 0UL with get, set
@@ -36,6 +38,9 @@ type NativeLibrary(content: Byte array) =
     member internal this.GetLibraryName() =
         Path.GetFileName(this.Filename.Value)
 
+    member this.IsLoaded() =
+        _isLoaded
+
     member internal this.Load(proc: IProcessContainer) =
         // create handler
         let isa = ISA.OfString "x86"
@@ -51,8 +56,9 @@ type NativeLibrary(content: Byte array) =
             if proc.Memory.IsAddressMapped(pe.PEHeaders.PEHeader.ImageBase) then
                 // must relocate the library
                 handler <- this.Relocate(pe, handler)
-            
-            Utility.mapPeHeader(handler, proc.Memory)
-            Utility.mapSections(handler, proc.Memory)
-            this.SetProperties(handler)            
+            else
+                Utility.mapPeHeader(handler, proc.Memory)
+                Utility.mapSections(handler, proc.Memory)
+                this.SetProperties(handler)  
+                _isLoaded <- true
         | _ -> ()

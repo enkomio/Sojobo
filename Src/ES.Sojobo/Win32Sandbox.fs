@@ -114,7 +114,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         mapEmulatedFunctions()
         initializeLibrary()
 
-    let loadProjectLibrariesFromFilesystem() =
+    let loadCoreLibrariesFromFilesystem() =
         Directory.GetFiles(Path.GetDirectoryName(Assembly.GetEntryAssembly().Location), "*.dll")        
         |> Array.filter(fun dllFile -> Path.GetFileName(dllFile).StartsWith("ES.Sojobo"))
         |> Array.filter(fun dllFile -> dllFile.Equals(Assembly.GetExecutingAssembly().Location) |> not)
@@ -125,7 +125,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
 
     let prepareForExecution() =
         if settings.InitializeEnvironment then
-            loadProjectLibrariesFromFilesystem()
+            loadCoreLibrariesFromFilesystem()
 
         // setup the native libraries
         mapNativeLibraries()
@@ -139,10 +139,16 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         // now that all libraries are mapped setup TEB and PEB
         setupTeb()
 
-    let tryGetEmulationLibrary(proc: IProcessContainer) =
-        let programCounter = proc.ProgramCounter.Value |> BitVector.toUInt64     
+    let tryGetEmulationLibrary(proc: IProcessContainer) =  
+        let programCounter = proc.ProgramCounter.Value |> BitVector.toUInt64   
         getManagedLibraries(this.Libraries)
-        |> Seq.tryFind(fun lib -> lib.IsLibraryCall(programCounter))
+        |> Array.sortByDescending(fun lib ->
+            // this trick will load core libraries at the end, providing custom lib first
+            if lib.GetAssembly().FullName.StartsWith("ES.Sojobo")
+            then Int32.MinValue
+            else Int32.MaxValue
+        )
+        |> Array.tryFind(fun lib -> lib.IsLibraryCall(programCounter))
 
     let invokeRegisteredHook(programCounter: UInt64) =        
         if _hooks.ContainsKey(programCounter) 
