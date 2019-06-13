@@ -196,16 +196,17 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         base.AddLibrary(filename)
         match _stopExecution with
         | Some _ ->
-            // process is running, map the library in memory too
-            let library = 
-                getNativeLibraries(this.Libraries) 
-                |> Seq.find(fun lib -> lib.Filename.Value.Equals(filename, StringComparison.Ordinal))
+            // process is running, map the library in memory too (if native)          
+            getNativeLibraries(this.Libraries) 
+            |> Seq.tryFind(fun lib -> lib.Filename.Value.Equals(filename, StringComparison.Ordinal))
+            |> function
+                | Some library ->
+                    // load native library
+                    library.Load(this.GetRunningProcess())
             
-            // load native library
-            library.Load(this.GetRunningProcess())
-            
-            // map emulated function too            
-            mapManagedLibraries()
+                    // map emulated function too            
+                    mapManagedLibraries()
+                | None -> ()
         | _ -> ()
 
     default this.Run() =
