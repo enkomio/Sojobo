@@ -72,7 +72,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
         let arrayBuffer = memWriter.ToArray()
         emulateBufferInstruction(proc, arrayBuffer)
 
-    member val LibraryFunctions = new Dictionary<String, MethodInfo>() with get
+    member val EmulatedMethods = new Dictionary<String, MethodInfo>() with get
     member val Callbacks = new Dictionary<UInt64, String>() with get, set
 
     static member NotRegisteredFunction(keyName: String) (sandbox: ISandbox) =
@@ -80,12 +80,11 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
         let msg = String.Format("{0}: {1}", programCounter, keyName)
         raise (UnhandledFunction msg) |> ignore
 
-    member internal this.MapSymbolWithManagedFunctions(memoryManager: MemoryManager, symbols: BinFile.Symbol seq, exportedMethods: IDictionary<String, UInt64>) =
-        let regionBaseAddress = memoryManager.AllocateMemory((symbols |> Seq.length) * 4, Permission.Readable)
-        let region = memoryManager.GetMemoryRegion(regionBaseAddress)
-        
-        // map all emulated functions
-        this.LibraryFunctions
+    override this.ToString() =
+        String.Format("Name: {0}, #Callbacks {1}", assembly.FullName, this.Callbacks.Count)
+
+    member private this.MapEmulatedMethods(region: MemoryRegion, exportedMethods: IDictionary<String, UInt64>) =
+        this.EmulatedMethods
         |> Seq.iteri(fun index kv ->
             let offset = 
                 match exportedMethods.TryGetValue(kv.Key) with
@@ -95,7 +94,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
             this.Callbacks.[offset] <- kv.Key
         )
 
-        // map IAT
+    member private this.MapImportAddressTableMethods(memoryManager: MemoryManager, symbols: BinFile.Symbol seq, region: MemoryRegion, exportedMethods: IDictionary<String, UInt64>) =
         symbols
         |> Seq.iteri(fun index symbol ->            
             // obtains function offset
@@ -106,7 +105,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
                 | _ -> region.BaseAddress + uint64 (index * 4)
 
             // map unhandled function if necessary
-            if this.LibraryFunctions.ContainsKey(keyName) then
+            if this.EmulatedMethods.ContainsKey(keyName) then
                 this.Callbacks.[offset] <- keyName
 
                 // write the function address
@@ -114,8 +113,15 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
                 memoryManager.UnsafeWriteMemory(symbol.Address, addressBytes, false) 
             else
                 let methodCallback = ManagedLibrary.NotRegisteredFunction keyName
-                this.LibraryFunctions.[keyName] <- methodCallback.GetType().GetMethods().[0]
+                this.EmulatedMethods.[keyName] <- methodCallback.GetType().GetMethods().[0]
         )
+
+    member internal this.MapSymbolWithManagedMethods(memoryManager: MemoryManager, symbols: BinFile.Symbol seq, exportedMethods: IDictionary<String, UInt64>) =
+        let regionBaseAddress = memoryManager.AllocateMemory((symbols |> Seq.length) * 4, Permission.Readable)
+        let region = memoryManager.GetMemoryRegion(regionBaseAddress)
+        
+        this.MapEmulatedMethods(region, exportedMethods)
+        this.MapImportAddressTableMethods(memoryManager, symbols, region, exportedMethods)
 
     member internal this.ResolveLibraryFunctions() =
         assembly.GetTypes()
@@ -139,7 +145,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
         )
         |> Seq.iter(fun m ->
             let keyName = Helpers.getFunctionKeyName(m.Name, m.DeclaringType.Name)
-            this.LibraryFunctions.[keyName] <- m
+            this.EmulatedMethods.[keyName] <- m
         )
 
     member internal this.IsLibraryCall(programCounter: UInt64) =
@@ -148,7 +154,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
     member internal this.InvokeLibraryFunction(sandbox: ISandbox) =
         let proc = sandbox.GetRunningProcess()
         let keyName = this.Callbacks.[proc.ProgramCounter.Value |> BitVector.toUInt64]
-        let libraryFunction = this.LibraryFunctions.[keyName]
+        let libraryFunction = this.EmulatedMethods.[keyName]
 
         executeStackFrameSetup(proc)
         let arguments = Array.concat [

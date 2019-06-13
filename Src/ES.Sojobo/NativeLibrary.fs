@@ -20,6 +20,9 @@ type NativeLibrary(content: Byte array) =
         let content = File.ReadAllBytes(filename)
         new NativeLibrary(content, Filename = Some filename)
 
+    override this.ToString() =
+        String.Format("{0}:0x{1}", defaultArg this.Filename "N/A", this.BaseAddress.ToString("X"))
+
     member private this.SetProperties(handler: BinHandler) =
         let pe = Helpers.getPe(handler)
         this.EntryPoint <- uint64 pe.PEHeaders.PEHeader.AddressOfEntryPoint
