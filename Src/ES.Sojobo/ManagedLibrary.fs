@@ -160,3 +160,11 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
         setResult(proc, libraryFunctionResult)
         executeStackFrameCleanup(proc)
         executeReturn(proc, libraryFunction, libraryFunctionResult)
+
+    member internal this.Initialize(sandbox: ISandbox) =
+        assembly.GetTypes()
+        |> Seq.collect(fun t -> t.GetMethods())
+        |> Seq.filter(fun m -> m.Name.Equals("Initialize", StringComparison.Ordinal))
+        |> Seq.filter(fun m -> m.IsStatic && m.ReturnType = typeof<Void>)
+        |> Seq.filter(fun m -> m.GetParameters().Length = 1 && m.GetParameters().[0].ParameterType = typeof<ISandbox>)
+        |> Seq.iter(fun m -> m.Invoke(null, [|sandbox|]) |> ignore)

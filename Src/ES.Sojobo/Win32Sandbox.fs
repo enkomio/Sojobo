@@ -103,11 +103,16 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
                             )
                     | _ -> ()
                 )
-        )   
+        ) 
+        
+    let initializeLibrary() =
+        getManagedLibraries(this.Libraries)
+        |> Seq.iter(fun lib -> lib.Initialize(this))
         
     let mapManagedLibraries() =
         resolveEmulatedFunctions()
         mapEmulatedFunctions()
+        initializeLibrary()
 
     let loadProjectLibrariesFromFilesystem() =
         Directory.GetFiles(Path.GetDirectoryName(Assembly.GetEntryAssembly().Location), "*.dll")        
