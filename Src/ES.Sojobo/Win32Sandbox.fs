@@ -135,13 +135,9 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         setupTeb()
 
     let tryGetEmulationLibrary(proc: IProcessContainer) =
-        let programCounter = proc.ProgramCounter.Value |> BitVector.toUInt64        
-        this.Libraries
-        |> Seq.tryFind(fun lib ->
-            match lib with
-            | Managed lib -> lib.IsLibraryCall(programCounter)
-            | _ -> false
-        )
+        let programCounter = proc.ProgramCounter.Value |> BitVector.toUInt64     
+        getManagedLibraries(this.Libraries)
+        |> Seq.tryFind(fun lib -> lib.IsLibraryCall(programCounter))
 
     let invokeRegisteredHook(programCounter: UInt64) =        
         if _hooks.ContainsKey(programCounter) 
@@ -183,12 +179,11 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         _stopExecution <- Some false
         while not _stopExecution.Value do
             let programCounter = _currentProcess.Value.ProgramCounter.Value |> BitVector.toUInt64
+            invokeRegisteredHook(programCounter)
+
             match tryGetEmulationLibrary(_currentProcess.Value) with
-            | Some (Managed library) -> 
-                invokeRegisteredHook(programCounter)
-                library.InvokeLibraryFunction(this)
-            | _ -> 
-                emulateNextInstruction(_currentProcess.Value, programCounter)
+            | Some library -> library.InvokeLibraryFunction(this)
+            | _ -> emulateNextInstruction(_currentProcess.Value, programCounter)
             
     new() = new Win32Sandbox(Win32SandboxSettings.Default)   
     

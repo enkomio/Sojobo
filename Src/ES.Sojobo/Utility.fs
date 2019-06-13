@@ -8,14 +8,33 @@ open B2R2.BinIR
 open B2R2.BinFile
 
 module Utility = 
+    open B2R2.FrontEnd.Intel
 
     let formatCurrentInstruction(processContainer: IProcessContainer) =
         let handler = processContainer.GetActiveMemoryRegion().Handler
         let instruction = processContainer.GetInstruction()
+        let mutable functionName = String.Empty
+
+        if instruction.IsCall() then
+            let instruction = instruction :?> IntelInstruction
+            match instruction.Info.Operands with
+            | OneOperand op ->
+                match op with
+                | OprMem (_, _, disp, _) when disp.IsSome ->
+                    processContainer.GetImportedFunctions()
+                    |> Seq.tryFind(fun importedFunction ->
+                        importedFunction.Address = uint64 disp.Value
+                    )
+                    |> function
+                        | Some symbol -> functionName <- String.Format("; <&{0}> [{1}]", symbol.Name, symbol.LibraryName)
+                        | None -> ()
+                | _ -> ()
+            | _ -> ()
+
         let disassembledInstruction = BinHandler.DisasmInstr handler false true instruction 
         let instructionBytes = BinHandler.ReadBytes(handler , instruction.Address, int32 instruction.Length)                
         let hexBytes = BitConverter.ToString(instructionBytes).Replace("-"," ")
-        String.Format("0x{0,-10} {1, -30} {2}", instruction.Address.ToString("X") + ":", hexBytes, disassembledInstruction)
+        String.Format("0x{0,-10} {1, -30} {2} {3}", instruction.Address.ToString("X") + ":", hexBytes, disassembledInstruction, functionName)
         
     let formatCurrentInstructionIR(processContainer: IProcessContainer) =
         let handler = processContainer.GetActiveMemoryRegion().Handler

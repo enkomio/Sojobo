@@ -74,12 +74,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
 
     member val EmulatedMethods = new Dictionary<String, MethodInfo>() with get
     member val Callbacks = new Dictionary<UInt64, String>() with get, set
-
-    static member NotRegisteredFunction(keyName: String) (sandbox: ISandbox) =
-        let programCounter = sandbox.GetRunningProcess().ProgramCounter.Value |> BitVector.toUInt32        
-        let msg = String.Format("{0}: {1}", programCounter, keyName)
-        raise (UnhandledFunction msg) |> ignore
-
+    
     override this.ToString() =
         String.Format("Name: {0}, #Callbacks {1}", assembly.FullName, this.Callbacks.Count)
 
@@ -110,19 +105,17 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
 
                 // write the function address
                 let addressBytes = uint32 offset |> BitConverter.GetBytes
-                memoryManager.UnsafeWriteMemory(symbol.Address, addressBytes, false) 
-            else
-                let methodCallback = ManagedLibrary.NotRegisteredFunction keyName
-                this.EmulatedMethods.[keyName] <- methodCallback.GetType().GetMethods().[0]
+                memoryManager.UnsafeWriteMemory(symbol.Address, addressBytes, false)
         )
 
     member internal this.MapSymbolWithManagedMethods(memoryManager: MemoryManager, symbols: BinFile.Symbol seq, exportedMethods: IDictionary<String, UInt64>) =
-        let iatRegion =
-            memoryManager.AllocateMemory((symbols |> Seq.length) * (pointerSize / 8), Permission.Readable)
-            |> memoryManager.GetMemoryRegion
+        if this.EmulatedMethods.Count > 0 then
+            let iatRegion =
+                memoryManager.AllocateMemory((symbols |> Seq.length) * (pointerSize / 8), Permission.Readable)
+                |> memoryManager.GetMemoryRegion
                 
-        this.MapImportAddressTableMethods(memoryManager, symbols, iatRegion, exportedMethods)
-        this.MapEmulatedMethods(iatRegion, exportedMethods)
+            this.MapImportAddressTableMethods(memoryManager, symbols, iatRegion, exportedMethods)
+            this.MapEmulatedMethods(iatRegion, exportedMethods)
 
     member internal this.ResolveLibraryFunctions() =
         assembly.GetTypes()
