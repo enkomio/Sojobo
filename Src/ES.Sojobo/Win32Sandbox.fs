@@ -157,9 +157,6 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
     let emulateNextInstruction(proc: BaseProcessContainer, programCounter: UInt64) =
         let instruction = proc.ReadNextInstruction()
         let handler = proc.GetActiveMemoryRegion().Handler
-
-        invokeRegisteredHook(programCounter)
-
         this.Emulator.Value.EmulateInstruction(handler, instruction)
 
     let rec loadLibraryFile(filename: String, loadedLibraries: HashSet<String>) =
