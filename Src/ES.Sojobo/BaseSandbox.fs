@@ -33,7 +33,13 @@ type BaseSandbox() =
         this.Libraries.Add(Managed library)
 
     member this.AddLibrary(content: Byte array) =
-        this.Libraries.Add(Native <| NativeLibrary.Create(content)) 
+        try
+            // first try to load the library as an Assembly
+            let assembly = Assembly.Load(content)
+            this.AddLibrary(assembly)
+        with
+            | :? BadImageFormatException ->
+                this.Libraries.Add(Native <| NativeLibrary.Create(content)) 
 
     abstract AddLibrary: filename:String -> unit
     default this.AddLibrary(filename: String) =

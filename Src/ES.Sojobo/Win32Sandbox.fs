@@ -71,17 +71,10 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
             lib.MapSymbolWithManagedMethods(proc.Memory, proc.GetImportedFunctions(), exportedFunctions)
         )
 
-    let mapNativeLibraries() =
+    let loadNativeLibraries() =
         getNativeLibraries(this.Libraries)
-        |> Seq.iter(fun lib ->
-            try
-                let assembly = Assembly.Load(lib.Content)
-                this.AddLibrary(assembly)
-            with 
-                | :? BadImageFormatException ->
-                    lib.Load(this.GetRunningProcess())
-        )
-
+        |> Seq.iter(fun lib -> lib.Load(this.GetRunningProcess()))
+        
     let resolveHooks() =
         this.Hooks
         |> Seq.iter(function
@@ -126,9 +119,9 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
     let prepareForExecution() =
         if settings.InitializeEnvironment then
             loadCoreLibrariesFromFilesystem()
-
+            
         // setup the native libraries
-        mapNativeLibraries()
+        loadNativeLibraries()
 
         // setup the emulated functions
         mapManagedLibraries()
