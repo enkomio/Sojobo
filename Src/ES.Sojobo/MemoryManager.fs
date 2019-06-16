@@ -185,7 +185,7 @@ type MemoryManager(pointerSize: Int32) =
     let writeEntriesToMemory(entries: (MemoryEntry * UInt64) seq, memory: MemoryManager) =
         entries
         |> Seq.iter(fun (entry, address) ->
-            memory.UnsafeWriteMemory(address, entry.Buffer, false)
+            memory.WriteMemory(address, entry.Buffer, false)
         )
 
     let applyPatches(entriesFixup: Dictionary<Int32, MemoryEntry * UInt64>, fixups: List<Fixup>) =
@@ -339,7 +339,7 @@ type MemoryManager(pointerSize: Int32) =
     member this.GetMemoryRegion(address: UInt64) =
         getMemoryRegion(address)
 
-    member internal this.UnsafeWriteMemory(address: UInt64, value: Byte array, verifyProtection: Boolean) =        
+    member internal this.WriteMemory(address: UInt64, value: Byte array, verifyProtection: Boolean) =        
         let region = this.GetMemoryRegion(address)
         if verifyProtection && region.Permission <> Permission.Writable then
             // TODO: add check on memory protection
@@ -350,7 +350,7 @@ type MemoryManager(pointerSize: Int32) =
 
     member this.WriteMemory(address: UInt64, value: Byte array) =
         _memoryAccessEvent.Trigger(MemoryAccessOperation.Write (address, value))
-        this.UnsafeWriteMemory(address, value, true)
+        this.WriteMemory(address, value, true)
         
     member this.WriteMemory(address: UInt64, value: Object) =        
         let entries = new List<MemoryEntry>()
