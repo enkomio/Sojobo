@@ -123,13 +123,16 @@ module Kernel32 =
 
         let libName = sandbox.GetRunningProcess().Memory.ReadAsciiString(uint64 lpLibFileName)
         let filename = Path.Combine(libPath, libName)
-        sandbox.AddLibrary(filename)
+        if File.Exists(filename) then
+            sandbox.AddLibrary(filename)
 
-        let libMemRegion = 
+        let libHandle = 
             sandbox.GetRunningProcess().Memory.GetMemoryMap() 
-            |> Array.find(fun memRegion -> memRegion.Type.Equals(filename))
+            |> Array.tryFind(fun memRegion -> memRegion.Type.Equals(filename))
+            |> function
+                | Some libMemRegion -> int32 libMemRegion.BaseAddress
+                | None -> 0
 
-        let libHandle = int32 libMemRegion.BaseAddress
         {
             ReturnValue = Some <| createInt32(libHandle).Value
             Convention = CallingConvention.Cdecl
