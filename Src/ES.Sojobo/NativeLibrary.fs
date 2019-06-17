@@ -4,7 +4,9 @@ open System
 open System.IO
 open B2R2
 open B2R2.FrontEnd
+open B2R2.BinFile
 open B2R2.BinFile.PE
+open System.Collections.Generic
 
 type NativeLibrary(content: Byte array) =
     let mutable _isLoaded = false
@@ -13,7 +15,7 @@ type NativeLibrary(content: Byte array) =
     member val Content = content with get
     member val EntryPoint = 0UL with get, set
     member val BaseAddress = 0UL with get, set
-    member val Exports = Map.empty<UInt64, String> with get, set
+    member val Exports = new List<Symbol>() with get, set
     
     static member Create(content: Byte array) =
         new NativeLibrary(content)
@@ -25,7 +27,7 @@ type NativeLibrary(content: Byte array) =
     override this.ToString() =
         String.Format("{0}:0x{1}", defaultArg this.Filename "N/A", this.BaseAddress.ToString("X"))
 
-    member internal this.SetProperties(entryPoint: UInt64, baseAddress: UInt64, exports: Map<UInt64, String>) =
+    member internal this.SetProperties(entryPoint: UInt64, baseAddress: UInt64, exports: List<Symbol>) =
         this.EntryPoint <- entryPoint
         this.BaseAddress <- baseAddress
         this.Exports <- exports
@@ -35,8 +37,17 @@ type NativeLibrary(content: Byte array) =
         let pe = Helpers.getPe(handler)
         this.SetProperties(
             uint64 pe.PEHeaders.PEHeader.AddressOfEntryPoint, 
-            uint64 pe.PEHeaders.PEHeader.ImageBase, 
-            pe.ExportMap 
+            uint64 pe.PEHeaders.PEHeader.ImageBase,
+            new List<Symbol>(
+                pe.ExportMap
+                |> Seq.map(fun kv -> {                
+                        Address = kv.Key
+                        Name = kv.Value
+                        Kind = SymbolKind.FunctionType
+                        Target = TargetKind.DynamicSymbol
+                        LibraryName = (defaultArg this.Filename String.Empty) |> Path.GetFileName
+                })
+            )
         )
         
     member private this.Relocate(pe: PE, handler: BinHandler) =

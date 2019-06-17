@@ -4,6 +4,7 @@ open System
 open B2R2
 open B2R2.BinFile
 open ES.Sojobo.Model
+open System.Collections.Generic
 
 type SnapshotManager(sandbox: BaseSandbox) =
     member this.TakeSnaphot() =
@@ -64,7 +65,8 @@ type SnapshotManager(sandbox: BaseSandbox) =
     member this.LoadSnapshot(snapshot: Snapshot) =
         // cleanup stuff
         sandbox.ResetProcessState()
-        let memory = sandbox.GetRunningProcess().Memory
+        let proc = sandbox.GetRunningProcess()
+        let memory = proc.Memory
 
         // setup Virtual Address Space
         snapshot.VirtualAddressSpace
@@ -85,7 +87,7 @@ type SnapshotManager(sandbox: BaseSandbox) =
             memory.UpdateMemoryRegion(memRegion.BaseAddress, allocatedMemoryRegion)
             
             // write region content
-            memory.UnsafeWriteMemory(memRegion.BaseAddress, memRegion.Content, false)
+            memory.WriteMemory(memRegion.BaseAddress, memRegion.Content, false)
 
             // check for stack or heap region
             if memRegion.Id = snapshot.StackRegionId then
@@ -100,8 +102,11 @@ type SnapshotManager(sandbox: BaseSandbox) =
             getNativeLibraries(sandbox.Libraries)
             |> Array.tryFind(fun lib -> lib.GetLibraryName().Equals(snapshotLib.Name, StringComparison.OrdinalIgnoreCase))
             |> function
-                | Some lib -> 
-                    lib.SetProperties(snapshotLib.EntryPoint, snapshotLib.BaseAddress, lib.Exports)
+                | Some lib ->                    
+                    lib.SetProperties(snapshotLib.EntryPoint, snapshotLib.BaseAddress, snapshotLib.Exports)
+
+                    // set symbols
+                    snapshotLib.Exports |> Seq.iter(proc.SetSymbol)
                 | None -> ()
                 
         )

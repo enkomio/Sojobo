@@ -3,15 +3,15 @@
 open System
 open System.IO
 open System.IO.Compression
+open System.Text
+open System.Numerics
+open System.Collections.Generic
 open Newtonsoft.Json
 open B2R2
 open B2R2.FrontEnd
 open B2R2.BinFile
 
 module Model =
-    open System.Text
-    open System.Numerics
-
     type BitVectorSerializer() =
         inherit JsonConverter<BitVector>()
 
@@ -37,7 +37,7 @@ module Model =
         Name: String
         EntryPoint: UInt64
         BaseAddress: UInt64
-        Exports: Map<UInt64, String>
+        Exports: List<Symbol>
     }
 
     type MemoryRegionSnapshot = {
