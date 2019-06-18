@@ -57,7 +57,13 @@ type SnapshotManager(sandbox: BaseSandbox) =
                 |> Array.map(fun lib -> {
                     Name = lib.GetLibraryName()
                     EntryPoint = lib.EntryPoint
-                    Exports = lib.Exports
+                    Exports = 
+                        new List<SymbolDto>(lib.Exports 
+                            |> Seq.map(fun symbol -> {
+                                Name = symbol.Name
+                                Library = symbol.LibraryName
+                                Address = symbol.Address
+                        }))
                     BaseAddress = lib.BaseAddress
                 })
         }
@@ -102,11 +108,20 @@ type SnapshotManager(sandbox: BaseSandbox) =
             getNativeLibraries(sandbox.Libraries)
             |> Array.tryFind(fun lib -> lib.GetLibraryName().Equals(snapshotLib.Name, StringComparison.OrdinalIgnoreCase))
             |> function
-                | Some lib ->                    
-                    lib.SetProperties(snapshotLib.EntryPoint, snapshotLib.BaseAddress, snapshotLib.Exports)
+                | Some lib ->                 
+                    let symbols =
+                        snapshotLib.Exports
+                        |> Seq.map(fun sym -> {
+                            Name = sym.Name
+                            LibraryName = sym.Library
+                            Address = sym.Address
+                            Kind = SymbolKind.FunctionType
+                            Target = TargetKind.DynamicSymbol
+                        })
+                    lib.SetProperties(snapshotLib.EntryPoint, snapshotLib.BaseAddress, new List<Symbol>(symbols))
 
                     // set symbols
-                    snapshotLib.Exports |> Seq.iter(proc.SetSymbol)
+                    symbols |> Seq.iter(proc.SetSymbol)
                 | None -> ()
                 
         )

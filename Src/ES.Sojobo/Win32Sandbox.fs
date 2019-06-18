@@ -55,9 +55,9 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         |> Array.filter(fun lib -> lib.Filename.IsSome)
         |> Array.collect(fun lib ->
             lib.Exports
-            |> Seq.map(fun kv ->
-                let keyName = Helpers.getFunctionKeyName(kv.Value, lib.Filename.Value |> Path.GetFileName)
-                (keyName, kv.Key)
+            |> Seq.map(fun symbol ->
+                let keyName = Helpers.getFunctionKeyName(symbol.Name, symbol.LibraryName)
+                (keyName, symbol.Address)
             )
             |> Seq.toArray
         )
@@ -90,9 +90,9 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
                         if moduleName.Equals(filename, StringComparison.OrdinalIgnoreCase) then
                             // try to identify an exported function with the same name
                             lib.Exports
-                            |> Seq.iter(fun kv ->
-                                if kv.Value.Equals(functionName, StringComparison.OrdinalIgnoreCase) then
-                                    _hooks.[kv.Key] <- callback
+                            |> Seq.iter(fun symbol ->
+                                if symbol.Name.Equals(functionName, StringComparison.OrdinalIgnoreCase) 
+                                then _hooks.[symbol.Address] <- callback
                             )
                     | _ -> ()
                 )

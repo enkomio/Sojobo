@@ -183,7 +183,7 @@ module Win32 =
 
             // write UnicodeString
             let fullNameBytes = Encoding.Unicode.GetBytes(lib.GetLibraryName())
-            proc.Memory.UnsafeWriteMemory(libraryNamesRegionOffset, fullNameBytes, false)            
+            proc.Memory.WriteMemory(libraryNamesRegionOffset, fullNameBytes, false)            
 
             let fullNameDll = 
                 {Activator.CreateInstance<UNICODE_STRING>() with 

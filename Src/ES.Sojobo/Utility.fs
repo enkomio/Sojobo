@@ -6,10 +6,9 @@ open B2R2
 open B2R2.FrontEnd
 open B2R2.BinIR
 open B2R2.BinFile
+open B2R2.FrontEnd.Intel
 
 module Utility = 
-    open B2R2.FrontEnd.Intel
-
     let formatCurrentInstruction(processContainer: IProcessContainer) =
         let handler = processContainer.GetActiveMemoryRegion().Handler
         let instruction = processContainer.GetInstruction()
@@ -21,7 +20,12 @@ module Utility =
             | OneOperand op ->
                 match op with
                 | OprMem (_, _, disp, _) when disp.IsSome ->
-                    match processContainer.TryGetSymbol(uint64 disp.Value) with
+                    let procAddr = 
+                        if processContainer.GetPointerSize() = 32
+                        then processContainer.Memory.ReadMemory<UInt32>(uint64 disp.Value) |> uint64
+                        else processContainer.Memory.ReadMemory<UInt64>(uint64 disp.Value)
+
+                    match processContainer.TryGetSymbol(procAddr) with
                     | Some symbol -> functionName <- String.Format("; <&{0}> [{1}]", symbol.Name, symbol.LibraryName)
                     | None -> ()
                 | OprReg reg ->

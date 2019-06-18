@@ -10,6 +10,8 @@ open B2R2.FrontEnd
 open B2R2.BinFile
 
 type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32) =
+    let pointerSizeInBytes = pointerSize / 8
+
     let getArgument(proc: IProcessContainer, position: Int32) =
         let ebp = proc.Cpu.GetRegister("EBP").Value |> BitVector.toUInt32
         let address = ebp + uint32 (position + 2) * 4ul
@@ -53,7 +55,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
         emulateBufferInstruction(proc, [|0x5Duy|]) // pop ebp
         
     let executeReturn(proc: IProcessContainer, mi: MethodInfo, callbackResult: CallbackResult) =
-        let bytesToPop = (mi.GetParameters().Length - 1) * (pointerSize / 8)
+        let bytesToPop = (mi.GetParameters().Length - 1) * pointerSizeInBytes
         
         // compose buffer
         use memWriter = new MemoryStream()
@@ -78,34 +80,36 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
     override this.ToString() =
         String.Format("Name: {0}, #Callbacks {1}", assembly.FullName, this.Callbacks.Count)
 
-    member private this.MapEmulatedMethods(region: MemoryRegion, exportedMethods: IDictionary<String, UInt64>) =
+    member private this.MapEmulatedMethods(exportedMethods: IDictionary<String, UInt64>) =
         this.EmulatedMethods
         |> Seq.iteri(fun index kv ->
-            let offset = 
-                match exportedMethods.TryGetValue(kv.Key) with
-                | (true, address) -> address
-                | _ -> region.BaseAddress + uint64 (index * (pointerSize / 8))
-
-            this.Callbacks.[offset] <- kv.Key
+            match exportedMethods.TryGetValue(kv.Key) with
+            | (true, address) -> this.Callbacks.[address] <- kv.Key
+            | _ -> ()
         )
 
-    member private this.MapImportAddressTableMethods(memoryManager: MemoryManager, importedSymbols: BinFile.Symbol seq, region: MemoryRegion, exportedMethods: IDictionary<String, UInt64>) =
+    member private this.MapImportAddressTableMethods
+        (
+            memoryManager: MemoryManager, 
+            importedSymbols: BinFile.Symbol seq, 
+            iatRegion: MemoryRegion,
+            exportedMethods: IDictionary<String, UInt64>
+        ) =
         importedSymbols
-        |> Seq.iteri(fun index symbol ->            
-            // obtains function offset
+        |> Seq.iteri(fun index symbol ->
             let keyName = Helpers.getFunctionKeyName(symbol.Name, symbol.LibraryName)
             let offset = 
                 match exportedMethods.TryGetValue(keyName) with
                 | (true, address) -> address
-                | _ -> region.BaseAddress + uint64 (index * (pointerSize / 8))
-
-            // map unhandled function if necessary
-            if this.EmulatedMethods.ContainsKey(keyName) then
+                | _ -> iatRegion.BaseAddress + uint64 (index * (pointerSize / 8))
+           
+            // map function
+            if this.EmulatedMethods.ContainsKey(keyName) then                
                 this.Callbacks.[offset] <- keyName
 
-                // write the function address
+                // write the function address to IAT
                 let addressBytes = uint32 offset |> BitConverter.GetBytes
-                memoryManager.UnsafeWriteMemory(symbol.Address, addressBytes, false)
+                memoryManager.WriteMemory(symbol.Address, addressBytes, false)
         )
 
     member internal this.GetAssembly() =
@@ -114,11 +118,11 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
     member internal this.MapSymbolWithManagedMethods(memoryManager: MemoryManager, symbols: BinFile.Symbol seq, exportedMethods: IDictionary<String, UInt64>) =
         if this.EmulatedMethods.Count > 0 && (symbols |> Seq.length) > 0 then
             let iatRegion =
-                memoryManager.AllocateMemory((symbols |> Seq.length) * (pointerSize / 8), Permission.Readable)
+                memoryManager.AllocateMemory((symbols |> Seq.length) * pointerSizeInBytes, Permission.Readable)
                 |> memoryManager.GetMemoryRegion
                 
             this.MapImportAddressTableMethods(memoryManager, symbols, iatRegion, exportedMethods)
-            this.MapEmulatedMethods(iatRegion, exportedMethods)
+            this.MapEmulatedMethods(exportedMethods)
 
     member internal this.ResolveLibraryFunctions() =
         assembly.GetTypes()
