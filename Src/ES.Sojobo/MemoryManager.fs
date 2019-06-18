@@ -391,31 +391,30 @@ type MemoryManager(pointerSize: Int32) =
         this.AddMemoryRegion(region)
         baseAddress
 
-    member this.AllocateMemory(size: Int32, permission: Permission) =
+    member this.GetFreeMemory(size: Int32) =
         let memoryMap = this.GetMemoryMap()
-        let baseAddress =
-            if memoryMap.Length = 0 then
-                // default initial allocation address
-                0x400000UL
-            elif memoryMap.Length = 1 then
-                let lastRegion = memoryMap |> Array.last
-                lastRegion.BaseAddress + uint64 lastRegion.Content.LongLength
-            else
-                memoryMap
-                |> Seq.pairwise
-                |> Seq.tryFind(fun (m1, m2) ->
-                    let availableSize = m2.BaseAddress - (m1.BaseAddress + uint64 m1.Content.LongLength)
-                    availableSize > uint64 size
-                )
-                |> function
-                    | Some (m1, _) -> 
-                        m1.BaseAddress + uint64 m1.Content.LongLength
-                    | None -> 
-                        let lastRegion = memoryMap |> Array.last
-                        lastRegion.BaseAddress + uint64 lastRegion.Content.LongLength
+        if memoryMap.Length = 0 then
+            // default initial allocation address
+            0x400000UL
+        elif memoryMap.Length = 1 then
+            let lastRegion = memoryMap |> Array.last
+            lastRegion.BaseAddress + uint64 lastRegion.Content.LongLength
+        else
+            memoryMap
+            |> Seq.pairwise
+            |> Seq.tryFind(fun (m1, m2) ->
+                let availableSize = m2.BaseAddress - (m1.BaseAddress + uint64 m1.Content.LongLength)
+                availableSize > uint64 size
+            )
+            |> function
+                | Some (m1, _) -> 
+                    m1.BaseAddress + uint64 m1.Content.LongLength
+                | None -> 
+                    let lastRegion = memoryMap |> Array.last
+                    lastRegion.BaseAddress + uint64 lastRegion.Content.LongLength
 
-        // create the memory region
-        this.AllocateMemory(baseAddress, size, permission)
+    member this.AllocateMemory(size: Int32, permission: Permission) =
+        this.AllocateMemory(this.GetFreeMemory(size), size, permission)
 
     member this.AllocateMemory(value: Byte array, permission: Permission) =        
         let baseAddress = this.AllocateMemory(value.Length, permission)
