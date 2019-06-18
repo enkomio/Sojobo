@@ -33,11 +33,17 @@ module Model =
         IsTemp: Boolean
     }
 
+    type SymbolDto = {
+        Name: String
+        Library: String
+        Address: UInt64
+    }
+
     type LibrarySnapshot = {
         Name: String
         EntryPoint: UInt64
         BaseAddress: UInt64
-        Exports: List<Symbol>
+        Exports: List<SymbolDto>
     }
 
     type MemoryRegionSnapshot = {
@@ -48,7 +54,7 @@ module Model =
         Type: String
         Info: String
     }
-
+    
     type Snapshot = {
         Date: DateTime
         HeapRegionId: Guid
@@ -58,12 +64,32 @@ module Model =
         Libraries: LibrarySnapshot array
     } with
         member this.SaveTo(stream: Stream) =
-            let serializedValue = JsonConvert.SerializeObject(this, Formatting.Indented, new BitVectorSerializer())
+            use archive = new ZipArchive(stream, ZipArchiveMode.Create)
 
-            // compress the value
-            use inputtStream = new MemoryStream(Encoding.UTF8.GetBytes(serializedValue))
-            use gs = new GZipStream(stream, CompressionMode.Compress)
-            inputtStream.CopyTo(gs)
+            // add all memory regions
+            this.VirtualAddressSpace
+            |> Array.iter(fun region ->
+                let entryName = String.Format("mem_{0}.vmem", region.BaseAddress.ToString("X"))
+                let zipEntry = archive.CreateEntry(entryName)
+                use stream = zipEntry.Open()
+                stream.Write(region.Content, 0, region.Content.Length)
+            )
+
+            // remove memory content since it was saved in separetd files
+            let snapshotToSave = 
+                {this with 
+                    VirtualAddressSpace = 
+                        this.VirtualAddressSpace
+                        |> Array.map(fun region -> 
+                            {region with Content = Array.empty<Byte>}
+                        )
+                }
+
+            // serialize snapshot
+            let serializedSnapshot = JsonConvert.SerializeObject(snapshotToSave, Formatting.Indented, new BitVectorSerializer())
+            let zipEntry = archive.CreateEntry("snapshot.json")
+            use streamWriter = new StreamWriter(zipEntry.Open())
+            streamWriter.Write(serializedSnapshot)
 
         member this.SaveTo(filename: String) =
             use memoryStream = new MemoryStream()
@@ -71,14 +97,29 @@ module Model =
             File.WriteAllBytes(filename, memoryStream.ToArray())
 
         static member Read(stream: Stream) =
-            // decompress string
-            use outputStream = new MemoryStream()
-            use gs = new GZipStream(stream, CompressionMode.Decompress)
-            gs.CopyTo(outputStream)
-            let serializedString = Encoding.UTF8.GetString(outputStream.ToArray())
+            use archive = new ZipArchive(stream)
 
-            // deserialize
-            JsonConvert.DeserializeObject<Snapshot>(serializedString, new BitVectorSerializer())
+            // deserialize snapshot
+            let snapshotEntry = archive.GetEntry("snapshot.json")
+            use streamReader = new StreamReader(snapshotEntry.Open())
+            let serializedSnapshot = JsonConvert.DeserializeObject<Snapshot>(streamReader.ReadToEnd(), new BitVectorSerializer())
+
+            // read all memory chunks
+            let addressSpace =
+                serializedSnapshot.VirtualAddressSpace
+                |> Array.map(fun region ->
+                    {region with 
+                        Content = 
+                            let entryName = String.Format("mem_{0}.vmem", region.BaseAddress.ToString("X"))
+                            let memEntry = archive.GetEntry(entryName)
+                            use memStream = new MemoryStream()
+                            memEntry.Open().CopyTo(memStream)
+                            memStream.ToArray()
+                    }                    
+                )
+
+            // return result
+            {serializedSnapshot with VirtualAddressSpace = addressSpace}
 
         static member Read(filename: String) =
             let fileContent = File.ReadAllBytes(filename)
