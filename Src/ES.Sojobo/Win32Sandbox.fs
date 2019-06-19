@@ -189,16 +189,18 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
     new() = new Win32Sandbox(Win32SandboxSettings.Default)  
     
     override this.AddHook(symbol: String, callback: Action<ISandbox>) =
-        base.AddHook(symbol, callback)
+        let hook = base.AddHook(symbol, callback)
         match _stopExecution with
         | Some _ -> resolveHooks()
         | _ -> ()
+        hook
 
     override this.AddHook(address: UInt64, callback: Action<ISandbox>) =
-        base.AddHook(address, callback)
+        let hook = base.AddHook(address, callback)
         match _stopExecution with
         | Some _ -> resolveHooks()
         | _ -> ()
+        hook
 
     override this.AddLibrary(filename: String) =
         base.AddLibrary(filename)

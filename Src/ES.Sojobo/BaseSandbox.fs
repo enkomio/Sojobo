@@ -22,13 +22,24 @@ type BaseSandbox() =
     member val Emulator: IEmulator option = None with get, set
     member val internal Hooks = new List<Hook>() with get
 
-    abstract AddHook: address:UInt64 * callback:Action<ISandbox> -> unit
+    abstract AddHook: address:UInt64 * callback:Action<ISandbox> -> Hook
     default this.AddHook(address: UInt64, callback: Action<ISandbox>) =
-        this.Hooks.Add(Address(address, callback))
+        let hook = Address(address, callback)
+        this.Hooks.Add(hook)
+        hook
 
-    abstract AddHook: symbol:String * callback:Action<ISandbox> -> unit
+    abstract AddHook: symbol:String * callback:Action<ISandbox> -> Hook
     default this.AddHook(symbol: String, callback: Action<ISandbox>) =
-        this.Hooks.Add(Symbol(symbol, callback))
+        let hook = Symbol(symbol, callback)
+        this.Hooks.Add(hook)
+        hook
+
+    abstract RemoveHook: hook:Hook -> unit
+    default this.RemoveHook(hook: Hook) =
+        this.Hooks.Remove(hook) |> ignore
+
+    member this.GetHooks() =
+        this.Hooks |> Seq.toArray
 
     member this.AddLibrary(assembly: Assembly) =
         let library = new ManagedLibrary(assembly, this.Emulator.Value, this.GetRunningProcess().GetPointerSize())
@@ -85,6 +96,12 @@ type BaseSandbox() =
 
         member this.AddHook(symbol: String, callback: Action<ISandbox>) =
             this.AddHook(symbol, callback)
+
+        member this.RemoveHook(hook: Hook) =
+            this.RemoveHook(hook)
+
+        member this.GetHooks() =
+            this.GetHooks()
 
         [<CLIEvent>]
         member this.SideEffect
