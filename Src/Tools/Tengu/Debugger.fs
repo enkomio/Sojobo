@@ -2,6 +2,7 @@
 
 open System
 open System.Threading
+open System.Globalization
 open ES.Sojobo
 open B2R2
 
@@ -9,6 +10,7 @@ type internal Command =
     | Step
     | Run
     | PrintRegisters
+    | BreakPoint of UInt64
     | NoCommand
 
 type internal DebuggerState() =
@@ -58,6 +60,9 @@ type Debugger(sandbox: ISandbox) =
         if result.StartsWith("r") then Run
         elif result.StartsWith("p") then PrintRegisters
         elif result.StartsWith("s") then Step
+        elif result.StartsWith("bp") then
+            try BreakPoint (Convert.ToUInt64(result.Split().[1], 16))
+            with _ -> NoCommand
         else NoCommand
                 
     let parseCommand() =
@@ -65,7 +70,8 @@ type Debugger(sandbox: ISandbox) =
         | PrintRegisters -> printRegisters()
         | Run -> _state.Run()
         | Step -> _state.Step()
-        | _ -> ()
+        | BreakPoint address -> sandbox.AddHook(address, fun _ -> _state.Break())
+        | _ -> _state.LastCommand <- NoCommand
 
     let readBreakCommand() =        
         if _state.IsInInteractiveMode() then
