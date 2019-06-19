@@ -47,19 +47,16 @@ type ISandbox =
 
         /// Add an hook at the specified address. The callback is invoked before the 
         /// instruction at that address is emulated
-        abstract AddHook: address:UInt64 * callback:Action<ISandbox> -> unit
+        abstract AddHook: address:UInt64 * callback:Action<ISandbox> -> Hook
 
         /// Add an hook at the specified symbol. A symbol is represented by the format:
         /// <module name>!<function name>. For example to add an hook when VirtualAlloc is 
         /// invoked, use: kernel32!VirtualAlloc.
         /// The callback is invoked before the instruction at that address is emulated
-        abstract AddHook: symbol:String * callback:Action<ISandbox> -> unit
+        abstract AddHook: symbol:String * callback:Action<ISandbox> -> Hook
         
-        /// Remove an hook by referencing it by symbol name
-        abstract RemoveHook: symbol:String -> unit
-
-        /// Remove an hook at the specified memory address
-        abstract RemoveHook: address:UInt64 -> unit
+        /// Remove a previously added hook
+        abstract RemoveHook: hook:Hook -> unit
 
         /// Get an array of all placed hooks
         abstract GetHooks: unit -> Hook array
