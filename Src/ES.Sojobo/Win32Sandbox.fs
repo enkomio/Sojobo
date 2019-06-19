@@ -186,8 +186,20 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
             | Some library -> library.InvokeLibraryFunction(this)
             | _ -> emulateNextInstruction(_currentProcess.Value, programCounter)
             
-    new() = new Win32Sandbox(Win32SandboxSettings.Default)   
+    new() = new Win32Sandbox(Win32SandboxSettings.Default)  
     
+    override this.AddHook(symbol: String, callback: Action<ISandbox>) =
+        base.AddHook(symbol, callback)
+        match _stopExecution with
+        | Some _ -> resolveHooks()
+        | _ -> ()
+
+    override this.AddHook(address: UInt64, callback: Action<ISandbox>) =
+        base.AddHook(address, callback)
+        match _stopExecution with
+        | Some _ -> resolveHooks()
+        | _ -> ()
+
     override this.AddLibrary(filename: String) =
         base.AddLibrary(filename)
         match _stopExecution with
