@@ -74,6 +74,23 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
         let arrayBuffer = memWriter.ToArray()
         emulateBufferInstruction(proc, arrayBuffer)
 
+    let getOrCreateIatRegion(memoryManager: MemoryManager, symbols: BinFile.Symbol seq) =
+        memoryManager.GetMemoryMap()
+        |> Array.tryFind(fun region ->
+            region.Info.Equals("IAT_" + assembly.GetName().Name)
+        )
+        |> function
+            | Some region -> region
+            | None ->
+                let size = (symbols |> Seq.length) * pointerSizeInBytes
+                let baseAddress = memoryManager.GetFreeMemory(size)
+                let newRegion = 
+                    {createMemoryRegion(baseAddress, size, Permission.Readable) with
+                        Info = "IAT_" + assembly.GetName().Name
+                    }
+                memoryManager.AddMemoryRegion(newRegion)
+                newRegion
+
     member val EmulatedMethods = new Dictionary<String, MethodInfo>() with get
     member val Callbacks = new Dictionary<UInt64, String>() with get, set    
     
@@ -117,10 +134,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
 
     member internal this.MapSymbolWithManagedMethods(memoryManager: MemoryManager, symbols: BinFile.Symbol seq, exportedMethods: IDictionary<String, UInt64>) =
         if this.EmulatedMethods.Count > 0 && (symbols |> Seq.length) > 0 then
-            let iatRegion =
-                memoryManager.AllocateMemory((symbols |> Seq.length) * pointerSizeInBytes, Permission.Readable)
-                |> memoryManager.GetMemoryRegion
-                
+            let iatRegion = getOrCreateIatRegion(memoryManager, symbols)
             this.MapImportAddressTableMethods(memoryManager, symbols, iatRegion, exportedMethods)
             this.MapEmulatedMethods(exportedMethods)
 
