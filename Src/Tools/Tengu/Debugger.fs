@@ -2,7 +2,7 @@
 
 open System
 open System.Threading
-open System.Globalization
+open System.Collections.Generic
 open ES.Sojobo
 open B2R2
 
@@ -39,6 +39,7 @@ type internal DebuggerState() =
 type Debugger(sandbox: ISandbox) =
     let _state = new DebuggerState()
     let _waitEvent = new ManualResetEventSlim()
+    let _hooks = new Dictionary<UInt64, Hook>()
 
     let printRegisters() =
         let proc = sandbox.GetRunningProcess()
@@ -70,7 +71,7 @@ type Debugger(sandbox: ISandbox) =
         | PrintRegisters -> printRegisters()
         | Run -> _state.Run()
         | Step -> _state.Step()
-        | BreakPoint address -> sandbox.AddHook(address, fun _ -> _state.Break())
+        | BreakPoint address -> _hooks.[address] <- sandbox.AddHook(address, fun _ -> _state.Break())
         | _ -> _state.LastCommand <- NoCommand
 
     let readBreakCommand() =        
