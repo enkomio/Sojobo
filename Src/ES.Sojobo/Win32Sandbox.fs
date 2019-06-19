@@ -76,6 +76,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         |> Seq.iter(fun lib -> lib.Load(this.GetRunningProcess()))
         
     let resolveHooks() =
+        _hooks.Clear()
         this.Hooks
         |> Seq.iter(function
             | Address (addr, callback) ->
@@ -201,6 +202,10 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         | Some _ -> resolveHooks()
         | _ -> ()
         hook
+
+    override this.RemoveHook(hook: Hook) =
+        base.RemoveHook(hook)
+        resolveHooks()
 
     override this.AddLibrary(filename: String) =
         base.AddLibrary(filename)

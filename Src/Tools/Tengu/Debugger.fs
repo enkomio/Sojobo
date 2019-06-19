@@ -6,11 +6,17 @@ open System.Collections.Generic
 open ES.Sojobo
 open B2R2
 
+(*
+- Create screenshot
+- list breakpoint
+- display memory hexview (accept register or address)
+*)
 type internal Command =
     | Step
     | Run
     | PrintRegisters
     | BreakPoint of UInt64
+    | DeleteBreakPoint of UInt64
     | NoCommand
 
 type internal DebuggerState() =
@@ -48,11 +54,11 @@ type Debugger(sandbox: ISandbox) =
         ["EAX"; "EBX"; "ECX"; "EDX"; "ESI"; "EDI"]
         |> List.iter(fun register ->
             let address = proc.Cpu.GetRegister(register).Value |> BitVector.toUInt64
-            let region =
-                if proc.Memory.IsAddressMapped(address)
-                then proc.Memory.GetMemoryRegion(address).BaseAddress
-                else 0UL
-            Console.WriteLine("{0}=[{1}]:{2}", register, region, address)            
+            let info =
+                if proc.Memory.IsAddressMapped(address) && not(String.IsNullOrWhiteSpace(proc.Memory.GetMemoryRegion(address).Info))
+                then String.Format("; {0} ", proc.Memory.GetMemoryRegion(address).Info)
+                else String.Empty
+            Console.WriteLine("{0}=0x{1} {2}", register, address.ToString("X"), info)
         )
 
     let readCommand() =
@@ -64,6 +70,9 @@ type Debugger(sandbox: ISandbox) =
         elif result.StartsWith("bp") then
             try BreakPoint (Convert.ToUInt64(result.Split().[1], 16))
             with _ -> NoCommand
+        elif result.StartsWith("bc") then
+            try DeleteBreakPoint (Convert.ToUInt64(result.Split().[1], 16))
+            with _ -> NoCommand
         else NoCommand
                 
     let parseCommand() =
@@ -71,17 +80,29 @@ type Debugger(sandbox: ISandbox) =
         | PrintRegisters -> printRegisters()
         | Run -> _state.Run()
         | Step -> _state.Step()
-        | BreakPoint address -> _hooks.[address] <- sandbox.AddHook(address, fun _ -> _state.Break())
+        | BreakPoint address -> 
+            _hooks.[address] <- sandbox.AddHook(address, fun _ -> _state.Break())
+
+        | DeleteBreakPoint address -> 
+            match _hooks.TryGetValue(address) with
+            | (true, hook) -> 
+                _hooks.Remove(address) |> ignore
+                sandbox.RemoveHook(hook)
+            | _ -> ()
+
         | _ -> _state.LastCommand <- NoCommand
 
-    let readBreakCommand() =        
-        if _state.IsInInteractiveMode() then
-            // wait for debug loop to finish
-            _waitEvent.Wait()
-            _waitEvent.Reset()
-        else
-            if Console.ReadKey(true).KeyChar = 'b' 
-            then _state.Break()
+    let readBreakCommand() =  
+        while true do
+            if _state.IsInInteractiveMode() then
+                // wait for debug loop to finish
+                _waitEvent.Wait()
+                _waitEvent.Reset()
+            elif Console.KeyAvailable then
+                if Console.ReadKey(true).KeyChar = 'b' 
+                then _state.Break()
+            else
+                Thread.Sleep(100)
 
     let debuggerLoop() =    
         printRegisters()
@@ -99,4 +120,4 @@ type Debugger(sandbox: ISandbox) =
             debuggerLoop()
 
     member this.Start() = 
-        ignore (async { while true do readBreakCommand() } |> Async.StartAsTask)
+        ignore (async { readBreakCommand() } |> Async.StartAsTask)
