@@ -54,6 +54,15 @@ type ISandbox =
         /// invoked, use: kernel32!VirtualAlloc.
         /// The callback is invoked before the instruction at that address is emulated
         abstract AddHook: symbol:String * callback:Action<ISandbox> -> unit
+        
+        /// Remove an hook by referencing it by symbol name
+        abstract RemoveHook: symbol:String -> unit
+
+        /// Remove an hook at the specified memory address
+        abstract RemoveHook: address:UInt64 -> unit
+
+        /// Get an array of all placed hooks
+        abstract GetHooks: unit -> Hook array
 
         /// This event is raised each time that an operation cause a side effect,
         // like the execution of an Interrupt or of a CPUIP instruction
@@ -64,6 +73,6 @@ type ISandbox =
         abstract Emulator: IEmulator with get
     end
 
-type Hook =
+and Hook =
     | Address of address:UInt64 * callback:Action<ISandbox>
     | Symbol  of symbol:String * callback:Action<ISandbox>
