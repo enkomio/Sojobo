@@ -22,17 +22,19 @@ type BaseSandbox() =
     member val Emulator: IEmulator option = None with get, set
     member val internal Hooks = new List<Hook>() with get
 
-    member this.AddHook(address: UInt64, callback: Action<ISandbox>) =
+    abstract AddHook: address:UInt64 * callback:Action<ISandbox> -> unit
+    default this.AddHook(address: UInt64, callback: Action<ISandbox>) =
         this.Hooks.Add(Address(address, callback))
 
-    member this.AddHook(symbol: String, callback: Action<ISandbox>) =
+    abstract AddHook: symbol:String * callback:Action<ISandbox> -> unit
+    default this.AddHook(symbol: String, callback: Action<ISandbox>) =
         this.Hooks.Add(Symbol(symbol, callback))
 
     member this.AddLibrary(assembly: Assembly) =
         let library = new ManagedLibrary(assembly, this.Emulator.Value, this.GetRunningProcess().GetPointerSize())
         this.Libraries.Add(Managed library)
 
-    member this.AddLibrary(content: Byte array) =
+    member this.AddLibrary(content: Byte array) = 
         try
             // first try to load the library as an Assembly
             let assembly = Assembly.Load(content)
