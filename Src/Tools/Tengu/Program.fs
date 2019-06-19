@@ -12,6 +12,7 @@ open ES.Tengu.Cli
 
 module Program =
     let private _sandbox = new Win32Sandbox()
+    let private _debugger = new Debugger(_sandbox)
     let private _dumper = new Dumper()
     let private _metrics = new Metrics()
     let mutable private _instructionCounter = 0
@@ -26,6 +27,7 @@ module Program =
         |> info "SnapshotSaved" "Sandbox snapshot saved to: {0}"
         |> info "LoadLibrary" "Loaded library: {0}"
         |> info "SnapshotLoaded" "Loaded snapshot from: {0}"
+        |> info "EmulatedInstructions" "Number of emulated instructions: {0}"
         |> warning "SnapshotNotFound" "Snapshot file '{0}' not found, ignore loading."
         |> error "Exception" "PC: {0} - Error: {1}"
         |> build
@@ -48,6 +50,8 @@ module Program =
 
         _metrics.EmulatedInstruction(proc, _instructionCounter)
         _dumper.Step(proc.ProgramCounter.Value |> BitVector.toUInt32)
+
+        _debugger.Process()
 
     let private getFileContent(settings: Settings) =
         if settings.DecodeContent then
@@ -82,6 +86,9 @@ module Program =
         try
             _logger?Start()
             _logger?Details(settings.Filename, _sandbox.GetRunningProcess().Pid)
+
+            // run debugger
+            _debugger.Start()
 
             // run the sample till the end or exception
             _sandbox.Run()
@@ -157,12 +164,13 @@ module Program =
             _sandbox.Load(getFileContent(settings))
 
             configureLogging(LogLevel.Informational)
+            initialize(settings)
             loadSnapshot(settings)
-            initialize(settings)            
             if runSample(settings) then
                 // the emulation ended correctly
                 collectInformation()
                 saveSnapshot(settings)
+            _logger?EmulatedInstructions(_instructionCounter)
             0
         | None -> 
             1
