@@ -8,7 +8,6 @@ open B2R2
 
 (*
 - Create snapshot
-- list breakpoint
 - display memory hexview (accept register or address)
 - edit memory (accept register or address)
 - edit register
@@ -19,6 +18,7 @@ type internal Command =
     | Step
     | Run
     | PrintRegisters
+    | BreakpointList
     | BreakPoint of UInt64
     | DeleteBreakPoint of UInt64
     | NoCommand
@@ -65,12 +65,18 @@ type Debugger(sandbox: ISandbox) =
             Console.WriteLine("{0}=0x{1} {2}", register, address.ToString("X"), info)
         )
 
+    let listBreakpoints() =
+        Console.WriteLine("-=[ Breakpoints ]=-")
+        _hooks
+        |> Seq.iter(fun kv -> Console.WriteLine("0x{0}", kv.Key.ToString("X")))
+
     let readCommand() =
         Console.Write("Command> ")
-        let result = Console.ReadLine()
-        if result.StartsWith("r") then Run
-        elif result.StartsWith("p") then PrintRegisters
-        elif result.StartsWith("s") then Step
+        let result = Console.ReadLine().Trim()
+        if result.Equals("r", StringComparison.OrdinalIgnoreCase) then Run
+        elif result.Equals("p", StringComparison.OrdinalIgnoreCase) then PrintRegisters
+        elif result.Equals("s", StringComparison.OrdinalIgnoreCase) then Step
+        elif result.Equals("bl", StringComparison.OrdinalIgnoreCase) then BreakpointList
         elif result.StartsWith("bp") then
             try BreakPoint (Convert.ToUInt64(result.Split().[1], 16))
             with _ -> NoCommand
@@ -82,6 +88,7 @@ type Debugger(sandbox: ISandbox) =
     let parseCommand() =
         match _state.LastCommand with
         | PrintRegisters -> printRegisters()
+        | BreakpointList -> listBreakpoints()
         | Run -> _state.Run()
         | Step -> _state.Step()
         | BreakPoint address -> 
