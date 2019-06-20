@@ -2,8 +2,10 @@
 
 open System
 open System.Collections.Generic
+open System.IO
 open ES.Sojobo
 open ES.Sojobo.Model
+open ES.Fslog
 open B2R2
 
 type ExecutedMemory = {
@@ -11,9 +13,18 @@ type ExecutedMemory = {
     StartAddress: UInt32
 }
 
-type internal Dumper() =
+type internal Dumper(sandbox: ISandbox) =
     let _memoryRegions = new List<MemoryRegion>()
     let _unpackedRegion = new Dictionary<UInt64, ExecutedMemory>()
+
+    let _logger =
+        log "Dumper"
+        |> info "MemoryDumped" "Dynamic code dumped to: {0}"
+        |> build    
+
+    let getRegions() =
+        _unpackedRegion.Values
+        |> Seq.toArray
     
     member this.Step(pc: UInt32) =
         _memoryRegions
@@ -33,6 +44,14 @@ type internal Dumper() =
         | Allocate memRegion -> _memoryRegions.Add(memRegion)
         | Free _ -> ()
 
-    member this.GetRegions() =
-        _unpackedRegion.Values
-        |> Seq.toArray
+    member this.ConfigureLogger(logProvider: ILogProvider) =
+        logProvider.AddLogSourceToLoggers(_logger)
+
+    member this.SaveInformation() =
+        getRegions()
+        |> Array.iter(fun memRegion ->            
+            let filename = String.Format("mem_dump_{0}.bin", memRegion.StartAddress.ToString("X"))
+            let file = Path.Combine(Utility.getResultDir(sandbox.GetRunningProcess().Pid), filename)
+            File.WriteAllBytes(file, memRegion.Region.Content)
+            _logger?MemoryDumped(file)
+        )

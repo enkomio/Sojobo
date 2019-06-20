@@ -13,7 +13,7 @@ open ES.Tengu.Cli
 module Program =
     let private _sandbox = new Win32Sandbox()
     let private _debugger = new Debugger(_sandbox)
-    let private _dumper = new Dumper()
+    let private _dumper = new Dumper(_sandbox)
     let private _metrics = new Metrics()
     let mutable private _instructionCounter = 0
 
@@ -22,7 +22,6 @@ module Program =
         |> info "Start" "-=[ Start Analysis ]=-"
         |> info "Details" "File: {0} PID: {1}"
         |> info "Completed" "-=[ Analysis Completed ]=-"
-        |> info "MemoryDumped" "Dynamic code dumped to: {0}"
         |> info "SavedMetrics" "Saved metrics to: {0}"
         |> info "SnapshotSaved" "Sandbox snapshot saved to: {0}"
         |> info "LoadLibrary" "Loaded library: {0}"
@@ -37,9 +36,9 @@ module Program =
         if _instructionCounter  >= settings.NumberOfInstructionToEmulate then
             _sandbox.Stop()
 
+        // invoke services
         _metrics.EmulatedInstruction(proc, _instructionCounter)
         _dumper.Step(proc.ProgramCounter.Value |> BitVector.toUInt32)
-
         _debugger.Process()
 
     let private getFileContent(settings: Settings) =
@@ -97,16 +96,10 @@ module Program =
         let directory = Path.Combine(curDir, "Result", "PID_" + _sandbox.GetRunningProcess().Pid.ToString())
         Directory.CreateDirectory(directory) |> ignore
         directory
-
+        
     let private collectInformation() =
         // save unpacked memory
-        _dumper.GetRegions()
-        |> Array.iter(fun memRegion ->            
-            let filename = String.Format("mem_dump_{0}.bin", memRegion.StartAddress.ToString("X"))
-            let file = Path.Combine(getResultDir(), filename)
-            File.WriteAllBytes(file, memRegion.Region.Content)
-            _logger?MemoryDumped(file)
-        )
+        _dumper.SaveInformation()
 
         // save metricts
         let sb = new StringBuilder()
@@ -132,6 +125,9 @@ module Program =
         logProvider.AddLogger(new ConsoleLogger(logLevel))
         logProvider.AddLogger(new FileLogger(logLevel, Path.Combine(getResultDir(), "output.log")))
         logProvider.AddLogSourceToLoggers(_logger)
+
+        // service loggers
+        _dumper.ConfigureLogger(logProvider)
 
     let private saveSnapshot(settings: Settings) =
         if settings.SaveSnapshotOnExit then
