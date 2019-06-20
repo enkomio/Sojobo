@@ -14,7 +14,7 @@ module Program =
     let private _sandbox = new Win32Sandbox()
     let private _debugger = new Debugger(_sandbox)
     let private _dumper = new Dumper(_sandbox)
-    let private _metrics = new Metrics()
+    let private _metrics = new Metrics(_sandbox)
     let mutable private _instructionCounter = 0
 
     let private _logger =
@@ -22,7 +22,6 @@ module Program =
         |> info "Start" "-=[ Start Analysis ]=-"
         |> info "Details" "File: {0} PID: {1}"
         |> info "Completed" "-=[ Analysis Completed ]=-"
-        |> info "SavedMetrics" "Saved metrics to: {0}"
         |> info "SnapshotSaved" "Sandbox snapshot saved to: {0}"
         |> info "LoadLibrary" "Loaded library: {0}"
         |> info "SnapshotLoaded" "Loaded snapshot from: {0}"
@@ -90,44 +89,17 @@ module Program =
             // Exception due to some limitation in this emulator
             _logger?Exception(_sandbox.GetRunningProcess().ProgramCounter.Value, e)
             false        
-
-    let private getResultDir() =
-        let curDir = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location)
-        let directory = Path.Combine(curDir, "Result", "PID_" + _sandbox.GetRunningProcess().Pid.ToString())
-        Directory.CreateDirectory(directory) |> ignore
-        directory
-        
-    let private collectInformation() =
-        // save unpacked memory
-        _dumper.SaveInformation()
-
-        // save metricts
-        let sb = new StringBuilder()
-        sb.AppendLine("Instruction counter, Stack frame counter, Operation type, Function Address") |> ignore
-        _metrics.GetMetrics()
-        |> Array.iter(fun metric -> 
-            sb
-                .AppendFormat("{0}, {1}, {2}, {3}", 
-                    metric.InstructionCounter, 
-                    metric.StackFrameCounter,
-                    metric.OperationType,
-                    metric.FunctionAddress
-                )
-                .AppendLine() 
-            |> ignore
-        )
-        let file = Path.Combine(getResultDir(), "metrics_stack_frame.txt")
-        File.WriteAllText(file, sb.ToString())
-        _logger?SavedMetrics(file)
-
+                    
     let private configureLogging(logLevel: LogLevel) =
         let logProvider = new LogProvider()
         logProvider.AddLogger(new ConsoleLogger(logLevel))
-        logProvider.AddLogger(new FileLogger(logLevel, Path.Combine(getResultDir(), "output.log")))
+        let logFile = Path.Combine(Utility.getResultDir(_sandbox.GetRunningProcess().Pid), "output.log")
+        logProvider.AddLogger(new FileLogger(logLevel, logFile))
         logProvider.AddLogSourceToLoggers(_logger)
 
         // service loggers
         _dumper.ConfigureLogger(logProvider)
+        _metrics.ConfigureLogger(logProvider)
 
     let private saveSnapshot(settings: Settings) =
         if settings.SaveSnapshotOnExit then
@@ -157,7 +129,8 @@ module Program =
             loadSnapshot(settings)
             if runSample(settings) then
                 // the emulation ended correctly
-                collectInformation()
+                _dumper.SaveInformation()
+                _metrics.SaveInformation()
                 saveSnapshot(settings)
             _logger?EmulatedInstructions(_instructionCounter)
             0
