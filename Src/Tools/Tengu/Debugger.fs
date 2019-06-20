@@ -11,16 +11,16 @@ open B2R2
 - display memory hexview (accept register or address)
 - edit memory (accept register or address)
 - edit register
-- hide/show disassembly
-- hide/show IR
+- disassemble (accept register or address)
 *)
 type internal Command =
-    | Step
+    | Trace
     | Go
     | PrintRegisters
     | BreakpointList
     | HideDisassembly
     | ShowDisassembly
+    | ShowMemory of String
     | HideIr
     | ShowIr
     | BreakPoint of UInt64
@@ -29,23 +29,23 @@ type internal Command =
 
 type internal DebuggerState() =
     member val ProcessingCommands = false with get, set
-    member val SteppingMode = false with get, set
+    member val TracingMode = false with get, set
     member val LastCommand = NoCommand with get, set
 
     member this.IsInInteractiveMode() =
-        this.ProcessingCommands || this.SteppingMode
+        this.ProcessingCommands || this.TracingMode
 
     member this.EnterDebuggerLoop() =
-        this.SteppingMode <- false
+        this.TracingMode <- false
         this.ProcessingCommands <- true
         
     member this.Go() =
         this.ProcessingCommands <- false
-        this.SteppingMode <- false
+        this.TracingMode <- false
 
-    member this.Step() =
+    member this.Trace() =
         this.ProcessingCommands <- false
-        this.SteppingMode <- true
+        this.TracingMode <- true
 
     member this.Break() =
         this.ProcessingCommands <- true
@@ -74,13 +74,32 @@ type Debugger(sandbox: ISandbox) as this =
         _hooks
         |> Seq.iter(fun kv -> Console.WriteLine("0x{0}", kv.Key.ToString("X")))
 
+    let printHexView(startAddress: UInt64, buffer: Byte array) =
+        Console.WriteLine("-=[ Memory ]=-")
+        buffer
+        |> Array.chunkBySize 16
+        |> Array.iteri(fun index chunk -> 
+            let address = startAddress + uint64 (index * chunk.Length)
+            let asciiString =
+                chunk
+                |> Array.map(fun b -> if b > 31uy && b < 127uy then char b else '.')
+                |> fun chars -> new String(chars)
+            Console.WriteLine("0x{0}  {1,-50}{2}", address, BitConverter.ToString(chunk).Replace('-', ' '), asciiString)
+        )
+
+    let parseTarget(target: String) =
+        let proc = sandbox.GetRunningProcess()
+        try Convert.ToUInt64(target, 16)            
+        with _ -> proc.Cpu.GetRegister(target).Value |> BitVector.toUInt64
+
     let readCommand() =
         Console.Write("Command> ")
         let result = Console.ReadLine().Trim()
         if result.Equals("g", StringComparison.OrdinalIgnoreCase) then Go
         elif result.Equals("p", StringComparison.OrdinalIgnoreCase) then PrintRegisters
-        elif result.Equals("s", StringComparison.OrdinalIgnoreCase) then Step
+        elif result.Equals("t", StringComparison.OrdinalIgnoreCase) then Trace
         elif result.Equals("bl", StringComparison.OrdinalIgnoreCase) then BreakpointList
+        elif result.StartsWith("x") then ShowMemory result
         elif result.StartsWith("hide") then
             let target = result.Split().[1].Trim()
             if target.Equals("disassembly", StringComparison.OrdinalIgnoreCase) then HideDisassembly
@@ -96,7 +115,7 @@ type Debugger(sandbox: ISandbox) as this =
             with _ -> NoCommand
         elif result.StartsWith("bc") then
             try DeleteBreakPoint (Convert.ToUInt64(result.Split().[1], 16))
-            with _ -> NoCommand
+            with _ -> NoCommand        
         else NoCommand
                 
     let parseCommand() =
@@ -104,21 +123,26 @@ type Debugger(sandbox: ISandbox) as this =
         | PrintRegisters -> printRegisters()
         | BreakpointList -> listBreakpoints()
         | Go -> _state.Go()
-        | Step -> _state.Step()
+        | Trace -> _state.Trace()
         | HideDisassembly -> this.PrintDisassembly <- false
         | HideIr -> this.PrintIR <- false
         | ShowDisassembly -> this.PrintDisassembly <- true
         | ShowIr -> this.PrintIR <- true
         | BreakPoint address -> 
             _hooks.[address] <- sandbox.AddHook(address, fun _ -> _state.Break())
-
         | DeleteBreakPoint address -> 
             match _hooks.TryGetValue(address) with
             | (true, hook) -> 
                 _hooks.Remove(address) |> ignore
                 sandbox.RemoveHook(hook)
             | _ -> ()
-
+        | ShowMemory command ->
+            let items = command.Split()
+            if items.Length >= 2 then
+                let address = parseTarget(items.[1])
+                let length = if items.Length < 3 then (8 * 5) else Int32.Parse(items.[2])
+                let buffer = sandbox.GetRunningProcess().Memory.ReadMemory(address, length)
+                printHexView(address, buffer)
         | _ -> _state.LastCommand <- NoCommand
 
     let readBreakCommand() =  
