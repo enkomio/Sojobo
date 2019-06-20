@@ -16,7 +16,7 @@ open B2R2
 *)
 type internal Command =
     | Step
-    | Run
+    | Go
     | PrintRegisters
     | BreakpointList
     | HideDisassembly
@@ -39,7 +39,7 @@ type internal DebuggerState() =
         this.SteppingMode <- false
         this.ProcessingCommands <- true
         
-    member this.Run() =
+    member this.Go() =
         this.ProcessingCommands <- false
         this.SteppingMode <- false
 
@@ -59,7 +59,7 @@ type Debugger(sandbox: ISandbox) as this =
         let proc = sandbox.GetRunningProcess()
         Console.WriteLine()
         Console.WriteLine("-=[ Registers ]=-")
-        ["EAX"; "EBX"; "ECX"; "EDX"; "ESI"; "EDI"]
+        ["EAX"; "EBX"; "ECX"; "EDX"; "ESI"; "EDI"; "EIP"]
         |> List.iter(fun register ->
             let address = proc.Cpu.GetRegister(register).Value |> BitVector.toUInt64
             let info =
@@ -77,7 +77,7 @@ type Debugger(sandbox: ISandbox) as this =
     let readCommand() =
         Console.Write("Command> ")
         let result = Console.ReadLine().Trim()
-        if result.Equals("r", StringComparison.OrdinalIgnoreCase) then Run
+        if result.Equals("g", StringComparison.OrdinalIgnoreCase) then Go
         elif result.Equals("p", StringComparison.OrdinalIgnoreCase) then PrintRegisters
         elif result.Equals("s", StringComparison.OrdinalIgnoreCase) then Step
         elif result.Equals("bl", StringComparison.OrdinalIgnoreCase) then BreakpointList
@@ -103,7 +103,7 @@ type Debugger(sandbox: ISandbox) as this =
         match _state.LastCommand with
         | PrintRegisters -> printRegisters()
         | BreakpointList -> listBreakpoints()
-        | Run -> _state.Run()
+        | Go -> _state.Go()
         | Step -> _state.Step()
         | HideDisassembly -> this.PrintDisassembly <- false
         | HideIr -> this.PrintIR <- false
