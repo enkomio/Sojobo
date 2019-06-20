@@ -57,8 +57,6 @@ type Debugger(sandbox: ISandbox) as this =
 
     let printRegisters() =
         let proc = sandbox.GetRunningProcess()
-        Console.WriteLine()
-        Console.WriteLine("-=[ Registers ]=-")
         ["EAX"; "EBX"; "ECX"; "EDX"; "ESI"; "EDI"; "EIP"; "ESP"; "EBP"]
         |> List.iter(fun register ->
             let address = proc.Cpu.GetRegister(register).Value |> BitVector.toUInt64
@@ -75,7 +73,6 @@ type Debugger(sandbox: ISandbox) as this =
         |> Seq.iter(fun kv -> Console.WriteLine("0x{0}", kv.Key.ToString("X")))
 
     let printHexView(startAddress: UInt64, buffer: Byte array) =
-        Console.WriteLine("-=[ Memory ]=-")
         buffer
         |> Array.chunkBySize 16
         |> Array.iteri(fun index chunk -> 
@@ -96,7 +93,7 @@ type Debugger(sandbox: ISandbox) as this =
         Console.Write("Command> ")
         let result = Console.ReadLine().Trim()
         if result.Equals("g", StringComparison.OrdinalIgnoreCase) then Go
-        elif result.Equals("p", StringComparison.OrdinalIgnoreCase) then PrintRegisters
+        elif result.Equals("r", StringComparison.OrdinalIgnoreCase) then PrintRegisters
         elif result.Equals("t", StringComparison.OrdinalIgnoreCase) then Trace
         elif result.Equals("bl", StringComparison.OrdinalIgnoreCase) then BreakpointList
         elif result.StartsWith("db") then ShowMemory result
