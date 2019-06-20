@@ -19,6 +19,10 @@ type internal Command =
     | Run
     | PrintRegisters
     | BreakpointList
+    | HideDisassembly
+    | ShowDisassembly
+    | HideIr
+    | ShowIr
     | BreakPoint of UInt64
     | DeleteBreakPoint of UInt64
     | NoCommand
@@ -46,7 +50,7 @@ type internal DebuggerState() =
     member this.Break() =
         this.ProcessingCommands <- true
 
-type Debugger(sandbox: ISandbox) =
+type Debugger(sandbox: ISandbox) as this =
     let _state = new DebuggerState()
     let _waitEvent = new ManualResetEventSlim()
     let _hooks = new Dictionary<UInt64, Hook>()
@@ -77,6 +81,16 @@ type Debugger(sandbox: ISandbox) =
         elif result.Equals("p", StringComparison.OrdinalIgnoreCase) then PrintRegisters
         elif result.Equals("s", StringComparison.OrdinalIgnoreCase) then Step
         elif result.Equals("bl", StringComparison.OrdinalIgnoreCase) then BreakpointList
+        elif result.StartsWith("hide") then
+            let target = result.Split().[1].Trim()
+            if target.Equals("disassembly", StringComparison.OrdinalIgnoreCase) then HideDisassembly
+            elif target.Equals("ir", StringComparison.OrdinalIgnoreCase) then HideIr
+            else NoCommand
+        elif result.StartsWith("show") then
+            let target = result.Split().[1].Trim()
+            if target.Equals("disassembly", StringComparison.OrdinalIgnoreCase) then ShowDisassembly
+            elif target.Equals("ir", StringComparison.OrdinalIgnoreCase) then ShowIr
+            else NoCommand
         elif result.StartsWith("bp") then
             try BreakPoint (Convert.ToUInt64(result.Split().[1], 16))
             with _ -> NoCommand
@@ -91,6 +105,10 @@ type Debugger(sandbox: ISandbox) =
         | BreakpointList -> listBreakpoints()
         | Run -> _state.Run()
         | Step -> _state.Step()
+        | HideDisassembly -> this.PrintDisassembly <- false
+        | HideIr -> this.PrintIR <- false
+        | ShowDisassembly -> this.PrintDisassembly <- true
+        | ShowIr -> this.PrintIR <- true
         | BreakPoint address -> 
             _hooks.[address] <- sandbox.AddHook(address, fun _ -> _state.Break())
 
