@@ -59,7 +59,7 @@ type Debugger(sandbox: ISandbox) as this =
         let proc = sandbox.GetRunningProcess()
         Console.WriteLine()
         Console.WriteLine("-=[ Registers ]=-")
-        ["EAX"; "EBX"; "ECX"; "EDX"; "ESI"; "EDI"; "EIP"]
+        ["EAX"; "EBX"; "ECX"; "EDX"; "ESI"; "EDI"; "EIP"; "ESP"; "EBP"]
         |> List.iter(fun register ->
             let address = proc.Cpu.GetRegister(register).Value |> BitVector.toUInt64
             let info =
@@ -99,7 +99,7 @@ type Debugger(sandbox: ISandbox) as this =
         elif result.Equals("p", StringComparison.OrdinalIgnoreCase) then PrintRegisters
         elif result.Equals("t", StringComparison.OrdinalIgnoreCase) then Trace
         elif result.Equals("bl", StringComparison.OrdinalIgnoreCase) then BreakpointList
-        elif result.StartsWith("x") then ShowMemory result
+        elif result.StartsWith("db") then ShowMemory result
         elif result.StartsWith("hide") then
             let target = result.Split().[1].Trim()
             if target.Equals("disassembly", StringComparison.OrdinalIgnoreCase) then HideDisassembly
