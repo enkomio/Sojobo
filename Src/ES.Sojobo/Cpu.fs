@@ -44,56 +44,57 @@ type Cpu() =
             createVariableWithValue(string Register.AF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
             createVariableWithValue(string Register.PF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
             createVariableWithValue(string Register.CF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
-        ] |> List.iter(fun register -> _variables.[register.Name] <- register)
+        ] |> List.iter(fun register -> _variables.[register.Name.ToUpperInvariant()] <- register)
 
     member internal this.GetTemporaryVariable(name: String) =
-        _tempVariables.[name]
+        _tempVariables.[name.ToUpperInvariant()]
 
     member internal this.GetVariable(name: String) =
-        _variables.[name]
+        _variables.[name.ToUpperInvariant()]
 
     member internal this.GetOrCreateTemporaryVariable(index: String, emuType: EmulatedType) =
         let name = Helpers.getTempName(index, emuType)
-        match _tempVariables.TryGetValue(name) with
+        match _tempVariables.TryGetValue(name.ToUpperInvariant()) with
         | (true, value) -> value
         | _ -> 
             let variable = {createVariable(name, emuType) with IsTemp = true}
-            _tempVariables.[name] <- variable
+            _tempVariables.[name.ToUpperInvariant()] <- variable
             variable    
 
     member internal this.GetVariable(name: String, emuType: EmulatedType) =        
-        match _variables.TryGetValue(name) with
+        match _variables.TryGetValue(name.ToUpperInvariant()) with
         | (true, value) -> value
         | _ ->
             let name = Helpers.getTempName(name, emuType)
-            _tempVariables.[name]
+            _tempVariables.[name.ToUpperInvariant()]
 
     member internal this.ClearTemporaryVariables() =
         _tempVariables.Clear()
 
     member internal this.AddTemporaryVariable(name: string, value: EmulatedValue) =
-        _tempVariables.[name] <- value
+        _tempVariables.[name.ToUpperInvariant()] <- value
 
     member internal this.TryGetTemporaryVariable(name: String) =
-        match _tempVariables.TryGetValue(name) with
+        match _tempVariables.TryGetValue(name.ToUpperInvariant()) with
         | (true, value) -> Some value
         | _ -> None
 
     member internal this.TryGetVariable(name: String) =
-        match _variables.TryGetValue(name) with
+        match _variables.TryGetValue(name.ToUpperInvariant()) with
         | (true, value) -> Some value
         | _ -> None
 
     member internal this.SetVariable(register: EmulatedValue) =
-        _variables.[register.Name] <- register
+        _variables.[register.Name.ToUpperInvariant()] <- register
 
     member internal this.GetAllVariables() =
         new Dictionary<String, EmulatedValue>(_variables)
 
     member this.GetRegister(name: String) =
-        _variables.[name]
+        _variables.[name.ToUpperInvariant()]
 
     member this.SetRegister(value: EmulatedValue) =
+        let name = value.Name.ToUpperInvariant()
         if value.IsTemp
-        then _tempVariables.[value.Name] <- value
-        else _variables.[value.Name] <- value
+        then _tempVariables.[name] <- value
+        else _variables.[name] <- value
