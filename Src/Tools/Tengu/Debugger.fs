@@ -7,9 +7,13 @@ open ES.Sojobo
 open B2R2
 
 (*
-- Create screenshot
+- Create snapshot
 - list breakpoint
 - display memory hexview (accept register or address)
+- edit memory (accept register or address)
+- edit register
+- hide/show disassembly
+- hide/show IR
 *)
 type internal Command =
     | Step
@@ -114,10 +118,25 @@ type Debugger(sandbox: ISandbox) =
             parseCommand()
         _waitEvent.Set()
 
+    let writeDisassembly(proc: IProcessContainer) =
+        let text = ES.Sojobo.Utility.formatCurrentInstruction(proc)
+        Console.WriteLine(text)
+
+    let writeIR(proc: IProcessContainer) =
+        ES.Sojobo.Utility.formatCurrentInstructionIR(proc)
+        |> Array.iter(Console.WriteLine)
+
+    member val PrintDisassembly = false with get, set
+    member val PrintIR = false with get, set
+
     member this.Process() =
         if _state.IsInInteractiveMode() then
             _state.EnterDebuggerLoop()
             debuggerLoop()
+
+        let proc = sandbox.GetRunningProcess()
+        if this.PrintDisassembly then writeDisassembly(proc)
+        if this.PrintIR then writeIR(proc)
 
     member this.Start() = 
         ignore (async { readBreakCommand() } |> Async.StartAsTask)

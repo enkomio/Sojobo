@@ -30,23 +30,12 @@ module Program =
         |> info "EmulatedInstructions" "Number of emulated instructions: {0}"
         |> warning "SnapshotNotFound" "Snapshot file '{0}' not found, ignore loading."
         |> error "Exception" "PC: {0} - Error: {1}"
-        |> build
-
-    let private writeDisassembly(proc: IProcessContainer) =
-        let text = ES.Sojobo.Utility.formatCurrentInstruction(proc)
-        Console.WriteLine(text)
-
-    let private writeIR(proc: IProcessContainer) =
-        ES.Sojobo.Utility.formatCurrentInstructionIR(proc)
-        |> Array.iter(Console.WriteLine)
+        |> build    
 
     let private stepHandler(settings: Settings) (proc: IProcessContainer) =
         _instructionCounter <- _instructionCounter + 1
         if _instructionCounter  >= settings.NumberOfInstructionToEmulate then
             _sandbox.Stop()
-
-        if settings.PrintDisassembly then writeDisassembly(proc)
-        if settings.PrintIR then writeIR(proc)
 
         _metrics.EmulatedInstruction(proc, _instructionCounter)
         _dumper.Step(proc.ProgramCounter.Value |> BitVector.toUInt32)
@@ -81,6 +70,10 @@ module Program =
             _logger?LoadLibrary(lib)
             _sandbox.AddLibrary(lib)
         )
+
+        // configure debugger
+        _debugger.PrintDisassembly <- settings.PrintDisassembly
+        _debugger.PrintIR <- settings.PrintIR
 
     let private runSample(settings: Settings) =
         try
