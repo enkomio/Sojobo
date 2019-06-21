@@ -5,12 +5,13 @@ open System.Threading
 open System.Collections.Generic
 open ES.Sojobo
 open B2R2
+open ES.Sojobo
+open ES.Sojobo
+open ES.Sojobo
 
 (*
 - Create snapshot
-- display memory hexview (accept register or address)
 - edit memory (accept register or address)
-- edit register
 - disassemble (accept register or address)
 *)
 type internal Command =
@@ -25,6 +26,7 @@ type internal Command =
     | ShowIr
     | BreakPoint of UInt64
     | DeleteBreakPoint of UInt64
+    | SetRegister of String * UInt64
     | NoCommand
 
 type internal DebuggerState() =
@@ -57,7 +59,7 @@ type Debugger(sandbox: ISandbox) as this =
 
     let printRegisters() =
         let proc = sandbox.GetRunningProcess()
-        ["EAX"; "EBX"; "ECX"; "EDX"; "ESI"; "EDI"; "EIP"; "ESP"; "EBP"]
+        ["EAX"; "EBX"; "ECX"; "EDX"; "ESI"; "EDI"; "ESP"; "EBP"; "EIP"]
         |> List.iter(fun register ->
             let address = proc.Cpu.GetRegister(register).Value |> BitVector.toUInt64
             let info =
@@ -96,7 +98,7 @@ type Debugger(sandbox: ISandbox) as this =
         elif result.Equals("r", StringComparison.OrdinalIgnoreCase) then PrintRegisters
         elif result.Equals("t", StringComparison.OrdinalIgnoreCase) then Trace
         elif result.Equals("bl", StringComparison.OrdinalIgnoreCase) then BreakpointList
-        elif result.StartsWith("db") then ShowMemory result
+        elif result.StartsWith("db") then ShowMemory result        
         elif result.StartsWith("hide") then
             let target = result.Split().[1].Trim()
             if target.Equals("disassembly", StringComparison.OrdinalIgnoreCase) then HideDisassembly
@@ -112,6 +114,11 @@ type Debugger(sandbox: ISandbox) as this =
             with _ -> NoCommand
         elif result.StartsWith("bc") then
             try DeleteBreakPoint (Convert.ToUInt64(result.Split().[1], 16))
+            with _ -> NoCommand        
+        elif result.StartsWith("set") then 
+            try
+                let items = result.Split()
+                SetRegister (items.[1].Trim(), Convert.ToUInt64(items.[2], 16))
             with _ -> NoCommand        
         else NoCommand
                 
@@ -140,6 +147,15 @@ type Debugger(sandbox: ISandbox) as this =
                 let length = if items.Length < 3 then (8 * 5) else Int32.Parse(items.[2])
                 let buffer = sandbox.GetRunningProcess().Memory.ReadMemory(address, length)
                 printHexView(address, buffer)
+        | SetRegister (registerName, value) ->
+            try
+                let proc = sandbox.GetRunningProcess()
+                let register = proc.Cpu.GetRegister(registerName)
+                let bvValue =
+                    if proc.GetPointerSize() = 32 then Model.createUInt32(uint32 value)
+                    else Model.createUInt64(value)                
+                proc.Cpu.SetRegister({register with Value = bvValue.Value})
+            with _ -> ()            
         | _ -> _state.LastCommand <- NoCommand
 
     let readBreakCommand() =  
