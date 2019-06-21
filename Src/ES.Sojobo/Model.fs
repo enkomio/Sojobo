@@ -54,7 +54,7 @@ module Model =
         Type: String
         Info: String
     }
-    
+        
     type Snapshot = {
         Date: DateTime
         HeapRegionId: Guid

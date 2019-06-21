@@ -64,7 +64,7 @@ type SnapshotManager(sandbox: BaseSandbox) =
                                 Library = symbol.LibraryName
                                 Address = symbol.Address
                         }))
-                    BaseAddress = lib.BaseAddress
+                    BaseAddress = lib.BaseAddress                    
                 })
         }
 
