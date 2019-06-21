@@ -179,6 +179,9 @@ module Model =
 
     let createUInt32(value: UInt32) =
         createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofUInt32 value 32<rt>)
+
+    let createUInt64(value: UInt64) =
+        createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofUInt64 value 64<rt>)
         
     let internal createMemoryRegion(baseAddr: UInt64, size: Int32, permission: Permission) = 
         let content = Array.zeroCreate<Byte>(size)
