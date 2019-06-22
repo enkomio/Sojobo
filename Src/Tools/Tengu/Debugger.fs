@@ -9,8 +9,8 @@ open B2R2
 
 (*
 - Create snapshot
-- edit memory (accept register or address)
 - disassemble (accept register or address)
+- show help
 *)
 type internal Command =
     | Trace
@@ -119,10 +119,17 @@ type Debugger(sandbox: ISandbox) as this =
                 let items = result.Split()
                 SetRegister (items.[1].Trim(), Convert.ToUInt64(items.[2], 16))
             with _ -> NoCommand   
-        elif result.StartsWith("eb") then 
+        elif result.StartsWith("e") && ['b'; 'w'; 'd'; 'q'] |> List.contains(result.[1]) then 
             try
                 let items = result.Split()
-                WriteMemory (parseTarget(items.[1]), 8, items.[2].Trim())
+                let size =
+                    match result.[1] with
+                    | 'b' -> 8
+                    | 'w' -> 16
+                    | 'd' -> 32
+                    | 'q' -> 64
+                    | _ -> 0
+                WriteMemory (parseTarget(items.[1]), size, items.[2].Trim())
             with _ -> NoCommand  
         else NoCommand
                 
