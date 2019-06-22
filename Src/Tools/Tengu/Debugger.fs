@@ -3,11 +3,9 @@
 open System
 open System.Threading
 open System.Collections.Generic
+open System.Text.RegularExpressions
 open ES.Sojobo
 open B2R2
-open ES.Sojobo
-open ES.Sojobo
-open ES.Sojobo
 
 (*
 - Create snapshot
@@ -24,9 +22,10 @@ type internal Command =
     | ShowMemory of String
     | HideIr
     | ShowIr
-    | BreakPoint of UInt64
-    | DeleteBreakPoint of UInt64
-    | SetRegister of String * UInt64
+    | BreakPoint of address:UInt64
+    | DeleteBreakPoint of address:UInt64
+    | SetRegister of name:String * value:UInt64
+    | WriteMemory of address:UInt64 * size:Int32 * value:String
     | NoCommand
 
 type internal DebuggerState() =
@@ -110,7 +109,7 @@ type Debugger(sandbox: ISandbox) as this =
             elif target.Equals("ir", StringComparison.OrdinalIgnoreCase) then ShowIr
             else NoCommand
         elif result.StartsWith("bp") then
-            try BreakPoint (Convert.ToUInt64(result.Split().[1], 16))
+            try BreakPoint (parseTarget(result.Split().[1]))
             with _ -> NoCommand
         elif result.StartsWith("bc") then
             try DeleteBreakPoint (Convert.ToUInt64(result.Split().[1], 16))
@@ -119,7 +118,12 @@ type Debugger(sandbox: ISandbox) as this =
             try
                 let items = result.Split()
                 SetRegister (items.[1].Trim(), Convert.ToUInt64(items.[2], 16))
-            with _ -> NoCommand        
+            with _ -> NoCommand   
+        elif result.StartsWith("eb") then 
+            try
+                let items = result.Split()
+                WriteMemory (parseTarget(items.[1]), 8, items.[2].Trim())
+            with _ -> NoCommand  
         else NoCommand
                 
     let parseCommand() =
@@ -156,6 +160,19 @@ type Debugger(sandbox: ISandbox) as this =
                     else Model.createUInt64(value)                
                 proc.Cpu.SetRegister({register with Value = bvValue.Value})
             with _ -> ()            
+        | WriteMemory (address, size, rawValue) ->
+            let mem = sandbox.GetRunningProcess().Memory
+            if size = 8 && Regex.IsMatch(rawValue, "[a-fA-F0-9][a-fA-F0-9](\\b[a-fA-F0-9][a-fA-F0-9])*") then
+                // if it in the format: 01 02 03 04 05 06
+                rawValue.Split() |> Array.map(fun hex -> Convert.ToByte(hex, 16))                
+            elif size = 16 then
+                BitConverter.GetBytes(Convert.ToUInt16(rawValue, 16))
+            elif size = 32 then
+                BitConverter.GetBytes(Convert.ToUInt32(rawValue, 16))
+            elif size = 64 then
+                BitConverter.GetBytes(Convert.ToUInt64(rawValue, 16))
+            else Array.empty<Byte>
+            |> fun value -> mem.WriteMemory(address, value)
         | _ -> _state.LastCommand <- NoCommand
 
     let readBreakCommand() =  
