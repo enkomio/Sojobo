@@ -177,6 +177,12 @@ module Model =
     let createInt32(value: Int32) =
         createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofInt32 value 32<rt>)
 
+    let createByte(value: Byte) =
+        createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofArr [|value|])
+
+    let createUInt16(value: UInt16) =
+        createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofArr(BitConverter.GetBytes(value)))
+
     let createUInt32(value: UInt32) =
         createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofUInt32 value 32<rt>)
 
