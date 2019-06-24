@@ -6,11 +6,11 @@ open System.Collections.Generic
 open System.Text.RegularExpressions
 open ES.Sojobo
 open B2R2
+open ES.Sojobo.Model
 
 (*
 - Create snapshot
 - disassemble (accept register or address)
-- show help
 *)
 type internal Command =
     | Trace
@@ -26,6 +26,7 @@ type internal Command =
     | DeleteBreakPoint of address:UInt64
     | SetRegister of name:String * value:UInt64
     | WriteMemory of address:UInt64 * size:Int32 * value:String
+    | ShowHelp
     | NoCommand
 
 type internal DebuggerState() =
@@ -73,6 +74,27 @@ type Debugger(sandbox: ISandbox) as this =
         _hooks
         |> Seq.iter(fun kv -> Console.WriteLine("0x{0}", kv.Key.ToString("X")))
 
+    let printHelp() =
+        Console.WriteLine("Tengu debugger commands:")
+        @"
+            g                                   continue execution
+            r                                   print register values
+            bl                                  list all breakpoints
+            db <address>/<register> <size>      disaplay hex view
+            hide <disassembly/ir>               hide the disassembly or IR during emulation
+            show <disassembly/ir>               show the disassembly or IR during emulation
+            bp <address>/<register>             set a breakpoint
+            bc <address>                        clear a previously setted breakpoint
+            set <register> <value>              set the value of a register
+            eb <address> <value>                write memory, value in hex form, like: 01 02 03
+            ew <address> <value>                write memory at address with word value
+            ed <address> <value>                write memory at address with double word value
+            eq <address> <value>                write memory at address with quad word value
+            h/?                                 show this help
+        ".Split([|Environment.NewLine|], StringSplitOptions.RemoveEmptyEntries)
+        |> Array.map(fun line -> line.Trim())
+        |> Array.iter(fun line -> Console.WriteLine("\t{0}", line))        
+
     let printHexView(startAddress: UInt64, buffer: Byte array) =
         buffer
         |> Array.chunkBySize 16
@@ -97,6 +119,7 @@ type Debugger(sandbox: ISandbox) as this =
         elif result.Equals("r", StringComparison.OrdinalIgnoreCase) then PrintRegisters
         elif result.Equals("t", StringComparison.OrdinalIgnoreCase) then Trace
         elif result.Equals("bl", StringComparison.OrdinalIgnoreCase) then BreakpointList
+        elif result.StartsWith("h") || result.Equals("?", StringComparison.OrdinalIgnoreCase) then ShowHelp
         elif result.StartsWith("db") then ShowMemory result        
         elif result.StartsWith("hide") then
             let target = result.Split().[1].Trim()
@@ -137,6 +160,7 @@ type Debugger(sandbox: ISandbox) as this =
         match _state.LastCommand with
         | PrintRegisters -> printRegisters()
         | BreakpointList -> listBreakpoints()
+        | ShowHelp -> printHelp()
         | Go -> _state.Go()
         | Trace -> _state.Trace()
         | HideDisassembly -> this.PrintDisassembly <- false
@@ -163,8 +187,12 @@ type Debugger(sandbox: ISandbox) as this =
                 let proc = sandbox.GetRunningProcess()
                 let register = proc.Cpu.GetRegister(registerName)
                 let bvValue =
-                    if proc.GetPointerSize() = 32 then Model.createUInt32(uint32 value)
-                    else Model.createUInt64(value)                
+                    match register.Type with
+                    | EmulatedType.Byte -> Model.createByte(byte value)
+                    | EmulatedType.Word -> Model.createUInt16(uint16 value)
+                    | EmulatedType.DoubleWord -> Model.createUInt32(uint32 value)
+                    | EmulatedType.QuadWord -> Model.createUInt64(value)
+                    | _ -> failwith "invalid Size"
                 proc.Cpu.SetRegister({register with Value = bvValue.Value})
             with _ -> ()            
         | WriteMemory (address, size, rawValue) ->
