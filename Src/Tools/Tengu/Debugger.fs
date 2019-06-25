@@ -10,10 +10,12 @@ open ES.Sojobo.Model
 
 (*
 - Create snapshot
+- step command
 - disassemble (accept register or address)
 *)
 type internal Command =
     | Trace
+    | Step
     | Go
     | PrintRegisters
     | BreakpointList
@@ -49,6 +51,10 @@ type internal DebuggerState() =
         this.ProcessingCommands <- false
         this.TracingMode <- true
 
+    member this.Step() =
+        // TODO
+        ()
+
     member this.Break() =
         this.ProcessingCommands <- true
 
@@ -79,6 +85,8 @@ type Debugger(sandbox: ISandbox) as this =
         @"
             g                                   continue execution
             r                                   print register values
+            t                                   execution trace
+            p                                   execution step
             bl                                  list all breakpoints
             db <address>/<register> <size>      disaplay hex view
             hide <disassembly/ir>               hide the disassembly or IR during emulation
@@ -118,6 +126,7 @@ type Debugger(sandbox: ISandbox) as this =
         if result.Equals("g", StringComparison.OrdinalIgnoreCase) then Go
         elif result.Equals("r", StringComparison.OrdinalIgnoreCase) then PrintRegisters
         elif result.Equals("t", StringComparison.OrdinalIgnoreCase) then Trace
+        elif result.Equals("p", StringComparison.OrdinalIgnoreCase) then Step
         elif result.Equals("bl", StringComparison.OrdinalIgnoreCase) then BreakpointList
         elif result.StartsWith("h") || result.Equals("?", StringComparison.OrdinalIgnoreCase) then ShowHelp
         elif result.StartsWith("db") then ShowMemory result        
@@ -163,6 +172,7 @@ type Debugger(sandbox: ISandbox) as this =
         | ShowHelp -> printHelp()
         | Go -> _state.Go()
         | Trace -> _state.Trace()
+        | Step -> _state.Step()
         | HideDisassembly -> this.PrintDisassembly <- false
         | HideIr -> this.PrintIR <- false
         | ShowDisassembly -> this.PrintDisassembly <- true
