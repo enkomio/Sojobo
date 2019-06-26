@@ -10,7 +10,8 @@ open B2R2.BinFile
 [<AbstractClass>]
 type BaseProcessContainer(pointerSize: Int32) =
     let mutable _activeRegion: MemoryRegion option = None
-    let _stepEvent = new Event<IProcessContainer>()   
+    let _beforeEmulationEvent = new Event<IProcessContainer>()   
+    let _afterEmulationEvent = new Event<IProcessContainer>()
     let _symbols = new Dictionary<UInt64, Symbol>()
     let _pid = Guid.NewGuid().GetHashCode() |> uint32
 
@@ -32,8 +33,13 @@ type BaseProcessContainer(pointerSize: Int32) =
     member this.GetPointerSize() =
         pointerSize
 
-    member this.ReadNextInstruction() =      
-        _stepEvent.Trigger(this)
+    member internal this.SignalBeforeEmulation() =
+        _beforeEmulationEvent.Trigger(this)
+
+    member internal this.SignalAfterEmulation() =
+        _afterEmulationEvent.Trigger(this)
+
+    member this.ReadNextInstruction() =
         let instruction = this.GetInstruction()
         let programCounter = this.ProgramCounter
         this.Cpu.SetVariable(
@@ -42,7 +48,8 @@ type BaseProcessContainer(pointerSize: Int32) =
             })
         instruction
 
-    member this.Step = _stepEvent.Publish 
+    member this.BeforeEmulation = _beforeEmulationEvent.Publish 
+    member this.AfterEmulation = _afterEmulationEvent.Publish 
     member this.Pid = _pid    
 
     member this.TryGetSymbol(address: UInt64) =
@@ -82,8 +89,12 @@ type BaseProcessContainer(pointerSize: Int32) =
             this.SetSymbol(symbol)
 
         [<CLIEvent>]
-        member this.Step
-            with get() = this.Step
+        member this.BeforeEmulation
+            with get() = this.BeforeEmulation
+
+        [<CLIEvent>]
+        member this.AfterEmulation
+            with get() = this.AfterEmulation
 
         member this.Memory
             with get() = this.Memory

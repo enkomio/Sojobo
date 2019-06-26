@@ -16,9 +16,13 @@ type IProcessContainer =
         /// Return the Pid valued of the emulated process
         abstract Pid: UInt32 with get
 
-        /// This method is invoked before the next instruction being emulated
+        /// This method is invoked before the instruction being emulated
         [<CLIEvent>]
-        abstract Step: IEvent<IProcessContainer> with get
+        abstract BeforeEmulation: IEvent<IProcessContainer> with get
+
+        /// This method is invoked after the instruction being emulated
+        [<CLIEvent>]
+        abstract AfterEmulation: IEvent<IProcessContainer> with get
 
         /// Return the actual program counter value
         abstract ProgramCounter: EmulatedValue with get

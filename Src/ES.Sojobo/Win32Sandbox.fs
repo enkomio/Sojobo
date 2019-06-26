@@ -180,12 +180,14 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
     let run() =
         _stopExecution <- Some false
         while not _stopExecution.Value do
+            _currentProcess.Value.SignalBeforeEmulation()
             let programCounter = _currentProcess.Value.ProgramCounter.Value |> BitVector.toUInt64
             invokeRegisteredHook(programCounter)
 
             match tryGetEmulationLibrary(_currentProcess.Value) with
             | Some library -> library.InvokeLibraryFunction(this)
             | _ -> emulateNextInstruction(_currentProcess.Value, programCounter)
+            _currentProcess.Value.SignalAfterEmulation()
             
     new() = new Win32Sandbox(Win32SandboxSettings.Default)  
     
