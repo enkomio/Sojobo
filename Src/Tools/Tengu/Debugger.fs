@@ -7,10 +7,12 @@ open System.Text.RegularExpressions
 open ES.Sojobo
 open B2R2
 open ES.Sojobo.Model
+open B2R2.FrontEnd
 
 (*
 - Create snapshot
-- step command
+- set and read specific register with r
+- k call stack
 - disassemble (accept register or address)
 *)
 type internal Command =
@@ -34,7 +36,9 @@ type internal Command =
 type internal DebuggerState() =
     member val ProcessingCommands = false with get, set
     member val TracingMode = false with get, set
+    member val StepAddress: UInt64 option = None with get, set
     member val LastCommand = NoCommand with get, set
+    member val InstructionToEmulate: Instruction option = None with get, set
 
     member this.IsInInteractiveMode() =
         this.ProcessingCommands || this.TracingMode
@@ -42,6 +46,7 @@ type internal DebuggerState() =
     member this.EnterDebuggerLoop() =
         this.TracingMode <- false
         this.ProcessingCommands <- true
+        this.StepAddress <- None
         
     member this.Go() =
         this.ProcessingCommands <- false
@@ -50,11 +55,7 @@ type internal DebuggerState() =
     member this.Trace() =
         this.ProcessingCommands <- false
         this.TracingMode <- true
-
-    member this.Step() =
-        // TODO
-        ()
-
+        
     member this.Break() =
         this.ProcessingCommands <- true
 
@@ -128,7 +129,7 @@ type Debugger(sandbox: ISandbox) as this =
         elif result.Equals("t", StringComparison.OrdinalIgnoreCase) then Trace
         elif result.Equals("p", StringComparison.OrdinalIgnoreCase) then Step
         elif result.Equals("bl", StringComparison.OrdinalIgnoreCase) then BreakpointList
-        elif result.StartsWith("h") || result.Equals("?", StringComparison.OrdinalIgnoreCase) then ShowHelp
+        elif result.Equals("help") || result.Equals("h", StringComparison.OrdinalIgnoreCase) || result.Equals("?", StringComparison.OrdinalIgnoreCase) then ShowHelp
         elif result.StartsWith("db") then ShowMemory result        
         elif result.StartsWith("hide") then
             let target = result.Split().[1].Trim()
@@ -164,6 +165,28 @@ type Debugger(sandbox: ISandbox) as this =
                 WriteMemory (parseTarget(items.[1]), size, items.[2].Trim())
             with _ -> NoCommand  
         else NoCommand
+
+    let addHook(address: UInt64) =
+        _hooks.[address] <- sandbox.AddHook(address, fun _ -> _state.Break())
+
+    let removeHook(address: UInt64) =
+        match _hooks.TryGetValue(address) with
+        | (true, hook) -> 
+            _hooks.Remove(address) |> ignore
+            sandbox.RemoveHook(hook)
+        | _ -> ()
+
+    let stepExecution() =
+        let instruction = sandbox.GetRunningProcess().GetInstruction()
+        if instruction.IsCall() then
+            let nextInstructionAddress = 
+                instruction.Address + 
+                uint64 instruction.Length
+            addHook(nextInstructionAddress)
+            _state.StepAddress <- Some nextInstructionAddress
+            _state.Go()
+        else
+            _state.Trace()
                 
     let parseCommand() =
         match _state.LastCommand with
@@ -172,19 +195,13 @@ type Debugger(sandbox: ISandbox) as this =
         | ShowHelp -> printHelp()
         | Go -> _state.Go()
         | Trace -> _state.Trace()
-        | Step -> _state.Step()
+        | Step -> stepExecution()
         | HideDisassembly -> this.PrintDisassembly <- false
         | HideIr -> this.PrintIR <- false
         | ShowDisassembly -> this.PrintDisassembly <- true
         | ShowIr -> this.PrintIR <- true
-        | BreakPoint address -> 
-            _hooks.[address] <- sandbox.AddHook(address, fun _ -> _state.Break())
-        | DeleteBreakPoint address -> 
-            match _hooks.TryGetValue(address) with
-            | (true, hook) -> 
-                _hooks.Remove(address) |> ignore
-                sandbox.RemoveHook(hook)
-            | _ -> ()
+        | BreakPoint address -> addHook(address)
+        | DeleteBreakPoint address -> removeHook(address)            
         | ShowMemory command ->
             let items = command.Split()
             if items.Length >= 2 then
@@ -232,8 +249,7 @@ type Debugger(sandbox: ISandbox) as this =
             else
                 Thread.Sleep(100)
 
-    let debuggerLoop() =    
-        printRegisters()
+    let debuggerLoop() =
         while _state.ProcessingCommands do
             match readCommand() with
             | NoCommand -> ()
@@ -250,17 +266,29 @@ type Debugger(sandbox: ISandbox) as this =
         ES.Sojobo.Utility.formatCurrentInstructionIR(proc)
         |> Array.iter(Console.WriteLine)
 
+    let removeStepHook() =
+        match _state.StepAddress with
+        | Some address -> removeHook(address)
+        | _ -> ()
+
     member val PrintDisassembly = false with get, set
     member val PrintIR = false with get, set
 
-    member this.Process() =
-        if _state.IsInInteractiveMode() then
-            _state.EnterDebuggerLoop()
-            debuggerLoop()
-
-        let proc = sandbox.GetRunningProcess()
+    member this.BeforeEmulation() =
+        let proc = sandbox.GetRunningProcess()        
         if this.PrintDisassembly then writeDisassembly(proc)
         if this.PrintIR then writeIR(proc)
+
+        _state.InstructionToEmulate <- proc.GetInstruction() |> Some
+
+        // check if must enter debugger loop
+        if _state.IsInInteractiveMode() then
+            removeStepHook()
+            _state.EnterDebuggerLoop()            
+            debuggerLoop()
+
+    member this.AfterEmulation() =
+        ()
 
     member this.Start() = 
         ignore (async { readBreakCommand() } |> Async.StartAsTask)

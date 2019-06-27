@@ -30,7 +30,10 @@ module Program =
         |> error "Exception" "PC: {0} - Error: {1}"
         |> build    
 
-    let private stepHandler(settings: Settings) (proc: IProcessContainer) =
+    let private beforeEmulationEventHandler(settings: Settings) (proc: IProcessContainer) =
+        _debugger.BeforeEmulation()
+
+    let private afterEmulationEventHandler(settings: Settings) (proc: IProcessContainer) =
         _instructionCounter <- _instructionCounter + 1
         if _instructionCounter  >= settings.NumberOfInstructionToEmulate then
             _sandbox.Stop()
@@ -38,7 +41,7 @@ module Program =
         // invoke services
         _metrics.EmulatedInstruction(proc, _instructionCounter)
         _dumper.Step(proc.ProgramCounter.Value |> BitVector.toUInt32)
-        _debugger.Process()
+        _debugger.AfterEmulation()
 
     let private getFileContent(settings: Settings) =
         if settings.DecodeContent then
@@ -57,7 +60,8 @@ module Program =
         // setup handlers
         let proc = _sandbox.GetRunningProcess()
         proc.Memory.MemoryAccess.Add(_dumper.MemoryAccessedHandler proc)
-        proc.Step.Add(stepHandler settings)
+        proc.BeforeEmulation.Add(beforeEmulationEventHandler settings)
+        proc.AfterEmulation.Add(afterEmulationEventHandler settings)
 
         // add this file as library for method hooking
         _sandbox.AddLibrary(typeof<Dumper>.Assembly)
