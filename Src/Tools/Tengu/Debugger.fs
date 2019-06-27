@@ -23,7 +23,7 @@ type internal Command =
     | BreakpointList
     | HideDisassembly
     | ShowDisassembly
-    | ShowMemory of String
+    | ShowMemory of address:UInt64 * size:Int32 * length:Int32 option
     | HideIr
     | ShowIr
     | BreakPoint of address:UInt64
@@ -90,6 +90,9 @@ type Debugger(sandbox: ISandbox) as this =
             p                                   execution step
             bl                                  list all breakpoints
             db <address>/<register> <size>      disaplay hex view
+            dw <address>                        display word at address
+            dd <address>                        display double word at address
+            dq <address>                        display quad word at address
             hide <disassembly/ir>               hide the disassembly or IR during emulation
             show <disassembly/ir>               show the disassembly or IR during emulation
             bp <address>/<register>             set a breakpoint
@@ -129,8 +132,7 @@ type Debugger(sandbox: ISandbox) as this =
         elif result.Equals("t", StringComparison.OrdinalIgnoreCase) then Trace
         elif result.Equals("p", StringComparison.OrdinalIgnoreCase) then Step
         elif result.Equals("bl", StringComparison.OrdinalIgnoreCase) then BreakpointList
-        elif result.Equals("help") || result.Equals("h", StringComparison.OrdinalIgnoreCase) || result.Equals("?", StringComparison.OrdinalIgnoreCase) then ShowHelp
-        elif result.StartsWith("db") then ShowMemory result        
+        elif result.Equals("help") || result.Equals("h", StringComparison.OrdinalIgnoreCase) || result.Equals("?", StringComparison.OrdinalIgnoreCase) then ShowHelp                
         elif result.StartsWith("hide") then
             let target = result.Split().[1].Trim()
             if target.Equals("disassembly", StringComparison.OrdinalIgnoreCase) then HideDisassembly
@@ -152,6 +154,24 @@ type Debugger(sandbox: ISandbox) as this =
                 let items = result.Split()
                 SetRegister (items.[1].Trim(), Convert.ToUInt64(items.[2], 16))
             with _ -> NoCommand   
+        elif result.StartsWith("d") && ['b'; 'w'; 'd'; 'q'] |> List.contains(result.[1]) then
+            try
+                let items = result.Split()
+                let size =
+                    match result.[1] with
+                    | 'b' -> 8
+                    | 'w' -> 16
+                    | 'd' -> 32
+                    | 'q' -> 64
+                    | _ -> 0
+
+                let length =
+                    if size = 8 
+                    then Some (if items.Length < 3 then (8 * 5) else Int32.Parse(items.[2]))
+                    else None
+
+                ShowMemory (parseTarget(items.[1]), size, length)
+            with _ -> NoCommand  
         elif result.StartsWith("e") && ['b'; 'w'; 'd'; 'q'] |> List.contains(result.[1]) then 
             try
                 let items = result.Split()
@@ -202,13 +222,20 @@ type Debugger(sandbox: ISandbox) as this =
         | ShowIr -> this.PrintIR <- true
         | BreakPoint address -> addHook(address)
         | DeleteBreakPoint address -> removeHook(address)            
-        | ShowMemory command ->
-            let items = command.Split()
-            if items.Length >= 2 then
-                let address = parseTarget(items.[1])
-                let length = if items.Length < 3 then (8 * 5) else Int32.Parse(items.[2])
-                let buffer = sandbox.GetRunningProcess().Memory.ReadMemory(address, length)
+        | ShowMemory (address, size, length) ->
+            let mem = sandbox.GetRunningProcess().Memory
+            if size = 8 then
+                let buffer = mem.ReadMemory(address, length.Value)                
                 printHexView(address, buffer)
+            elif size = 16 then
+                let num = mem.ReadMemory<UInt16>(address)
+                Console.WriteLine("0x{0}  0x{1}", address, num.ToString("X"))
+            elif size = 32 then
+                let num = mem.ReadMemory<UInt32>(address)
+                Console.WriteLine("0x{0}  0x{1}", address, num, num.ToString("X"))
+            elif size = 64 then
+                let num = mem.ReadMemory<UInt64>(address)
+                Console.WriteLine("0x{0}  0x{1}", address, num, num.ToString("X"))
         | SetRegister (registerName, value) ->
             try
                 let proc = sandbox.GetRunningProcess()
@@ -259,8 +286,8 @@ type Debugger(sandbox: ISandbox) as this =
         _waitEvent.Set()
 
     let writeDisassembly(proc: IProcessContainer) =
-        let text = ES.Sojobo.Utility.formatCurrentInstruction(proc)
-        Console.WriteLine(text)
+        ES.Sojobo.Utility.formatCurrentInstruction(proc)
+        |> Console.WriteLine
 
     let writeIR(proc: IProcessContainer) =
         ES.Sojobo.Utility.formatCurrentInstructionIR(proc)
