@@ -5,6 +5,7 @@ open System.Reflection
 open System.Collections.Generic
 open System.IO
 open B2R2.BinIR
+open B2R2
 
 [<AbstractClass>]
 type BaseSandbox() =
@@ -52,7 +53,7 @@ type BaseSandbox() =
             this.AddLibrary(assembly)
         with
             | :? BadImageFormatException ->
-                this.Libraries.Add(Native <| NativeLibrary.Create(content)) 
+                this.Libraries.Add(Native <| NativeLibrary.Create(content))    
 
     abstract AddLibrary: filename:String -> unit
     default this.AddLibrary(filename: String) =

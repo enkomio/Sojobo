@@ -145,7 +145,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
                 {emulateExpr baseProcess destination with
                     Value = sourceValue.Value
                 }
-            baseProcess.Cpu.SetRegister(destinationValue)
+            baseProcess.Cpu.SetRegister(destinationValue)            
 
         | Store (_, destination, source) ->
             let baseProcess = sandbox.GetRunningProcess() :?> BaseProcessContainer
@@ -217,6 +217,15 @@ type LowUIREmulator(sandbox: BaseSandbox) =
 
             // jump to given statement
             state.JumpTo(label)
+
+    let goToNextInstruction() =
+        let proc = sandbox.GetRunningProcess()
+        let size = if proc.GetPointerSize() = 32 then 32<rt> else 64<rt>
+        let increment = BitVector.ofUInt32 (proc.GetInstruction()).Length size
+        proc.Cpu.SetVariable(
+            {proc.ProgramCounter with
+                Value = BitVector.add proc.ProgramCounter.Value increment
+            })
         
     member this.Emulate(stmts: Stmt array) =
         let state = new EmulatorExecutionState(stmts)
@@ -228,6 +237,10 @@ type LowUIREmulator(sandbox: BaseSandbox) =
         BinHandler.LiftInstr handler instruction
         |> BinHandler.Optimize
         |> this.Emulate
+        
+        // if it is not a branch, go to the next instruction
+        if instruction.IsBranch() |> not then
+            goToNextInstruction()
 
     interface IEmulator with
         member this.Emulate(stmts: Stmt array) =

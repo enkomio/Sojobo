@@ -14,6 +14,7 @@ type Win32ProcessContainer() as this =
     let _memoryManager = new MemoryManager(32)
     let _iat = new List<Symbol>()
     let _cpu = new Cpu()
+    let mutable _lastInstruction: Instruction option = None
     
     let setEntryPoint(handler: BinHandler) =
         this.UpdateActiveMemoryRegion(_memoryManager.GetMemoryRegion(handler.FileInfo.EntryPoint))
@@ -68,7 +69,11 @@ type Win32ProcessContainer() as this =
         
     default this.GetInstruction() =
         let programCounter = this.ProgramCounter.Value |> BitVector.toUInt64
-        BinHandler.ParseInstr (this.GetActiveMemoryRegion().Handler) (programCounter)
+        match _lastInstruction with
+        | Some instruction when programCounter = instruction.Address -> instruction
+        | _ ->
+            _lastInstruction <- BinHandler.ParseInstr (this.GetActiveMemoryRegion().Handler) (programCounter) |> Some
+            _lastInstruction.Value
 
     default this.ProgramCounter
         with get() = this.Cpu.GetRegister("EIP")

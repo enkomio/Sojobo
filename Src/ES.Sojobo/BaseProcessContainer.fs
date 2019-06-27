@@ -39,15 +39,6 @@ type BaseProcessContainer(pointerSize: Int32) =
     member internal this.SignalAfterEmulation() =
         _afterEmulationEvent.Trigger(this)
 
-    member this.ReadNextInstruction() =
-        let instruction = this.GetInstruction()
-        let programCounter = this.ProgramCounter
-        this.Cpu.SetVariable(
-            {programCounter with
-                Value = BitVector.add programCounter.Value (BitVector.ofUInt32 instruction.Length 32<rt>)
-            })
-        instruction
-
     member this.BeforeEmulation = _beforeEmulationEvent.Publish 
     member this.AfterEmulation = _afterEmulationEvent.Publish 
     member this.Pid = _pid    

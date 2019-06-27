@@ -148,10 +148,12 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         if _hooks.ContainsKey(programCounter) 
         then _hooks.[programCounter].Invoke(this)
 
-    let emulateNextInstruction(proc: BaseProcessContainer, programCounter: UInt64) =
-        let instruction = proc.ReadNextInstruction()
+    let emulateInstruction(proc: BaseProcessContainer) =
+        _currentProcess.Value.SignalBeforeEmulation()
+        let instruction = proc.GetInstruction()
         let handler = proc.GetActiveMemoryRegion().Handler
         this.Emulator.Value.EmulateInstruction(handler, instruction)
+        _currentProcess.Value.SignalAfterEmulation()               
 
     let rec loadLibraryFile(filename: String, loadedLibraries: HashSet<String>) =
         let libPath = Environment.GetFolderPath(Environment.SpecialFolder.SystemX86)
@@ -180,14 +182,14 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
     let run() =
         _stopExecution <- Some false
         while not _stopExecution.Value do
-            _currentProcess.Value.SignalBeforeEmulation()
-            let programCounter = _currentProcess.Value.ProgramCounter.Value |> BitVector.toUInt64
-            invokeRegisteredHook(programCounter)
+            // invoke hooks
+            _currentProcess.Value.ProgramCounter.Value 
+            |> BitVector.toUInt64
+            |> invokeRegisteredHook
 
             match tryGetEmulationLibrary(_currentProcess.Value) with
             | Some library -> library.InvokeLibraryFunction(this)
-            | _ -> emulateNextInstruction(_currentProcess.Value, programCounter)
-            _currentProcess.Value.SignalAfterEmulation()
+            | _ -> emulateInstruction(_currentProcess.Value)
             
     new() = new Win32Sandbox(Win32SandboxSettings.Default)  
     
