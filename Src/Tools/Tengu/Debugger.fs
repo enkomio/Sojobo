@@ -13,6 +13,7 @@ open B2R2.FrontEnd
 - Create snapshot
 - set and read specific register with r
 - k call stack
+- allows to add comment to disassembly
 - disassemble (accept register or address)
 *)
 type internal Command =
@@ -30,6 +31,7 @@ type internal Command =
     | DeleteBreakPoint of address:UInt64
     | SetRegister of name:String * value:UInt64
     | WriteMemory of address:UInt64 * size:Int32 * value:String
+    | Comment of address:UInt64 * comment:String
     | ShowHelp
     | NoCommand
 
@@ -95,13 +97,14 @@ type Debugger(sandbox: ISandbox) as this =
             dq <address>                        display quad word at address
             hide <disassembly/ir>               hide the disassembly or IR during emulation
             show <disassembly/ir>               show the disassembly or IR during emulation
+            comment <address> <value>           add a comment to the specified address
             bp <address>/<register>             set a breakpoint
             bc <address>                        clear a previously setted breakpoint
             set <register> <value>              set the value of a register
             eb <address> <value>                write memory, value in hex form, like: 01 02 03
             ew <address> <value>                write memory at address with word value
             ed <address> <value>                write memory at address with double word value
-            eq <address> <value>                write memory at address with quad word value
+            eq <address> <value>                write memory at address with quad word value            
             h/?                                 show this help
         ".Split([|Environment.NewLine|], StringSplitOptions.RemoveEmptyEntries)
         |> Array.map(fun line -> line.Trim())
@@ -142,6 +145,11 @@ type Debugger(sandbox: ISandbox) as this =
             let target = result.Split().[1].Trim()
             if target.Equals("disassembly", StringComparison.OrdinalIgnoreCase) then ShowDisassembly
             elif target.Equals("ir", StringComparison.OrdinalIgnoreCase) then ShowIr
+            else NoCommand
+        elif result.StartsWith("comment") then
+            let items = result.Split()
+            if items.Length >= 3 
+            then Comment(parseTarget(items.[1]), items.[2])
             else NoCommand
         elif result.StartsWith("bp") then
             try BreakPoint (parseTarget(result.Split().[1]))
