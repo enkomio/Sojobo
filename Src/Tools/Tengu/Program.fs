@@ -40,8 +40,7 @@ module Program =
 
         // invoke services
         _metrics.EmulatedInstruction(proc, _instructionCounter)
-        _dumper.Step(proc.ProgramCounter.Value |> BitVector.toUInt32)
-        _debugger.AfterEmulation()
+        _dumper.Step(proc.ProgramCounter.Value |> BitVector.toUInt32)        
 
     let private getFileContent(settings: Settings) =
         if settings.DecodeContent then

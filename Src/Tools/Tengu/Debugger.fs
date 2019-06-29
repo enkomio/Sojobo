@@ -10,10 +10,10 @@ open ES.Sojobo.Model
 open B2R2.FrontEnd
 
 (*
-- Create snapshot
+- Create snapshot (saving hooks and comments in a different objects)
 - set and read specific register with r
 - k call stack
-- allows to add comment to disassembly
+- display running information, like the numberd of executed instruction, execution time and mean time time to execute 1 instruction
 - disassemble (accept register or address)
 *)
 type internal Command =
@@ -65,6 +65,7 @@ type Debugger(sandbox: ISandbox) as this =
     let _state = new DebuggerState()
     let _waitEvent = new ManualResetEventSlim()
     let _hooks = new Dictionary<UInt64, Hook>()
+    let _comments = new Dictionary<UInt64, String>()
 
     let printRegisters() =
         let proc = sandbox.GetRunningProcess()
@@ -149,7 +150,7 @@ type Debugger(sandbox: ISandbox) as this =
         elif result.StartsWith("comment") then
             let items = result.Split()
             if items.Length >= 3 
-            then Comment(parseTarget(items.[1]), items.[2])
+            then Comment(parseTarget(items.[1]), String.Join(" ", items.[2..]))
             else NoCommand
         elif result.StartsWith("bp") then
             try BreakPoint (parseTarget(result.Split().[1]))
@@ -229,7 +230,8 @@ type Debugger(sandbox: ISandbox) as this =
         | ShowDisassembly -> this.PrintDisassembly <- true
         | ShowIr -> this.PrintIR <- true
         | BreakPoint address -> addHook(address)
-        | DeleteBreakPoint address -> removeHook(address)            
+        | DeleteBreakPoint address -> removeHook(address)
+        | Comment(address, text) -> _comments.[address] <- text
         | ShowMemory (address, size, length) ->
             let mem = sandbox.GetRunningProcess().Memory
             if size = 8 then
@@ -294,7 +296,11 @@ type Debugger(sandbox: ISandbox) as this =
         _waitEvent.Set()
 
     let writeDisassembly(proc: IProcessContainer) =
-        ES.Sojobo.Utility.formatCurrentInstruction(proc)
+        let instruction = ES.Sojobo.Utility.formatCurrentInstruction(proc)
+        let pc = proc.ProgramCounter.Value |> BitVector.toUInt64
+        match _comments.TryGetValue(pc) with
+        | (true, text) -> String.Format("{0} ; {1}", instruction, text)
+        | _ -> instruction
         |> Console.WriteLine
 
     let writeIR(proc: IProcessContainer) =
@@ -321,9 +327,6 @@ type Debugger(sandbox: ISandbox) as this =
             removeStepHook()
             _state.EnterDebuggerLoop()            
             debuggerLoop()
-
-    member this.AfterEmulation() =
-        ()
-
+            
     member this.Start() = 
         ignore (async { readBreakCommand() } |> Async.StartAsTask)
