@@ -11,7 +11,6 @@ open B2R2.FrontEnd
 
 (*
 - Create snapshot (saving hooks and comments in a different objects)
-- set and read specific register with r
 - k call stack
 - display running information, like the numberd of executed instruction, execution time and mean time time to execute 1 instruction
 - disassemble (accept register or address)
@@ -101,7 +100,7 @@ type Debugger(sandbox: ISandbox) as this =
             comment <address> <value>           add a comment to the specified address
             bp <address>/<register>             set a breakpoint
             bc <address>                        clear a previously setted breakpoint
-            set <register> <value>              set the value of a register
+            r <register> <value>                set the value of a register
             eb <address> <value>                write memory, value in hex form, like: 01 02 03
             ew <address> <value>                write memory at address with word value
             ed <address> <value>                write memory at address with double word value
@@ -158,7 +157,7 @@ type Debugger(sandbox: ISandbox) as this =
         elif result.StartsWith("bc") then
             try DeleteBreakPoint (Convert.ToUInt64(result.Split().[1], 16))
             with _ -> NoCommand        
-        elif result.StartsWith("set") then 
+        elif result.StartsWith("r") && result.Length > 1 then 
             try
                 let items = result.Split()
                 SetRegister (items.[1].Trim(), Convert.ToUInt64(items.[2], 16))
