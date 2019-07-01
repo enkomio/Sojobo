@@ -11,14 +11,14 @@ open B2R2.FrontEnd
 
 (*
 - Create snapshot (saving hooks and comments in a different objects)
-- k call stack
 - display running information, like the numberd of executed instruction, execution time and mean time time to execute 1 instruction
-- disassemble (accept register or address)
+- disassemble (accept register or address), test k command with disassembly
 *)
 type internal Command =
     | Trace
     | Step
     | Go
+    | CallStack of count:Int32
     | PrintRegisters
     | BreakpointList
     | HideDisassembly
@@ -83,6 +83,14 @@ type Debugger(sandbox: ISandbox) as this =
         _hooks
         |> Seq.iter(fun kv -> Console.WriteLine("0x{0}", kv.Key.ToString("X")))
 
+    let printCallStack(count: Int32) =
+        Console.WriteLine("-=[ Call stack ]=-")
+        sandbox.GetRunningProcess().GetCallStack()
+        |> Array.truncate count
+        |> Array.iteri(fun index address ->
+            Console.WriteLine("{0}: 0x{1}", index + 1, address.ToString("X"))
+        )
+
     let printHelp() =
         Console.WriteLine("Tengu debugger commands:")
         @"
@@ -91,6 +99,7 @@ type Debugger(sandbox: ISandbox) as this =
             t                                   execution trace
             p                                   execution step
             bl                                  list all breakpoints
+            k [<frame count>]                   call stack
             db <address>/<register> <size>      disaplay hex view
             dw <address>                        display word at address
             dd <address>                        display double word at address
@@ -162,6 +171,11 @@ type Debugger(sandbox: ISandbox) as this =
                 let items = result.Split()
                 SetRegister (items.[1].Trim(), Convert.ToUInt64(items.[2], 16))
             with _ -> NoCommand   
+        elif result.StartsWith("k") || result.Equals("k", StringComparison.OrdinalIgnoreCase) then
+            try 
+                let count = if result.Length = 1 then 10 else Int32.Parse(result.Split().[1])
+                CallStack(count)
+            with _ -> NoCommand
         elif result.StartsWith("d") && ['b'; 'w'; 'd'; 'q'] |> List.contains(result.[1]) then
             try
                 let items = result.Split()
@@ -230,6 +244,7 @@ type Debugger(sandbox: ISandbox) as this =
         | ShowIr -> this.PrintIR <- true
         | BreakPoint address -> addHook(address)
         | DeleteBreakPoint address -> removeHook(address)
+        | CallStack count -> printCallStack(count)
         | Comment(address, text) -> _comments.[address] <- text
         | ShowMemory (address, size, length) ->
             let mem = sandbox.GetRunningProcess().Memory
