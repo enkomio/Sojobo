@@ -3,11 +3,11 @@
 open System
 open System.Threading
 open System.Collections.Generic
-open System.Text.RegularExpressions
 open ES.Sojobo
 open B2R2
 open ES.Sojobo.Model
 open B2R2.FrontEnd
+open System.Text.RegularExpressions
 
 (*
 - Create snapshot (saving hooks and comments in a different objects)
@@ -26,6 +26,7 @@ type internal Command =
     | ShowMemory of address:UInt64 * size:Int32 * length:Int32 option
     | HideIr
     | ShowIr
+    | Disassemble of address:UInt64 * size:Int32
     | BreakPoint of address:UInt64
     | DeleteBreakPoint of address:UInt64
     | SetRegister of name:String * value:UInt64
@@ -91,6 +92,17 @@ type Debugger(sandbox: ISandbox) as this =
             Console.WriteLine("{0}: 0x{1}", index + 1, address.ToString("X"))
         )
 
+    let printDisassembly(address: UInt64, count: Int32) =
+        let proc = sandbox.GetRunningProcess()
+        let mutable offset = address
+        for i=0 to count-1 do
+            let instruction = proc.GetInstruction(offset)
+            offset <- offset + uint64 instruction.Length
+            match _comments.TryGetValue(instruction.Address) with
+            | (true, text) -> String.Format("{0} ; {1}", ES.Sojobo.Utility.disassemble(proc, instruction), text)
+            | _ -> ES.Sojobo.Utility.disassemble(proc, instruction)
+            |> Console.WriteLine
+
     let printHelp() =
         Console.WriteLine("Tengu debugger commands:")
         @"
@@ -100,15 +112,16 @@ type Debugger(sandbox: ISandbox) as this =
             p                                   execution step
             bl                                  list all breakpoints
             k [<frame count>]                   call stack
-            db <address>/<register> <size>      disaplay hex view
+            db <address/register> <size>        disaplay hex view
             dw <address>                        display word at address
             dd <address>                        display double word at address
             dq <address>                        display quad word at address
             hide <disassembly/ir>               hide the disassembly or IR during emulation
             show <disassembly/ir>               show the disassembly or IR during emulation
             comment <address> <value>           add a comment to the specified address
-            bp <address>/<register>             set a breakpoint
+            bp <address/register>               set a breakpoint
             bc <address>                        clear a previously setted breakpoint
+            u <address/register>                disassemble the bytes at the specified address
             r <register> <value>                set the value of a register
             eb <address> <value>                write memory, value in hex form, like: 01 02 03
             ew <address> <value>                write memory at address with word value
@@ -171,6 +184,12 @@ type Debugger(sandbox: ISandbox) as this =
                 let items = result.Split()
                 SetRegister (items.[1].Trim(), Convert.ToUInt64(items.[2], 16))
             with _ -> NoCommand   
+        elif result.StartsWith("u") then
+            try 
+                let items = result.Split()
+                let count = if items.Length = 2 then 10 else Int32.Parse(items.[2])
+                Disassemble (parseTarget(items.[1]), count)
+            with _ -> NoCommand
         elif result.StartsWith("k") || result.Equals("k", StringComparison.OrdinalIgnoreCase) then
             try 
                 let count = if result.Length = 1 then 10 else Int32.Parse(result.Split().[1])
@@ -245,6 +264,7 @@ type Debugger(sandbox: ISandbox) as this =
         | BreakPoint address -> addHook(address)
         | DeleteBreakPoint address -> removeHook(address)
         | CallStack count -> printCallStack(count)
+        | Disassemble(address, count) -> printDisassembly(address, count)
         | Comment(address, text) -> _comments.[address] <- text
         | ShowMemory (address, size, length) ->
             let mem = sandbox.GetRunningProcess().Memory
@@ -310,7 +330,7 @@ type Debugger(sandbox: ISandbox) as this =
         _waitEvent.Set()
 
     let writeDisassembly(proc: IProcessContainer) =
-        let instruction = ES.Sojobo.Utility.formatCurrentInstruction(proc)
+        let instruction = ES.Sojobo.Utility.disassemble(proc, proc.GetInstruction())
         let pc = proc.ProgramCounter.Value |> BitVector.toUInt64
         match _comments.TryGetValue(pc) with
         | (true, text) -> String.Format("{0} ; {1}", instruction, text)
@@ -318,7 +338,7 @@ type Debugger(sandbox: ISandbox) as this =
         |> Console.WriteLine
 
     let writeIR(proc: IProcessContainer) =
-        ES.Sojobo.Utility.formatCurrentInstructionIR(proc)
+        ES.Sojobo.Utility.disassembleCurrentInstructionIR(proc)
         |> Array.iter(Console.WriteLine)
 
     let removeStepHook() =
