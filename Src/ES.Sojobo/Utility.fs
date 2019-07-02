@@ -9,10 +9,9 @@ open B2R2.BinFile
 open B2R2.FrontEnd.Intel
 
 module Utility = 
-    let formatCurrentInstruction(processContainer: IProcessContainer) =
-        let handler = processContainer.GetActiveMemoryRegion().Handler
-        let instruction = processContainer.GetInstruction()
+    let disassemble(processContainer: IProcessContainer, instruction: Instruction) =
         let mutable functionName = String.Empty
+        let handler = processContainer.GetActiveMemoryRegion().Handler
 
         if instruction.IsCall() then
             let instruction = instruction :?> IntelInstruction
@@ -41,7 +40,7 @@ module Utility =
         let hexBytes = BitConverter.ToString(instructionBytes).Replace("-"," ")
         String.Format("0x{0,-10} {1, -30} {2} {3}", instruction.Address.ToString("X") + ":", hexBytes, disassembledInstruction, functionName)
         
-    let formatCurrentInstructionIR(processContainer: IProcessContainer) =
+    let disassembleCurrentInstructionIR(processContainer: IProcessContainer) =
         let handler = processContainer.GetActiveMemoryRegion().Handler
         let instruction = processContainer.GetInstruction()
         BinHandler.LiftInstr handler instruction

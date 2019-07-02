@@ -20,6 +20,7 @@ type BaseProcessContainer(pointerSize: Int32) =
     abstract ProgramCounter: EmulatedValue with get
     abstract GetImportedFunctions: unit -> Symbol seq
     abstract GetInstruction: unit -> Instruction    
+    abstract GetInstruction: address:UInt64 -> Instruction  
     abstract GetCallStack: unit -> UInt64 array
     abstract Memory: MemoryManager with get
     abstract Cpu: Cpu with get
@@ -66,6 +67,9 @@ type BaseProcessContainer(pointerSize: Int32) =
 
         member this.GetInstruction() =
             this.GetInstruction()
+
+        member this.GetInstruction(address: UInt64) =
+            this.GetInstruction(address)
 
         member this.GetCallStack() =
             this.GetCallStack()

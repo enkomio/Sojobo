@@ -33,6 +33,9 @@ type IProcessContainer =
         /// get a list of symbols that are imported by the binary
         abstract GetImportedFunctions: unit -> Symbol seq
 
+        /// get the instruction at the given address
+        abstract GetInstruction: address:UInt64 -> Instruction    
+
         /// get the next instruction that is going to be executed
         abstract GetInstruction: unit -> Instruction        
 

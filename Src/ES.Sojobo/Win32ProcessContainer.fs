@@ -66,14 +66,16 @@ type Win32ProcessContainer() as this =
 
     default this.GetImportedFunctions() =
         Seq.readonly _iat
+
+    default this.GetInstruction(address: UInt64) =
+        match _lastInstruction with
+        | Some instruction when address = instruction.Address -> instruction
+        | _ ->
+            _lastInstruction <- BinHandler.ParseInstr (this.GetActiveMemoryRegion().Handler) address |> Some
+            _lastInstruction.Value
         
     default this.GetInstruction() =
-        let programCounter = this.ProgramCounter.Value |> BitVector.toUInt64
-        match _lastInstruction with
-        | Some instruction when programCounter = instruction.Address -> instruction
-        | _ ->
-            _lastInstruction <- BinHandler.ParseInstr (this.GetActiveMemoryRegion().Handler) (programCounter) |> Some
-            _lastInstruction.Value
+        this.GetInstruction(this.ProgramCounter.Value |> BitVector.toUInt64)
 
     default this.ProgramCounter
         with get() = this.Cpu.GetRegister("EIP")
