@@ -16,6 +16,7 @@ module Cli =
         SnapshotToSave: String
         SnapshotToLoad: String
         Libs: String array
+        Break: Boolean
     }
 
     type CLIArguments =
@@ -27,6 +28,7 @@ module Cli =
         | Load_Snapshot of name:String
         | Lib of name:String
         | Decode_Content
+        | Break
     with
         interface IArgParserTemplate with
             member s.Usage =
@@ -39,6 +41,7 @@ module Cli =
                 | Lib _ -> "library to include for the emulation."
                 | Instruction _ -> "the number of instructions to emulate (default 10000)."
                 | Decode_Content -> "decode the content of the file (previously encoded with MakeSafePE)."
+                | Break -> "break the execution on the first instruction"
 
     let private printColor(msg: String, color: ConsoleColor) =
         Console.ForegroundColor <- color
@@ -83,6 +86,7 @@ module Cli =
                         LoadSnapshotOnStart = results.Contains(<@ Load_Snapshot @>)
                         SnapshotToSave = results.GetResult(<@ Snapshot @>, String.Empty)
                         SnapshotToLoad = results.GetResult(<@ Load_Snapshot @>, String.Empty)
+                        Break = results.Contains(<@ Break @>)
                     } 
                 | Some filename ->                    
                     printError(String.Format("File {0} doesn't exists", Path.GetFullPath(filename)))
