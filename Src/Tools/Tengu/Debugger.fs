@@ -361,6 +361,9 @@ type Debugger(sandbox: ISandbox) as this =
             removeStepHook()
             _state.EnterDebuggerLoop()            
             debuggerLoop()
+
+    member this.Break() =
+        _state.Break()
             
     member this.Start() = 
         ignore (async { readBreakCommand() } |> Async.StartAsTask)

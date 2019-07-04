@@ -83,6 +83,7 @@ module Program =
 
             // run debugger
             _debugger.Start()
+            if settings.Break then _debugger.Break()
 
             // run the sample till the end or exception
             _sandbox.Run()
