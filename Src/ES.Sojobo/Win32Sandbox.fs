@@ -50,6 +50,11 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         getManagedLibraries(this.Libraries)
         |> Seq.iter(fun lib -> lib.ResolveLibraryFunctions())
 
+    let removeEmptyLibraries() =
+        getManagedLibraries(this.Libraries)
+        |> Array.filter(fun lib -> lib.EmulatedMethods |> Seq.isEmpty)
+        |> Array.iter(fun lib -> this.Libraries.Remove(Managed lib) |> ignore)
+        
     let getAllExportedFunctions() =
         getNativeLibraries(this.Libraries)
         |> Array.filter(fun lib -> lib.Filename.IsSome)
@@ -99,14 +104,33 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
                 )
         ) 
         
-    let initializeLibrary() =
+    let initializeLibraries() =
         getManagedLibraries(this.Libraries)
         |> Seq.iter(fun lib -> lib.Initialize(this))
+
+    let addLibrariesToSymbols() =
+        getManagedLibraries(this.Libraries)
+        |> Seq.collect(fun lib -> lib.EmulatedMethods |> Seq.map(fun m -> (lib, m)))
+        |> Seq.map(fun (lib, kv) -> 
+            try
+                {
+                    Name = kv.Value.Name
+                    LibraryName = kv.Value.DeclaringType.Name
+                    Address = lib.GetAddress(Helpers.getFunctionKeyName(kv.Value.Name, kv.Value.DeclaringType.Name))
+                    Kind = SymbolKind.FunctionType
+                    Target = TargetKind.DynamicSymbol
+                } |> Some
+            with _ -> None
+        )
+        |> Seq.choose id
+        |> Seq.iter(this.GetRunningProcess().SetSymbol)
         
     let mapManagedLibraries() =
         resolveEmulatedFunctions()
+        removeEmptyLibraries()
         mapEmulatedFunctions()
-        initializeLibrary()
+        initializeLibraries()
+        addLibrariesToSymbols()
 
     let loadCoreLibrariesFromFilesystem() =
         Directory.GetFiles(Path.GetDirectoryName(Assembly.GetEntryAssembly().Location), "*.dll")        
@@ -152,7 +176,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         _currentProcess.Value.SignalBeforeEmulation()
         let instruction = proc.GetInstruction()
         let handler = proc.GetActiveMemoryRegion().Handler
-        this.Emulator.Value.EmulateInstruction(handler, instruction)
+        this.Emulator.Value.Emulate(handler, instruction)
         _currentProcess.Value.SignalAfterEmulation()               
 
     let rec loadLibraryFile(filename: String, loadedLibraries: HashSet<String>) =

@@ -36,24 +36,49 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
             proc.Cpu.SetRegister(eax)
         )
 
-    let emulateBufferInstruction(proc: IProcessContainer, buffer: Byte array) =
-        // compose instruction
-        let handler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
-        let instruction = BinHandler.ParseInstr handler Addr.MinValue        
-
-        // emulate instruction
+    let emulateInstruction(proc: IProcessContainer, instruction: Instruction) =
         let handler = proc.GetActiveMemoryRegion().Handler
         emulator.EmulateInstruction(handler, instruction)
 
+    let emulateMovEdiEdi =
+        let buffer = [|0x8Buy; 0xFFuy|]
+        let handler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
+        let instruction = BinHandler.ParseInstr handler Addr.MinValue     
+        fun (proc: IProcessContainer) -> emulateInstruction(proc, instruction)
+
+    let emulatePushEbp =
+        let buffer = [|0x55uy|]
+        let handler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
+        let instruction = BinHandler.ParseInstr handler Addr.MinValue     
+        fun (proc: IProcessContainer) -> emulateInstruction(proc, instruction)
+
+    let emulateMovEbpEsp =
+        let buffer = [|0x8Buy; 0xECuy|]
+        let handler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
+        let instruction = BinHandler.ParseInstr handler Addr.MinValue     
+        fun (proc: IProcessContainer) -> emulateInstruction(proc, instruction)
+
+    let emulateMovESpEbp =
+        let buffer = [|0x8Buy; 0xE5uy|]
+        let handler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
+        let instruction = BinHandler.ParseInstr handler Addr.MinValue     
+        fun (proc: IProcessContainer) -> emulateInstruction(proc, instruction)
+
+    let emulatePopEbp =
+        let buffer = [|0x5Duy|]
+        let handler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
+        let instruction = BinHandler.ParseInstr handler Addr.MinValue     
+        fun (proc: IProcessContainer) -> emulateInstruction(proc, instruction)
+
     let executeStackFrameSetup(proc: IProcessContainer) =
-        emulateBufferInstruction(proc, [|0x8Buy; 0xFFuy|]) // mov edi, edi
-        emulateBufferInstruction(proc, [|0x55uy|]) // push ebp
-        emulateBufferInstruction(proc, [|0x8Buy; 0xECuy|]) // mov ebp, esp
+        emulateMovEdiEdi(proc)
+        emulatePushEbp(proc)
+        emulateMovEbpEsp(proc)
 
     let executeStackFrameCleanup(proc: IProcessContainer) =
-        emulateBufferInstruction(proc, [|0x8Buy; 0xE5uy|]) // mov esp, ebp
-        emulateBufferInstruction(proc, [|0x5Duy|]) // pop ebp
-        
+        emulateMovESpEbp(proc)
+        emulatePopEbp(proc)
+
     let executeReturn(proc: IProcessContainer, mi: MethodInfo, callbackResult: CallbackResult) =
         let bytesToPop = (mi.GetParameters().Length - 1) * pointerSizeInBytes
         
@@ -71,8 +96,12 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
         
         // compose instruction
         binWriter.Flush()
-        let arrayBuffer = memWriter.ToArray()
-        emulateBufferInstruction(proc, arrayBuffer)
+        let handler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, true, Addr.MinValue, memWriter.ToArray())
+        let instruction = BinHandler.ParseInstr handler Addr.MinValue        
+
+        // emulate instruction
+        let handler = proc.GetActiveMemoryRegion().Handler
+        emulator.Emulate(handler, instruction)
 
     let getOrCreateIatRegion(memoryManager: MemoryManager, symbols: BinFile.Symbol seq) =
         memoryManager.GetMemoryMap()
@@ -131,6 +160,11 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
 
     member internal this.GetAssembly() =
         assembly
+
+    member this.GetAddress(name: String) =
+        this.Callbacks
+        |> Seq.find(fun kv -> kv.Value.Equals(name, StringComparison.OrdinalIgnoreCase))
+        |> fun kv -> kv.Key
 
     member internal this.MapSymbolWithManagedMethods(memoryManager: MemoryManager, symbols: BinFile.Symbol seq, exportedMethods: IDictionary<String, UInt64>) =
         if this.EmulatedMethods.Count > 0 && (symbols |> Seq.length) > 0 then

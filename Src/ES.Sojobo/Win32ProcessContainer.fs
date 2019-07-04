@@ -81,10 +81,12 @@ type Win32ProcessContainer() as this =
         with get() = this.Cpu.GetRegister("EIP")
 
     default this.GetCallStack() = [|
-        let mutable ebp = this.Cpu.GetRegister("EBP").Value |> BitVector.toUInt32
-        let mutable retValue = BitConverter.ToUInt32(this.Memory.ReadMemory(ebp + 4ul |> uint64, 4) , 0)
+        let mutable ebp = this.Cpu.GetRegister("EBP").Value |> BitVector.toUInt64
+        let increment = this.GetPointerSize() / 8 |> uint64
+
+        let mutable retValue = this.Memory.ReadMemory<UInt32>(ebp + increment)
         while retValue <> 0ul do
             yield uint64 retValue
-            ebp <- BitConverter.ToUInt32(this.Memory.ReadMemory(uint64 ebp, 4) , 0)
-            retValue <- BitConverter.ToUInt32(this.Memory.ReadMemory(ebp + 4ul |> uint64, 4) , 0)
+            ebp <- this.Memory.ReadMemory<UInt32>(ebp) |> uint64
+            retValue <- this.Memory.ReadMemory<UInt32>(ebp + increment)
     |]

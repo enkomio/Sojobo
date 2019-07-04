@@ -237,6 +237,9 @@ type LowUIREmulator(sandbox: BaseSandbox) =
         BinHandler.LiftInstr handler instruction
         |> BinHandler.Optimize
         |> this.Emulate
+
+    member this.Emulate(handler: BinHandler, instruction: Instruction) =
+        this.EmulateInstruction(handler, instruction)
         
         // if it is not a branch, go to the next instruction
         if instruction.IsBranch() |> not then
@@ -245,6 +248,9 @@ type LowUIREmulator(sandbox: BaseSandbox) =
     interface IEmulator with
         member this.Emulate(stmts: Stmt array) =
             this.Emulate(stmts)
+
+        member this.Emulate(handler: BinHandler, instruction: Instruction) =
+            this.Emulate(handler, instruction)
 
         member this.EmulateInstruction(handler: BinHandler, instruction: Instruction) =
             this.EmulateInstruction(handler, instruction)

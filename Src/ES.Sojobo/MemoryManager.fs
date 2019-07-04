@@ -28,22 +28,22 @@ type MemoryManager(pointerSize: Int32) =
     let _memoryAccessEvent = new Event<MemoryAccessOperation>()
 
     let createStack() =
-        let stack = 
-            createMemoryRegion(
-                0x18C000UL, 
-                0x4000, 
-                Permission.Readable ||| Permission.Writable
-            )
+        let stack = {
+            createMemoryRegion(0x18C000UL, 0x4000, Permission.Readable ||| Permission.Writable) 
+            with 
+                Type = "Stack"
+                Info = "Stack"
+        }
         _va.Add(stack.BaseAddress, stack)
         stack
 
     let createHeap() =
-        let heap = 
-            createMemoryRegion(
-                0x520000UL, 
-                0x16000,
-                Permission.Readable ||| Permission.Writable
-            )
+        let heap = {
+            createMemoryRegion(0x520000UL, 0x16000, Permission.Readable ||| Permission.Writable) 
+            with 
+                Type = "Heap"
+                Info = "Heap"
+            }
         _va.Add(heap.BaseAddress, heap)
         heap
 
