@@ -7,12 +7,12 @@ open ES.Sojobo
 open B2R2
 open ES.Sojobo.Model
 open B2R2.FrontEnd
+open B2R2.FrontEnd.Intel
 open System.Text.RegularExpressions
 
 (*
 - Create snapshot (saving hooks and comments in a different objects)
 - display running information, like the numberd of executed instruction, execution time and mean time time to execute 1 instruction
-- disassemble (accept register or address), test k command with disassembly
 *)
 type internal Command =
     | Trace
@@ -30,6 +30,7 @@ type internal Command =
     | BreakPoint of address:UInt64
     | DeleteBreakPoint of address:UInt64
     | SetRegister of name:String * value:UInt64
+    | ShowRegister of name:String
     | WriteMemory of address:UInt64 * size:Int32 * value:String
     | Comment of address:UInt64 * comment:String
     | ShowHelp
@@ -122,7 +123,7 @@ type Debugger(sandbox: ISandbox) as this =
             bp <address/register>               set a breakpoint
             bc <address>                        clear a previously setted breakpoint
             u <address/register>                disassemble the bytes at the specified address
-            r <register> <value>                set the value of a register
+            r <register> [<value>]              show the value of a register or set its value
             eb <address> <value>                write memory, value in hex form, like: 01 02 03
             ew <address> <value>                write memory at address with word value
             ed <address> <value>                write memory at address with double word value
@@ -182,7 +183,9 @@ type Debugger(sandbox: ISandbox) as this =
         elif result.StartsWith("r") && result.Length > 1 then 
             try
                 let items = result.Split()
-                SetRegister (items.[1].Trim(), Convert.ToUInt64(items.[2], 16))
+                if items.Length = 2
+                then ShowRegister(items.[1].Trim())
+                else SetRegister (items.[1].Trim(), Convert.ToUInt64(items.[2], 16))
             with _ -> NoCommand   
         elif result.StartsWith("u") then
             try 
@@ -292,7 +295,27 @@ type Debugger(sandbox: ISandbox) as this =
                     | EmulatedType.QuadWord -> Model.createUInt64(value)
                     | _ -> failwith "invalid Size"
                 proc.Cpu.SetRegister({register with Value = bvValue.Value})
-            with _ -> ()            
+            with _ -> ()        
+        | ShowRegister(regName) ->
+            try
+                let proc = sandbox.GetRunningProcess()
+                let register = Enum.Parse(typeof<Register>, regName.ToUpperInvariant()) :?> Register 
+                let extendedRegister = Register.extendRegister32 register
+
+                let rawValue = 
+                    proc.Cpu.GetRegister(extendedRegister.ToString()).Value 
+                    |> BitVector.toUInt64
+                
+                let regValue =
+                    match register |> Register.toRegType with
+                    | 8<rt> -> (byte rawValue).ToString("X")
+                    | 16<rt> -> (uint16 rawValue).ToString("X")
+                    | 32<rt> -> (uint32 rawValue).ToString("X")
+                    | 64<rt> -> (rawValue).ToString("X")
+                    | _ -> failwith "invalid Size"
+
+                Console.WriteLine("{0} = 0x{1}", regName, regValue)
+            with _ -> ()     
         | WriteMemory (address, size, rawValue) ->
             let mem = sandbox.GetRunningProcess().Memory
             if size = 8 && Regex.IsMatch(rawValue, "[a-fA-F0-9][a-fA-F0-9](\\b[a-fA-F0-9][a-fA-F0-9])*") then

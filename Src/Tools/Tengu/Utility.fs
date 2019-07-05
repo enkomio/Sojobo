@@ -3,6 +3,7 @@
 open System
 open System.IO
 open System.Reflection
+open Microsoft.FSharp.Reflection
 
 module Utility =
     let getResultDir(pid: UInt32) =
@@ -10,4 +11,3 @@ module Utility =
         let directory = Path.Combine(curDir, "Result", "PID_" + pid.ToString())
         Directory.CreateDirectory(directory) |> ignore
         directory
-
