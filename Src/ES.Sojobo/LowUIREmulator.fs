@@ -217,33 +217,34 @@ type LowUIREmulator(sandbox: BaseSandbox) =
 
             // jump to given statement
             state.JumpTo(label)
-
-    let goToNextInstruction() =
-        let proc = sandbox.GetRunningProcess()
-        let size = if proc.GetPointerSize() = 32 then 32<rt> else 64<rt>
-        let increment = BitVector.ofUInt32 (proc.GetInstruction()).Length size
-        proc.Cpu.SetVariable(
-            {proc.ProgramCounter with
-                Value = BitVector.add proc.ProgramCounter.Value increment
-            })
-        
+                    
     member this.Emulate(stmts: Stmt array) =
         let state = new EmulatorExecutionState(stmts)
         while state.HasMoreStatement() do
             let stmt = state.GetStatement()
             emulateStmt(state, stmt)
 
+    member this.AdvanceProgramCounterIfNecessary(instruction: Instruction) =
+        if instruction.IsBranch() |> not then
+            let proc = sandbox.GetRunningProcess()
+            let size = if proc.GetPointerSize() = 32 then 32<rt> else 64<rt>
+            let increment = BitVector.ofUInt32 (proc.GetInstruction()).Length size
+            proc.Cpu.SetVariable(
+                {proc.ProgramCounter with
+                    Value = BitVector.add proc.ProgramCounter.Value increment
+                })
+
     member this.EmulateInstruction(handler: BinHandler, instruction: Instruction) =
-        BinHandler.LiftInstr handler instruction
-        |> BinHandler.Optimize
-        |> this.Emulate
+        let stmts =
+            BinHandler.LiftInstr handler instruction
+            |> BinHandler.Optimize
+        this.Emulate(stmts)
+        stmts
 
     member this.Emulate(handler: BinHandler, instruction: Instruction) =
-        this.EmulateInstruction(handler, instruction)
-        
-        // if it is not a branch, go to the next instruction
-        if instruction.IsBranch() |> not then
-            goToNextInstruction()
+        let stmts = this.EmulateInstruction(handler, instruction)
+        this.AdvanceProgramCounterIfNecessary(instruction)
+        stmts
 
     interface IEmulator with
         member this.Emulate(stmts: Stmt array) =
@@ -254,3 +255,6 @@ type LowUIREmulator(sandbox: BaseSandbox) =
 
         member this.EmulateInstruction(handler: BinHandler, instruction: Instruction) =
             this.EmulateInstruction(handler, instruction)
+
+        member this.AdvanceProgramCounterIfNecessary(instruction: Instruction) =
+            this.AdvanceProgramCounterIfNecessary(instruction)

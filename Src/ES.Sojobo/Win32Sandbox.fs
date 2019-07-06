@@ -21,16 +21,22 @@ type Win32SandboxSettings = {
     /// If it is true, when the sandbox encounter a not handled exception
     /// before to exit it will save a snapshot of the system to filesystem
     SaveSnapshotOnException: Boolean
+
+    /// If it is true, the lifted statements are cached to speed up emulation. This may cause
+    /// wrong result if the emulated program write its own code (like malware)
+    CacheInstructions: Boolean
 } with
     static member Default = {
         InitializeEnvironment = true
         SaveSnapshotOnException = true
+        CacheInstructions = true
     }
 
 type Win32Sandbox(settings: Win32SandboxSettings) as this =
     inherit BaseSandbox()
 
     let _hooks = new Dictionary<UInt64, Action<ISandbox>>()
+    let _cache = new InstructionCache()
     let mutable _stopExecution: Boolean option = None
     let mutable _currentProcess: Win32ProcessContainer option = None
     do this.Emulator <- Some(upcast new LowUIREmulator(this))
@@ -172,11 +178,23 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         if _hooks.ContainsKey(programCounter) 
         then _hooks.[programCounter].Invoke(this)
 
-    let emulateInstruction(proc: BaseProcessContainer) =
-        _currentProcess.Value.SignalBeforeEmulation()
+    let emulateInstructionNoCache(proc: BaseProcessContainer, pc: UInt64) =
         let instruction = proc.GetInstruction()
         let handler = proc.GetActiveMemoryRegion().Handler
-        this.Emulator.Value.Emulate(handler, instruction)
+        (instruction, this.Emulator.Value.Emulate(handler, instruction))
+
+    let emulateInstruction(proc: BaseProcessContainer, pc: UInt64) =
+        _currentProcess.Value.SignalBeforeEmulation()
+        if settings.CacheInstructions then
+            if _cache.IsCached(pc) then 
+                let (instruction, stmts) = _cache.GetCachedInstruction(pc)
+                this.Emulator.Value.Emulate(stmts)
+                this.Emulator.Value.AdvanceProgramCounterIfNecessary(instruction)
+            else 
+                let (instruction, stmts) = emulateInstructionNoCache(proc, pc)
+                _cache.CacheInstruction(pc, instruction, stmts)
+        else
+            emulateInstructionNoCache(proc, pc) |> ignore
         _currentProcess.Value.SignalAfterEmulation()               
 
     let rec loadLibraryFile(filename: String, loadedLibraries: HashSet<String>) =
@@ -207,13 +225,12 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         _stopExecution <- Some false
         while not _stopExecution.Value do
             // invoke hooks
-            _currentProcess.Value.ProgramCounter.Value 
-            |> BitVector.toUInt64
-            |> invokeRegisteredHook
+            let pc = _currentProcess.Value.ProgramCounter.Value |> BitVector.toUInt64
+            invokeRegisteredHook(pc)
 
             match tryGetEmulationLibrary(_currentProcess.Value) with
             | Some library -> library.InvokeLibraryFunction(this)
-            | _ -> emulateInstruction(_currentProcess.Value)
+            | _ -> emulateInstruction(_currentProcess.Value, pc)
             
     new() = new Win32Sandbox(Win32SandboxSettings.Default)  
     

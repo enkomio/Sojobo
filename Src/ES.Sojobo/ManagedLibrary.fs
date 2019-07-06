@@ -38,7 +38,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
 
     let emulateInstruction(proc: IProcessContainer, instruction: Instruction) =
         let handler = proc.GetActiveMemoryRegion().Handler
-        emulator.EmulateInstruction(handler, instruction)
+        emulator.EmulateInstruction(handler, instruction) |> ignore
 
     let emulateMovEdiEdi =
         let buffer = [|0x8Buy; 0xFFuy|]
@@ -101,7 +101,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
 
         // emulate instruction
         let handler = proc.GetActiveMemoryRegion().Handler
-        emulator.Emulate(handler, instruction)
+        emulator.Emulate(handler, instruction) |> ignore
 
     let getOrCreateIatRegion(memoryManager: MemoryManager, symbols: BinFile.Symbol seq) =
         memoryManager.GetMemoryMap()
