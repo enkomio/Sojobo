@@ -1,6 +1,7 @@
 ﻿namespace ES.Tengu
 
 open System
+open System.IO
 open System.Threading
 open System.Collections.Generic
 open ES.Sojobo
@@ -11,8 +12,10 @@ open B2R2.FrontEnd.Intel
 open System.Text.RegularExpressions
 
 (*
-- Create snapshot (saving hooks and comments in a different objects)
-- display running information, like the numberd of executed instruction, execution time and mean time time to execute 1 instruction
+- if an unknow command is inserted just don't do anything instead of repeating the previous command
+- Create snapshot (saving hooks and also comments but in a different objects)
+- allows an empty comment, if it is empty don't add the comment or remove it if it is in the list
+- display running information, like the numberd of executed instruction, execution time and mean time time to execute 1 instruction (do performance test with and without cache)
 *)
 type internal Command =
     | Trace
@@ -33,8 +36,10 @@ type internal Command =
     | ShowRegister of name:String
     | WriteMemory of address:UInt64 * size:Int32 * value:String
     | Comment of address:UInt64 * comment:String
+    | SaveSnapshot of name:String
     | ShowHelp
     | NoCommand
+    | Error
 
 type internal DebuggerState() =
     member val ProcessingCommands = false with get, set
@@ -127,7 +132,8 @@ type Debugger(sandbox: ISandbox) as this =
             eb <address> <value>                write memory, value in hex form, like: 01 02 03
             ew <address> <value>                write memory at address with word value
             ed <address> <value>                write memory at address with double word value
-            eq <address> <value>                write memory at address with quad word value            
+            eq <address> <value>                write memory at address with quad word value    
+            save <filename>                     save a snapshot to the given filename
             h/?                                 show this help
         ".Split([|Environment.NewLine|], StringSplitOptions.RemoveEmptyEntries)
         |> Array.map(fun line -> line.Trim())
@@ -152,7 +158,7 @@ type Debugger(sandbox: ISandbox) as this =
 
     let readCommand() =
         Console.Write("Command> ")
-        let result = Console.ReadLine().Trim()
+        let result = Console.ReadLine().Trim().ToLowerInvariant()
         if result.Equals("g", StringComparison.OrdinalIgnoreCase) then Go
         elif result.Equals("r", StringComparison.OrdinalIgnoreCase) then PrintRegisters
         elif result.Equals("t", StringComparison.OrdinalIgnoreCase) then Trace
@@ -163,41 +169,44 @@ type Debugger(sandbox: ISandbox) as this =
             let target = result.Split().[1].Trim()
             if target.Equals("disassembly", StringComparison.OrdinalIgnoreCase) then HideDisassembly
             elif target.Equals("ir", StringComparison.OrdinalIgnoreCase) then HideIr
-            else NoCommand
+            else Error
         elif result.StartsWith("show") then
             let target = result.Split().[1].Trim()
             if target.Equals("disassembly", StringComparison.OrdinalIgnoreCase) then ShowDisassembly
             elif target.Equals("ir", StringComparison.OrdinalIgnoreCase) then ShowIr
-            else NoCommand
+            else Error
         elif result.StartsWith("comment") then
             let items = result.Split()
             if items.Length >= 3 
             then Comment(parseTarget(items.[1]), String.Join(" ", items.[2..]))
-            else NoCommand
+            else Error
         elif result.StartsWith("bp") then
             try BreakPoint (parseTarget(result.Split().[1]))
-            with _ -> NoCommand
+            with _ -> Error
         elif result.StartsWith("bc") then
             try DeleteBreakPoint (Convert.ToUInt64(result.Split().[1], 16))
-            with _ -> NoCommand        
+            with _ -> Error        
+        elif result.StartsWith("save") then
+            try SaveSnapshot(result.Split().[1])
+            with _ -> Error        
         elif result.StartsWith("r") && result.Length > 1 then 
             try
                 let items = result.Split()
                 if items.Length = 2
                 then ShowRegister(items.[1].Trim())
                 else SetRegister (items.[1].Trim(), Convert.ToUInt64(items.[2], 16))
-            with _ -> NoCommand   
+            with _ -> Error   
         elif result.StartsWith("u") then
             try 
                 let items = result.Split()
                 let count = if items.Length = 2 then 10 else Int32.Parse(items.[2])
                 Disassemble (parseTarget(items.[1]), count)
-            with _ -> NoCommand
+            with _ -> Error
         elif result.StartsWith("k") || result.Equals("k", StringComparison.OrdinalIgnoreCase) then
             try 
                 let count = if result.Length = 1 then 10 else Int32.Parse(result.Split().[1])
                 CallStack(count)
-            with _ -> NoCommand
+            with _ -> Error
         elif result.StartsWith("d") && ['b'; 'w'; 'd'; 'q'] |> List.contains(result.[1]) then
             try
                 let items = result.Split()
@@ -215,7 +224,7 @@ type Debugger(sandbox: ISandbox) as this =
                     else None
 
                 ShowMemory (parseTarget(items.[1]), size, length)
-            with _ -> NoCommand  
+            with _ -> Error  
         elif result.StartsWith("e") && ['b'; 'w'; 'd'; 'q'] |> List.contains(result.[1]) then 
             try
                 let items = result.Split()
@@ -227,8 +236,9 @@ type Debugger(sandbox: ISandbox) as this =
                     | 'q' -> 64
                     | _ -> 0
                 WriteMemory (parseTarget(items.[1]), size, items.[2].Trim())
-            with _ -> NoCommand  
-        else NoCommand
+            with _ -> Error  
+        elif String.IsNullOrWhiteSpace(result) then NoCommand
+        else Error
 
     let addHook(address: UInt64) =
         _hooks.[address] <- sandbox.AddHook(address, fun _ -> _state.Break())
@@ -251,6 +261,14 @@ type Debugger(sandbox: ISandbox) as this =
             _state.Go()
         else
             _state.Trace()
+
+    let saveSnapshot(filename: String) =
+        let snapshotManager = new SnapshotManager(sandbox :?> BaseSandbox)
+        let snapshot = snapshotManager.TakeSnaphot()
+        snapshot.SaveTo(filename)
+
+        // save comments
+        File.WriteAllLines(filename + ".json", _comments |> Seq.map(fun kv -> String.Format("{0}|{1}", kv.Key, kv.Value)))
                 
     let parseCommand() =
         match _state.LastCommand with
@@ -264,6 +282,7 @@ type Debugger(sandbox: ISandbox) as this =
         | HideIr -> this.PrintIR <- false
         | ShowDisassembly -> this.PrintDisassembly <- true
         | ShowIr -> this.PrintIR <- true
+        | SaveSnapshot filename -> saveSnapshot(filename)
         | BreakPoint address -> addHook(address)
         | DeleteBreakPoint address -> removeHook(address)
         | CallStack count -> printCallStack(count)
@@ -329,7 +348,7 @@ type Debugger(sandbox: ISandbox) as this =
                 BitConverter.GetBytes(Convert.ToUInt64(rawValue, 16))
             else Array.empty<Byte>
             |> fun value -> mem.WriteMemory(address, value)
-        | _ -> _state.LastCommand <- NoCommand
+        | _ -> ()
 
     let readBreakCommand() =  
         while true do
@@ -346,7 +365,7 @@ type Debugger(sandbox: ISandbox) as this =
     let debuggerLoop() =
         while _state.ProcessingCommands do
             match readCommand() with
-            | NoCommand -> ()
+            | NoCommand -> () // repeat the previous command            
             | c -> _state.LastCommand <- c
             
             parseCommand()
