@@ -12,9 +12,7 @@ open B2R2.FrontEnd.Intel
 open System.Text.RegularExpressions
 
 (*
-- if an unknow command is inserted just don't do anything instead of repeating the previous command
 - Create snapshot (saving hooks and also comments but in a different objects)
-- allows an empty comment, if it is empty don't add the comment or remove it if it is in the list
 - display running information, like the numberd of executed instruction, execution time and mean time time to execute 1 instruction (do performance test with and without cache)
 *)
 type internal Command =
@@ -179,6 +177,7 @@ type Debugger(sandbox: ISandbox) as this =
             let items = result.Split()
             if items.Length >= 3 
             then Comment(parseTarget(items.[1]), String.Join(" ", items.[2..]))
+            elif items.Length = 2 then Comment(parseTarget(items.[1]), String.Empty)
             else Error
         elif result.StartsWith("bp") then
             try BreakPoint (parseTarget(result.Split().[1]))
@@ -269,7 +268,13 @@ type Debugger(sandbox: ISandbox) as this =
 
         // save comments
         File.WriteAllLines(filename + ".json", _comments |> Seq.map(fun kv -> String.Format("{0}|{1}", kv.Key, kv.Value)))
-                
+               
+    let addComment(address: UInt64, text: String) =
+        if String.IsNullOrWhiteSpace(text) then
+            if _comments.ContainsKey(address) 
+            then _comments.Remove(address) |> ignore
+        else _comments.[address] <- text
+
     let parseCommand() =
         match _state.LastCommand with
         | PrintRegisters -> printRegisters()
@@ -287,7 +292,7 @@ type Debugger(sandbox: ISandbox) as this =
         | DeleteBreakPoint address -> removeHook(address)
         | CallStack count -> printCallStack(count)
         | Disassemble(address, count) -> printDisassembly(address, count)
-        | Comment(address, text) -> _comments.[address] <- text
+        | Comment(address, text) -> addComment(address, text)
         | ShowMemory (address, size, length) ->
             let mem = sandbox.GetRunningProcess().Memory
             if size = 8 then
