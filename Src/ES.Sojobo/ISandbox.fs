@@ -61,6 +61,9 @@ type ISandbox =
         /// Get an array of all placed hooks
         abstract GetHooks: unit -> Hook array
 
+        /// Get the address of the hook after that it was mapped
+        abstract GetHookAddress: Hook -> UInt64 option
+
         /// This event is raised each time that an operation cause a side effect,
         // like the execution of an Interrupt or of a CPUIP instruction
         [<CLIEvent>]

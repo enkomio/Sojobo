@@ -35,7 +35,7 @@ type Win32SandboxSettings = {
 type Win32Sandbox(settings: Win32SandboxSettings) as this =
     inherit BaseSandbox()
 
-    let _hooks = new Dictionary<UInt64, Action<ISandbox>>()
+    let _hooks = new Dictionary<UInt64, Hook>()
     let _cache = new InstructionCache()
     let mutable _stopExecution: Boolean option = None
     let mutable _currentProcess: Win32ProcessContainer option = None
@@ -89,9 +89,10 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
     let resolveHooks() =
         _hooks.Clear()
         this.Hooks
-        |> Seq.iter(function
+        |> Seq.iter(fun hook ->
+            match hook with
             | Address (addr, callback) ->
-                _hooks.[addr] <- callback
+                _hooks.[addr] <- hook
             | Symbol (symbol, callback) ->
                 let items = symbol.ToLowerInvariant().Replace(".dll", String.Empty).Split([|'!'|])
                 let (moduleName, functionName) = (items.[0].Trim(), items.[1].Trim())
@@ -104,7 +105,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
                             lib.Exports
                             |> Seq.iter(fun symbol ->
                                 if symbol.Name.Equals(functionName, StringComparison.OrdinalIgnoreCase) 
-                                then _hooks.[symbol.Address] <- callback
+                                then _hooks.[symbol.Address] <- hook
                             )
                     | _ -> ()
                 )
@@ -175,8 +176,10 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         |> Array.tryFind(fun lib -> lib.IsLibraryCall(programCounter))
 
     let invokeRegisteredHook(programCounter: UInt64) =        
-        if _hooks.ContainsKey(programCounter) 
-        then _hooks.[programCounter].Invoke(this)
+        if _hooks.ContainsKey(programCounter) then 
+            match _hooks.[programCounter] with
+            | Address (_, callback) -> callback.Invoke(this)
+            | Symbol (_, callback) -> callback.Invoke(this)            
 
     let emulateInstructionNoCache(proc: BaseProcessContainer, pc: UInt64) =
         let instruction = proc.GetInstruction()
@@ -232,8 +235,13 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
             | Some library -> library.InvokeLibraryFunction(this)
             | _ -> emulateInstruction(_currentProcess.Value, pc)
             
-    new() = new Win32Sandbox(Win32SandboxSettings.Default)  
+    new() = new Win32Sandbox(Win32SandboxSettings.Default) 
     
+    default this.GetHookAddress(hook: Hook) =
+        _hooks
+        |> Seq.tryFind(fun kv -> kv.Value = hook)
+        |> Option.map(fun kv -> kv.Key)
+        
     override this.AddHook(symbol: String, callback: Action<ISandbox>) =
         let hook = base.AddHook(symbol, callback)
         match _stopExecution with

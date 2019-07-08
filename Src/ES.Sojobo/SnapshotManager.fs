@@ -11,6 +11,7 @@ type SnapshotManager(sandbox: BaseSandbox) =
         let mutable stackMemoryRegionId = Guid.Empty
         let mutable heapMemoryRegionId = Guid.Empty
 
+        // read virtual address space
         let virtualAddressSpace =
             sandbox.GetRunningProcess().Memory.GetMemoryMap()
             |> Array.filter(fun region -> region.Content.Length > 0)

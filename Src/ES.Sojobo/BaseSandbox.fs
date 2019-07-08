@@ -17,12 +17,13 @@ type BaseSandbox() =
     abstract Stop: unit -> unit     
     abstract GetRunningProcess: unit -> IProcessContainer
     abstract ResetProcessState: unit -> unit
+    abstract GetHookAddress: Hook -> UInt64 option
 
     member this.SideEffect = _sideEffectEvent.Publish
     member val internal Libraries = new List<Library>() with get
     member val Emulator: IEmulator option = None with get, set
     member val internal Hooks = new List<Hook>() with get
-
+    
     abstract AddHook: address:UInt64 * callback:Action<ISandbox> -> Hook
     default this.AddHook(address: UInt64, callback: Action<ISandbox>) =
         let hook = Address(address, callback)
@@ -103,6 +104,9 @@ type BaseSandbox() =
 
         member this.GetHooks() =
             this.GetHooks()
+
+        member this.GetHookAddress(hook: Hook) =
+            this.GetHookAddress(hook)
 
         [<CLIEvent>]
         member this.SideEffect
