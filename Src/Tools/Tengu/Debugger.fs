@@ -35,6 +35,7 @@ type internal Command =
     | WriteMemory of address:UInt64 * size:Int32 * value:String
     | Comment of address:UInt64 * comment:String
     | SaveSnapshot of name:String
+    | LoadSnapshot of name:String
     | ShowHelp
     | NoCommand
     | Error
@@ -137,6 +138,7 @@ type Debugger(sandbox: ISandbox) as this =
             ed <address> <value>                write memory at address with double word value
             eq <address> <value>                write memory at address with quad word value    
             save <filename>                     save a snapshot to the given filename
+            load <filename>                     load a snapshot from the given filename
             h/?                                 show this help
         ".Split([|Environment.NewLine|], StringSplitOptions.RemoveEmptyEntries)
         |> Array.map(fun line -> line.Trim())
@@ -192,7 +194,10 @@ type Debugger(sandbox: ISandbox) as this =
             with _ -> Error        
         elif result.StartsWith("save") then
             try SaveSnapshot(result.Split().[1])
-            with _ -> Error        
+            with _ -> Error   
+        elif result.StartsWith("load") then
+            try LoadSnapshot(result.Split().[1])
+            with _ -> Error   
         elif result.StartsWith("r") && result.Length > 1 then 
             try
                 let items = result.Split()
@@ -270,6 +275,12 @@ type Debugger(sandbox: ISandbox) as this =
         else
             _state.Trace()
 
+    let addComment(address: UInt64, text: String) =
+        if String.IsNullOrWhiteSpace(text) then
+            if _comments.ContainsKey(address) 
+            then _comments.Remove(address) |> ignore
+        else _comments.[address] <- text
+
     let saveSnapshot(filename: String) =
         let snapshotManager = new SnapshotManager(sandbox :?> BaseSandbox)
         let snapshot = snapshotManager.TakeSnaphot()
@@ -290,12 +301,30 @@ type Debugger(sandbox: ISandbox) as this =
 
         let serializedDebuggerSnapshot = JsonConvert.SerializeObject(debuggerSnapshot, Formatting.Indented)
         File.WriteAllText(filename + ".json", serializedDebuggerSnapshot)
-               
-    let addComment(address: UInt64, text: String) =
-        if String.IsNullOrWhiteSpace(text) then
-            if _comments.ContainsKey(address) 
-            then _comments.Remove(address) |> ignore
-        else _comments.[address] <- text
+
+    let loadSnapshot(filename: String) =
+        try
+            // load snapshot
+            let snapshotManager = new SnapshotManager(sandbox :?> BaseSandbox)
+            snapshotManager.LoadSnapshot(Snapshot.Read(filename))
+
+            // load debugger state
+            let debuggerStateJson = File.ReadAllText(filename + ".json")
+            let debuggerState = JsonConvert.DeserializeObject<DebuggerSnapshot>(debuggerStateJson)
+
+            // set breakpoints
+            debuggerState.Breakpoints
+            |> Array.iter(addHook)
+
+            // set comments
+            debuggerState.Comments
+            |> Array.map(fun s -> s.Split('|'))
+            |> Array.iter(fun items -> 
+                let address = UInt64.Parse(items.[0])
+                let text = String.Join("|", items.[1..])
+                addComment(address, text)
+            )
+        with _ -> ()    
 
     let parseCommand() =
         match _state.LastCommand with
@@ -310,6 +339,7 @@ type Debugger(sandbox: ISandbox) as this =
         | ShowDisassembly -> this.PrintDisassembly <- true
         | ShowIr -> this.PrintIR <- true
         | SaveSnapshot filename -> saveSnapshot(filename)
+        | LoadSnapshot filename -> loadSnapshot(filename)
         | BreakPoint address -> addHook(address)
         | DeleteBreakPoint address -> removeHook(address)
         | CallStack count -> printCallStack(count)
