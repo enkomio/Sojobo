@@ -125,7 +125,7 @@ type Debugger(sandbox: ISandbox) as this =
             comment <address> <value>           add a comment to the specified address
             bp <address/register>               set a breakpoint
             bc <address>                        clear a previously setted breakpoint
-            u <address/register>                disassemble the bytes at the specified address
+            u [<address/register>] [count]      disassemble the bytes at the specified address (if specified otherwise at PC)
             r <register> [<value>]              show the value of a register or set its value
             eb <address> <value>                write memory, value in hex form, like: 01 02 03
             ew <address> <value>                write memory at address with word value
@@ -198,8 +198,12 @@ type Debugger(sandbox: ISandbox) as this =
         elif result.StartsWith("u") then
             try 
                 let items = result.Split()
-                let count = if items.Length = 2 then 10 else Int32.Parse(items.[2])
-                Disassemble (parseTarget(items.[1]), count)
+                let address = 
+                    if items.Length > 1 
+                    then parseTarget(items.[1]) 
+                    else sandbox.GetRunningProcess().ProgramCounter.Value |> BitVector.toUInt64
+                let count = if items.Length > 2 then Int32.Parse(items.[2]) else 10
+                Disassemble (address, count)
             with _ -> Error
         elif result.StartsWith("k") || result.Equals("k", StringComparison.OrdinalIgnoreCase) then
             try 
