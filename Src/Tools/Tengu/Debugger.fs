@@ -10,9 +10,9 @@ open ES.Sojobo.Model
 open B2R2.FrontEnd
 open B2R2.FrontEnd.Intel
 open System.Text.RegularExpressions
+open Newtonsoft.Json
 
 (*
-- Create snapshot (saving hooks and also comments but in a different objects)
 - display running information, like the numberd of executed instruction, execution time and mean time time to execute 1 instruction (do performance test with and without cache)
 *)
 type internal Command =
@@ -38,6 +38,11 @@ type internal Command =
     | ShowHelp
     | NoCommand
     | Error
+
+type DebuggerSnapshot = {
+    Breakpoints: UInt64 array
+    Comments: String array
+}
 
 type internal DebuggerState() =
     member val ProcessingCommands = false with get, set
@@ -271,7 +276,20 @@ type Debugger(sandbox: ISandbox) as this =
         snapshot.SaveTo(filename)
 
         // save comments
-        File.WriteAllLines(filename + ".json", _comments |> Seq.map(fun kv -> String.Format("{0}|{1}", kv.Key, kv.Value)))
+        let debuggerSnapshot = {
+            Comments = 
+                _comments 
+                |> Seq.map(fun kv -> String.Format("{0}|{1}", kv.Key, kv.Value)) 
+                |> Seq.toArray
+
+            Breakpoints =
+                sandbox.GetHooks()
+                |> Array.map(sandbox.GetHookAddress)
+                |> Array.choose(id)
+        }
+
+        let serializedDebuggerSnapshot = JsonConvert.SerializeObject(debuggerSnapshot, Formatting.Indented)
+        File.WriteAllText(filename + ".json", serializedDebuggerSnapshot)
                
     let addComment(address: UInt64, text: String) =
         if String.IsNullOrWhiteSpace(text) then
