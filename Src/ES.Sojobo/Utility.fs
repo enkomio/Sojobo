@@ -11,7 +11,7 @@ open B2R2.FrontEnd.Intel
 module Utility = 
     let disassemble(processContainer: IProcessContainer, instruction: Instruction) =
         let mutable functionName = String.Empty
-        let handler = processContainer.GetActiveMemoryRegion().Handler
+        let handler = processContainer.Memory.GetMemoryRegion(instruction.Address).Handler
 
         if instruction.IsCall() then
             let instruction = instruction :?> IntelInstruction

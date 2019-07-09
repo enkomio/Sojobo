@@ -71,8 +71,14 @@ type Win32ProcessContainer() as this =
         match _lastInstruction with
         | Some instruction when address = instruction.Address -> instruction
         | _ ->
-            _lastInstruction <- BinHandler.ParseInstr (this.GetActiveMemoryRegion().Handler) address |> Some
-            _lastInstruction.Value
+            try
+                _lastInstruction <- BinHandler.ParseInstr (this.GetActiveMemoryRegion().Handler) address |> Some
+                _lastInstruction.Value
+            with 
+                :? IndexOutOfRangeException ->
+                    // maybe the address is in another region, try to resolve the address
+                    let memRegion = this.Memory.GetMemoryRegion(address)
+                    BinHandler.ParseInstr memRegion.Handler address
         
     default this.GetInstruction() =
         this.GetInstruction(this.ProgramCounter.Value |> BitVector.toUInt64)
