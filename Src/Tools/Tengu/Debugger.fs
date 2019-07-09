@@ -14,6 +14,7 @@ open Newtonsoft.Json
 
 (*
 - display running information, like the numberd of executed instruction, execution time and mean time time to execute 1 instruction (do performance test with and without cache)
+- writemem: save to file a given memory region (https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/-writemem--write-memory-to-file-)
 *)
 type internal Command =
     | Trace
@@ -25,6 +26,7 @@ type internal Command =
     | HideDisassembly
     | ShowDisassembly
     | ShowMemory of address:UInt64 * size:Int32 * length:Int32 option
+    | MemoryMap
     | HideIr
     | ShowIr
     | Disassemble of address:UInt64 * size:Int32
@@ -102,6 +104,40 @@ type Debugger(sandbox: ISandbox) as this =
             Console.WriteLine("{0}: 0x{1}", index + 1, address.ToString("X"))
         )
 
+    let showMemoryMap() =
+        Console.WriteLine("-=[ Memory Map ]=-")
+        let header = 
+            String.Format(
+                "{0,-12} | {1,-12} | {2,-10} | {3,-25} | {4,-35} | {5}",
+                "Base Address", 
+                "End Address",
+                "Size",
+                "Permission",
+                "Info",
+                "Type"                
+            )
+
+        let contentLines =
+            sandbox.GetRunningProcess().Memory.GetMemoryMap()
+            |> Array.map(fun region ->
+                String.Format(
+                    "0x{0,-10} | 0x{1,-10} | {2,-10} | {3,-25} | {4,-35} | {5}",
+                    region.BaseAddress.ToString("X"), 
+                    (region.BaseAddress + uint64 region.Content.Length).ToString("X"),
+                    region.Content.Length,
+                    region.Permission,
+                    region.Info,
+                    region.Type                
+                )
+            )
+
+        let length = min Console.WindowWidth (contentLines |> Array.maxBy(fun s -> s.Length)).Length
+
+        // print
+        Console.WriteLine(header)
+        Console.WriteLine(String.Empty.PadRight(length, '-'))
+        contentLines |> Array.iter(Console.WriteLine)
+
     let printDisassembly(address: UInt64, count: Int32) =
         let proc = sandbox.GetRunningProcess()
         let mutable offset = address
@@ -139,6 +175,7 @@ type Debugger(sandbox: ISandbox) as this =
             eq <address> <value>                write memory at address with quad word value    
             save <filename>                     save a snapshot to the given filename
             load <filename>                     load a snapshot from the given filename
+            address                             show memory map
             h/?                                 show this help
         ".Split([|Environment.NewLine|], StringSplitOptions.RemoveEmptyEntries)
         |> Array.map(fun line -> line.Trim())
@@ -169,6 +206,7 @@ type Debugger(sandbox: ISandbox) as this =
         elif result.Equals("t", StringComparison.OrdinalIgnoreCase) then Trace
         elif result.Equals("p", StringComparison.OrdinalIgnoreCase) then Step
         elif result.Equals("bl", StringComparison.OrdinalIgnoreCase) then BreakpointList
+        elif result.Equals("address", StringComparison.OrdinalIgnoreCase) then MemoryMap
         elif result.Equals("help") || result.Equals("h", StringComparison.OrdinalIgnoreCase) || result.Equals("?", StringComparison.OrdinalIgnoreCase) then ShowHelp                
         elif result.StartsWith("hide") then
             let target = result.Split().[1].Trim()
@@ -248,7 +286,7 @@ type Debugger(sandbox: ISandbox) as this =
                     | 'd' -> 32
                     | 'q' -> 64
                     | _ -> 0
-                WriteMemory (parseTarget(items.[1]), size, items.[2].Trim())
+                WriteMemory (parseTarget(items.[1]), size, String.Join(" ", items.[2..]).Trim())
             with _ -> Error  
         elif String.IsNullOrWhiteSpace(result) then NoCommand
         else Error
@@ -334,6 +372,7 @@ type Debugger(sandbox: ISandbox) as this =
         | Go -> _state.Go()
         | Trace -> _state.Trace()
         | Step -> stepExecution()
+        | MemoryMap -> showMemoryMap()
         | HideDisassembly -> this.PrintDisassembly <- false
         | HideIr -> this.PrintIR <- false
         | ShowDisassembly -> this.PrintDisassembly <- true
