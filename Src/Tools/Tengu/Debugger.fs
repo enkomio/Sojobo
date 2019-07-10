@@ -14,7 +14,6 @@ open Newtonsoft.Json
 
 (*
 - display running information, like the numberd of executed instruction, execution time and mean time time to execute 1 instruction (do performance test with and without cache)
-- writemem: save to file a given memory region (https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/-writemem--write-memory-to-file-)
 *)
 type internal Command =
     | Trace
@@ -35,6 +34,7 @@ type internal Command =
     | SetRegister of name:String * value:UInt64
     | ShowRegister of name:String
     | WriteMemory of address:UInt64 * size:Int32 * value:String
+    | DumpMemory of address:UInt64 * size:Int32 * filename:String
     | Comment of address:UInt64 * comment:String
     | SaveSnapshot of name:String
     | LoadSnapshot of name:String
@@ -104,6 +104,10 @@ type Debugger(sandbox: ISandbox) as this =
             Console.WriteLine("{0}: 0x{1}", index + 1, address.ToString("X"))
         )
 
+    let dumpMemory(address: UInt64, size: Int32, filename: String) =
+        let content = sandbox.GetRunningProcess().Memory.ReadMemory(address, size)
+        File.WriteAllBytes(filename, content)
+        
     let showMemoryMap() =
         Console.WriteLine("-=[ Memory Map ]=-")
         let header = 
@@ -176,6 +180,7 @@ type Debugger(sandbox: ISandbox) as this =
             save <filename>                     save a snapshot to the given filename
             load <filename>                     load a snapshot from the given filename
             address                             show memory map
+            dump <filename> <addr> <size>       save memory to file
             h/?                                 show this help
         ".Split([|Environment.NewLine|], StringSplitOptions.RemoveEmptyEntries)
         |> Array.map(fun line -> line.Trim())
@@ -288,6 +293,11 @@ type Debugger(sandbox: ISandbox) as this =
                     | _ -> 0
                 WriteMemory (parseTarget(items.[1]), size, String.Join(" ", items.[2..]).Trim())
             with _ -> Error  
+        elif result.StartsWith("dump") then 
+            try
+                let items = result.Split()
+                DumpMemory (parseTarget(items.[1]), Int32.Parse(items.[2]), items.[3])
+            with _ -> Error  
         elif String.IsNullOrWhiteSpace(result) then NoCommand
         else Error
 
@@ -381,6 +391,7 @@ type Debugger(sandbox: ISandbox) as this =
         | LoadSnapshot filename -> loadSnapshot(filename)
         | BreakPoint address -> addHook(address)
         | DeleteBreakPoint address -> removeHook(address)
+        | DumpMemory (addr, size, filename) -> dumpMemory(addr, size, filename)
         | CallStack count -> printCallStack(count)
         | Disassemble(address, count) -> printDisassembly(address, count)
         | Comment(address, text) -> addComment(address, text)
