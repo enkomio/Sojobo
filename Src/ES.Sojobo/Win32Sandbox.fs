@@ -11,6 +11,7 @@ open B2R2.FrontEnd
 open B2R2.BinFile.PE
 open ES.Sojobo.Win32
 open ES.Sojobo.Model
+open System.IO.Ports
 
 [<CLIMutable>]
 type Win32SandboxSettings = {
@@ -224,6 +225,10 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
             |> Seq.map(fun lib -> lib.LibraryName)
             |> Seq.iter(fun libName -> loadLibraryFile(libName, loadedLibraries))
 
+    let tryGetMappedLibrary(filename: String) =
+        getNativeLibraries(this.Libraries) 
+        |> Seq.tryFind(fun lib -> lib.Filename.Value.Equals(filename, StringComparison.Ordinal))
+
     let run() =
         _stopExecution <- Some false
         while not _stopExecution.Value do
@@ -251,9 +256,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
 
     override this.AddHook(address: UInt64, callback: Action<ISandbox>) =
         let hook = base.AddHook(address, callback)
-        match _stopExecution with
-        | Some _ -> resolveHooks()
-        | _ -> ()
+        _stopExecution |> Option.iter(fun _ -> resolveHooks()) 
         hook
 
     override this.RemoveHook(hook: Hook) =
@@ -261,27 +264,22 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         resolveHooks()
 
     override this.AddLibrary(filename: String) =
-        base.AddLibrary(filename)
-        match _stopExecution with
-        | Some _ ->
-            // process is running, map the library in memory too (if native)          
-            getNativeLibraries(this.Libraries) 
-            |> Seq.tryFind(fun lib -> lib.Filename.Value.Equals(filename, StringComparison.Ordinal))
-            |> function
-                | Some library ->
-                    // load native library
-                    library.Load(this.GetRunningProcess())
-            
-                    // map emulated function too            
-                    mapManagedLibraries()
-                | None -> ()
-        | _ -> ()
+        match tryGetMappedLibrary(filename) with
+        | Some _ -> ()
+        | None ->
+            base.AddLibrary(filename)
+            _stopExecution
+            |> Option.iter(fun _ ->
+                let library = tryGetMappedLibrary(filename).Value
+                library.Load(this.GetRunningProcess())  
+                mapManagedLibraries()
+            )            
 
     default this.Run() =
         // initialize structures and hooks    
         prepareForExecution()
                         
-        // start execution loop in a try catch to catch expection
+        // start execution loop in a try catch to catch exception
         try run()
         with _ ->
             if settings.SaveSnapshotOnException then

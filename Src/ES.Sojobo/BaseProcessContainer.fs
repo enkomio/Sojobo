@@ -42,7 +42,7 @@ type BaseProcessContainer(pointerSize: Int32) =
 
     member this.BeforeEmulation = _beforeEmulationEvent.Publish 
     member this.AfterEmulation = _afterEmulationEvent.Publish 
-    member this.Pid = _pid    
+    member val Pid = _pid with get, set
 
     member this.TryGetSymbol(address: UInt64) =
         match _symbols.TryGetValue(address) with
@@ -57,7 +57,7 @@ type BaseProcessContainer(pointerSize: Int32) =
     
     interface IProcessContainer with
         member this.ProgramCounter
-            with get() = this.ProgramCounter
+            with get() = this.ProgramCounter            
 
         member this.GetPointerSize() =
             this.GetPointerSize()
@@ -99,3 +99,4 @@ type BaseProcessContainer(pointerSize: Int32) =
 
         member this.Pid
             with get() = this.Pid
+            and set(v) = this.Pid <- v

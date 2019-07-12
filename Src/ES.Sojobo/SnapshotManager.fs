@@ -36,6 +36,7 @@ type SnapshotManager(sandbox: BaseSandbox) =
 
         // create the snapshot object
         {
+            ProcessId = sandbox.GetRunningProcess().Pid
             Date = DateTime.UtcNow
             HeapRegionId = heapMemoryRegionId
             StackRegionId = stackMemoryRegionId
@@ -72,7 +73,7 @@ type SnapshotManager(sandbox: BaseSandbox) =
     member this.LoadSnapshot(snapshot: Snapshot) =
         // cleanup stuff
         sandbox.ResetProcessState()
-        let proc = sandbox.GetRunningProcess()
+        let proc = sandbox.GetRunningProcess(Pid=snapshot.ProcessId)
         let memory = proc.Memory
 
         // setup Virtual Address Space

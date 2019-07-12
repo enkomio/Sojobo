@@ -57,6 +57,7 @@ module Model =
         
     type Snapshot = {
         Date: DateTime
+        ProcessId: UInt32
         HeapRegionId: Guid
         StackRegionId: Guid
         VirtualAddressSpace: MemoryRegionSnapshot array
