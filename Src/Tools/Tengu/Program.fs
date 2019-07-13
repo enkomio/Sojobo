@@ -39,8 +39,8 @@ module Program =
             _sandbox.Stop()
 
         // invoke services
-        _metrics.EmulatedInstruction(proc, _instructionCounter)
-        _dumper.Step(proc.ProgramCounter.Value |> BitVector.toUInt32)        
+       // _metrics.EmulatedInstruction(proc, _instructionCounter)
+        //_dumper.Step(proc.ProgramCounter.Value |> BitVector.toUInt32)        
 
     let private getFileContent(settings: Settings) =
         if settings.DecodeContent then
@@ -58,9 +58,9 @@ module Program =
     let private initialize(settings: Settings) =
         // setup handlers
         let proc = _sandbox.GetRunningProcess()
-        proc.Memory.MemoryAccess.Add(_dumper.MemoryAccessedHandler proc)
+        //proc.Memory.MemoryAccess.Add(_dumper.MemoryAccessedHandler proc)
         proc.BeforeEmulation.Add(beforeEmulationEventHandler settings)
-        proc.AfterEmulation.Add(afterEmulationEventHandler settings)
+        //proc.AfterEmulation.Add(afterEmulationEventHandler settings)
 
         // add this file as library for method hooking
         _sandbox.AddLibrary(typeof<Dumper>.Assembly)
