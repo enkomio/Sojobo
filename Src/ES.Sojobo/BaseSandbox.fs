@@ -38,7 +38,7 @@ type BaseSandbox() =
 
     abstract RemoveHook: hook:Hook -> unit
     default this.RemoveHook(hook: Hook) =
-        this.Hooks.Remove(hook) |> ignore
+        while this.Hooks.Remove(hook) do ()
 
     member this.GetHooks() =
         this.Hooks |> Seq.toArray
