@@ -52,6 +52,7 @@ type NativeLibrary(content: Byte array) =
         
     member private this.Relocate(pe: PE, handler: BinHandler) =
         // TODO: to be implemented
+        //let relocSymbol = handler.FileInfo.GetRelocationSymbols()
         handler
 
     member internal this.GetLibraryName() =
