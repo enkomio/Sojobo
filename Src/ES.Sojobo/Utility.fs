@@ -77,13 +77,12 @@ module Utility =
             let sectionHeader = 
                 pe.SectionHeaders 
                 |> Seq.find(fun sc -> sc.Name.Equals(section.Name, StringComparison.OrdinalIgnoreCase))
-            
-            let sectionSize = min sectionHeader.SizeOfRawData (int32 section.Size)            
-            let buffer = Array.zeroCreate<Byte>(max sectionHeader.SizeOfRawData (int32 section.Size))
-            Array.Copy(handler.ReadBytes(section.Address, sectionSize), buffer, sectionSize)
                         
-            let sectionHandler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, false, section.Address, buffer)
-            (section, buffer, sectionHandler, Helpers.getSectionPermission(sectionHeader))
+            let byteToReads = min sectionHeader.SizeOfRawData (int32 section.Size)
+            let memBuffer = Array.zeroCreate<Byte>(int32 section.Size)
+            Array.Copy(handler.ReadBytes(section.Address, byteToReads), memBuffer, byteToReads)
+            let sectionHandler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, false, section.Address, memBuffer)
+            (section, memBuffer, sectionHandler, Helpers.getSectionPermission(sectionHeader))
         ) 
         |> Seq.map(fun (section, buffer, sectionHandler, permission) -> {
             BaseAddress = section.Address
