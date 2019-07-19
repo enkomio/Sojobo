@@ -155,7 +155,16 @@ module Model =
         Handler: BinHandler
         Type: String
         Info: String
-    }
+    } with
+        override this.ToString() =
+            String.Format(
+                "0x{0} - 0x{1}, size: {2}. Info: {3}. Type: {4}", 
+                this.BaseAddress.ToString("X"),
+                (this.BaseAddress + uint64 this.Content.Length).ToString("X"),
+                this.Content.Length,
+                this.Info,
+                this.Type
+            )
 
     type MemoryAccessOperation =
         | Read of UInt64
