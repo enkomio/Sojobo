@@ -58,9 +58,6 @@
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
-    <Reference Include="B2R2.Core">
-      <HintPath>..\..\Examples\Kpot2StringExtractor\bin\Debug\B2R2.Core.dll</HintPath>
-    </Reference>
     <Reference Include="B2R2.FrontEnd.Core">
       <HintPath>..\..\Examples\Kpot2StringExtractor\bin\Debug\B2R2.FrontEnd.Core.dll</HintPath>
     </Reference>
@@ -124,6 +121,11 @@
     <ProjectReference Include="..\..\ThirdPart\B2R2\src\BinIR\B2R2.BinIR.fsproj">
       <Name>B2R2.BinIR</Name>
       <Project>{3b620c49-b570-4a68-bfbe-44f1ff2c03f6}</Project>
+      <Private>True</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\..\ThirdPart\B2R2\src\Core\B2R2.Core.fsproj">
+      <Name>B2R2.Core</Name>
+      <Project>{dcb290b6-b373-42be-81cc-12431957721b}</Project>
       <Private>True</Private>
     </ProjectReference>
     <ProjectReference Include="..\..\ThirdPart\B2R2\src\FrontEnd\Intel\B2R2.FrontEnd.Intel.fsproj">
