@@ -405,10 +405,10 @@ type Debugger(sandbox: ISandbox) as this =
                 Console.WriteLine("0x{0}  0x{1}", address, num.ToString("X"))
             elif size = 32 then
                 let num = mem.ReadMemory<UInt32>(address)
-                Console.WriteLine("0x{0}  0x{1}", address, num, num.ToString("X"))
+                Console.WriteLine("0x{0}  0x{1}", address, num.ToString("X"))
             elif size = 64 then
                 let num = mem.ReadMemory<UInt64>(address)
-                Console.WriteLine("0x{0}  0x{1}", address, num, num.ToString("X"))
+                Console.WriteLine("0x{0}  0x{1}", address, num.ToString("X"))
         | SetRegister (registerName, value) ->
             try
                 let proc = sandbox.GetRunningProcess()
