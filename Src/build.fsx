@@ -60,9 +60,9 @@ let releaseNotesData =
 let releaseNoteVersion = Version.Parse(releaseNotesData.AssemblyVersion)
 let now = DateTime.UtcNow
 let timeSpan = now.Subtract(new DateTime(1980,2,1,0,0,0))
-let remaining = timeSpan.TotalDays % 30. |> int32
 let months = timeSpan.TotalDays / 30. |> int32
-let releaseVersion = string <| new Version(releaseNoteVersion.Major, releaseNoteVersion.Minor, months, now.Day + remaining)
+let remaining = int32 timeSpan.TotalDays - months * 30
+let releaseVersion = string <| new Version(releaseNoteVersion.Major, releaseNoteVersion.Minor, months, remaining)
 Trace.trace("Build Version: " + releaseVersion)
 
 // Targets
