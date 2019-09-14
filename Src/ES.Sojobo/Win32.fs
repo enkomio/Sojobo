@@ -274,7 +274,10 @@ module Win32 =
             }
 
         // for TEB I have to specify the base address
-        let tebRegion = createMemoryRegion(uint64 teb.Self, Marshal.SizeOf<TEB32>(), Permission.Readable)
+        let tebRegion = 
+            {createMemoryRegion(uint64 teb.Self, Marshal.SizeOf<TEB32>(), Permission.Readable) with
+                Type = "TEB"
+            }
         proc.Memory.AddMemoryRegion(tebRegion)
         proc.Memory.WriteMemory(uint64 teb.Self, teb)
         tebRegion.BaseAddress

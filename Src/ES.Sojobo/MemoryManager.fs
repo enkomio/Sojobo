@@ -24,7 +24,7 @@ type private MemoryEntry = {
 }
 
 type MemoryManager(pointerSize: Int32) =
-    let _va = new Dictionary<UInt64, MemoryRegion>() 
+    let _va = new SortedDictionary<UInt64, MemoryRegion>() 
     let _memoryAccessEvent = new Event<MemoryAccessOperation>()
 
     let createStack() =
@@ -32,7 +32,7 @@ type MemoryManager(pointerSize: Int32) =
             createMemoryRegion(0x18C000UL, 0x4000, Permission.Readable ||| Permission.Writable) 
             with 
                 Type = "Stack"
-                Info = "Stack"
+                Info = String.Empty
         }
         _va.Add(stack.BaseAddress, stack)
         stack
@@ -42,7 +42,7 @@ type MemoryManager(pointerSize: Int32) =
             createMemoryRegion(0x520000UL, 0x16000, Permission.Readable ||| Permission.Writable) 
             with 
                 Type = "Heap"
-                Info = "Heap"
+                Info = String.Empty
             }
         _va.Add(heap.BaseAddress, heap)
         heap
@@ -391,7 +391,7 @@ type MemoryManager(pointerSize: Int32) =
         this.AddMemoryRegion(region)
         baseAddress
 
-    member this.GetFreeMemory(size: Int32) =
+    member this.GetFreeMemory(size: Int32, ?startSearchFromAddress: UInt64) =
         let memoryMap = this.GetMemoryMap()
         if memoryMap.Length = 0 then
             // default initial allocation address
@@ -401,6 +401,11 @@ type MemoryManager(pointerSize: Int32) =
             lastRegion.BaseAddress + uint64 lastRegion.Content.LongLength
         else
             memoryMap
+            |> Seq.filter(fun m -> 
+                match startSearchFromAddress with
+                | Some addr -> m.BaseAddress > addr
+                | None -> true
+            )
             |> Seq.pairwise
             |> Seq.tryFind(fun (m1, m2) ->
                 let availableSize = m2.BaseAddress - (m1.BaseAddress + uint64 m1.Content.LongLength)

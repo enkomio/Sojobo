@@ -1,6 +1,7 @@
 ﻿namespace ES.Sojobo
 
 open System
+open System.IO
 open ES.Sojobo.Model
 open B2R2
 open B2R2.FrontEnd
@@ -48,30 +49,35 @@ module Utility =
             String.Format("type: {0,-10} => {1}", stmt.GetType().Name, LowUIR.Pp.stmtToString(stmt))
         )
 
-    let internal mapPeHeader(handler: BinHandler, memoryManager: MemoryManager) =
+    let internal mapPeHeaderAtAddress(baseAddress: UInt64, handler: BinHandler, memoryManager: MemoryManager) =
         let pe = Helpers.getPe(handler)
         let fileInfo = handler.FileInfo
         let struct (buffer, _) = fileInfo.BinReader.ReadBytes(int32 pe.PEHeaders.PEHeader.SizeOfHeaders, 0)
         
         {
-            BaseAddress = pe.PEHeaders.PEHeader.ImageBase
+            BaseAddress = baseAddress
             Content = buffer
             Handler =
                 BinHandler.Init(
                     ISA.OfString "x86", 
                     ArchOperationMode.NoMode, 
                     false, 
-                    pe.PEHeaders.PEHeader.ImageBase, 
+                    baseAddress,
                     buffer
                 )
             Permission = Permission.Readable
-            Type = fileInfo.FilePath
-            Info = fileInfo.FilePath
+            Type = String.Empty
+            Info = fileInfo.FilePath |> Path.GetFileName
         }
         |> memoryManager.AddMemoryRegion
 
-    let internal mapSections(handler: BinHandler, memoryManager: MemoryManager) =
+    let internal mapPeHeader(handler: BinHandler, memoryManager: MemoryManager) =
         let pe = Helpers.getPe(handler)
+        mapPeHeaderAtAddress(pe.PEHeaders.PEHeader.ImageBase, handler, memoryManager)
+
+    let internal mapSectionsAtAddress(baseAddress: UInt64, handler: BinHandler, memoryManager: MemoryManager) =
+        let pe = Helpers.getPe(handler)
+                
         handler.FileInfo.GetSections()
         |> Seq.map(fun section ->
             let sectionHeader = 
@@ -79,17 +85,23 @@ module Utility =
                 |> Seq.find(fun sc -> sc.Name.Equals(section.Name, StringComparison.OrdinalIgnoreCase))
                         
             let byteToReads = min sectionHeader.SizeOfRawData (int32 section.Size)
-            let memBuffer = Array.zeroCreate<Byte>(int32 section.Size)
-            Array.Copy(handler.ReadBytes(section.Address, byteToReads), memBuffer, byteToReads)
-            let sectionHandler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, false, section.Address, memBuffer)
-            (section, memBuffer, sectionHandler, Helpers.getSectionPermission(sectionHeader))
+            let sectionBuffer = Array.zeroCreate<Byte>(int32 section.Size)
+            Array.Copy(handler.ReadBytes(section.Address, byteToReads), sectionBuffer, byteToReads)
+            
+            let sectionBaseAddress = baseAddress + uint64 sectionHeader.VirtualAddress
+            let sectionHandler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, false, sectionBaseAddress, sectionBuffer)
+            (section, sectionBuffer, sectionHandler, sectionBaseAddress, Helpers.getSectionPermission(sectionHeader))
         ) 
-        |> Seq.map(fun (section, buffer, sectionHandler, permission) -> {
-            BaseAddress = section.Address
+        |> Seq.map(fun (section, buffer, sectionHandler, sectionBaseAddress, permission) -> {
+            BaseAddress = sectionBaseAddress
             Content = buffer
             Handler = sectionHandler
             Permission = permission
-            Type = section.Name
-            Info = handler.FileInfo.FilePath
+            Type = handler.FileInfo.FilePath |> Path.GetFileName
+            Info = section.Name
         })
         |> Seq.iter(memoryManager.AddMemoryRegion)
+
+    let internal mapSections(handler: BinHandler, memoryManager: MemoryManager) =
+        let pe = Helpers.getPe(handler)
+        mapSectionsAtAddress(pe.PEHeaders.PEHeader.ImageBase, handler, memoryManager)

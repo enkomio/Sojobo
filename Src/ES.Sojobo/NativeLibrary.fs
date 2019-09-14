@@ -33,11 +33,11 @@ type NativeLibrary(content: Byte array) =
         this.Exports <- exports
         _isLoaded <- true
 
-    member private this.SetProperties(handler: BinHandler) =
+    member private this.SetProperties(handler: BinHandler, baseAddress: UInt64) =
         let pe = Helpers.getPe(handler)
         this.SetProperties(
             uint64 pe.PEHeaders.PEHeader.AddressOfEntryPoint, 
-            uint64 pe.PEHeaders.PEHeader.ImageBase,
+            uint64 baseAddress,
             new List<Symbol>(
                 pe.ExportMap
                 |> Seq.map(fun kv -> {                
@@ -50,10 +50,39 @@ type NativeLibrary(content: Byte array) =
             )
         )
         
-    member private this.Relocate(pe: PE, handler: BinHandler) =
-        // TODO: to be implemented
-        //let relocSymbol = handler.FileInfo.GetRelocationSymbols()
-        handler
+    member private this.ApplyRelocation(pe: PE, proc: IProcessContainer, baseAddress: UInt64) =    
+        let libraryAddress = baseAddress - pe.PEHeaders.PEHeader.ImageBase
+
+        pe.RelocBlocks
+        |> Seq.collect(fun block -> block.Entries |> Seq.map(fun entry -> (block, entry)))
+        |> Seq.iter(fun (block, entry) ->
+            let address = baseAddress + uint64 block.PageRVA + uint64 entry.Offset                
+            let patch = (address + libraryAddress)
+            
+            match entry.Type with
+            | BaseRelocType.ImageRelBasedHighlow ->                 
+                proc.Memory.WriteMemory(address, BitConverter.GetBytes(uint32 patch), false)
+            | BaseRelocType.ImageRelBasedDir64 ->
+                proc.Memory.WriteMemory(address, BitConverter.GetBytes(patch), false)
+            | BaseRelocType.ImageRelBasedHigh -> 
+                let patch = (patch >>> 16) &&& 0xFFFFUL
+                proc.Memory.WriteMemory(address, BitConverter.GetBytes(uint16 patch), false)
+            | BaseRelocType.ImageRelBasedLow -> 
+                proc.Memory.WriteMemory(address, BitConverter.GetBytes(uint16 patch), false)
+            
+            // ignore
+            | BaseRelocType.ImageRelBasedHighadj -> ()
+            | BaseRelocType.ImageRelBasedMipsJmpaddr
+            | BaseRelocType.ImageRelBasedArmMov32
+            | BaseRelocType.ImageRelBasedRiscvHigh20 -> ()            
+            | BaseRelocType.ImageRelBasedThumbMov32
+            | BaseRelocType.ImageRelBasedRiscvLow12I -> ()
+            | BaseRelocType.ImageRelBasedRiscvLow12S -> ()
+            | BaseRelocType.ImageRelBasedMipsJmpaddr16 -> ()
+            | BaseRelocType.Reserved -> ()
+            | BaseRelocType.ImageRelBasedAbsolute -> ()
+            | _ -> failwith "Unknow relocation type"
+        )
 
     member internal this.GetLibraryName() =
         Path.GetFileName(this.Filename.Value)
@@ -73,11 +102,19 @@ type NativeLibrary(content: Byte array) =
         match handler.FileInfo.FileFormat with
         | FileFormat.PEBinary ->
             let pe = Helpers.getPe(handler)
-            if proc.Memory.IsAddressMapped(pe.PEHeaders.PEHeader.ImageBase) then
-                // must relocate the library
-                handler <- this.Relocate(pe, handler)
-            else
-                Utility.mapPeHeader(handler, proc.Memory)
-                Utility.mapSections(handler, proc.Memory)
-                this.SetProperties(handler) 
+
+            let (mustRelocate, baseAddress) =
+                if proc.Memory.IsAddressMapped(pe.PEHeaders.PEHeader.ImageBase) 
+                then (true, proc.Memory.GetFreeMemory(pe.PEHeaders.PEHeader.SizeOfImage, pe.PEHeaders.PEHeader.ImageBase))
+                else (false, pe.PEHeaders.PEHeader.ImageBase)
+
+            // map library            
+            Utility.mapPeHeaderAtAddress(baseAddress, handler, proc.Memory)
+            Utility.mapSectionsAtAddress(baseAddress, handler, proc.Memory)
+            this.SetProperties(handler, baseAddress) 
+
+            // must relocate the library if necessary
+            if mustRelocate then                                
+                this.ApplyRelocation(pe, proc, baseAddress)
+                
         | _ -> ()

@@ -106,7 +106,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
     let getOrCreateIatRegion(memoryManager: MemoryManager, symbols: BinFile.Symbol seq) =
         memoryManager.GetMemoryMap()
         |> Array.tryFind(fun region ->
-            region.Info.Equals("IAT_" + assembly.GetName().Name)
+            region.Info.Equals("EMU_" + assembly.GetName().Name)
         )
         |> function
             | Some region -> region
@@ -115,7 +115,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
                 let baseAddress = memoryManager.GetFreeMemory(size)
                 let newRegion = 
                     {createMemoryRegion(baseAddress, size, Permission.Readable) with
-                        Info = "IAT_" + assembly.GetName().Name
+                        Info = "EMU_" + assembly.GetName().Name
                     }
                 memoryManager.AddMemoryRegion(newRegion)
                 newRegion
@@ -128,7 +128,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
 
     member private this.MapEmulatedMethods(exportedMethods: IDictionary<String, UInt64>) =
         this.EmulatedMethods
-        |> Seq.iteri(fun index kv ->
+        |> Seq.iter(fun kv ->
             match exportedMethods.TryGetValue(kv.Key) with
             | (true, address) -> this.Callbacks.[address] <- kv.Key
             | _ -> ()
