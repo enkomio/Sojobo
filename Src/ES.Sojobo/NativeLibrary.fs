@@ -116,5 +116,7 @@ type NativeLibrary(content: Byte array) =
             // must relocate the library if necessary
             if mustRelocate then                                
                 this.ApplyRelocation(pe, proc, baseAddress)
-                
-        | _ -> ()
+
+            baseAddress                
+        | _ ->
+            0UL

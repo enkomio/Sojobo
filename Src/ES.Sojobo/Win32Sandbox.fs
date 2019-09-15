@@ -83,9 +83,16 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
             lib.MapSymbolWithManagedMethods(proc.Memory, proc.GetImportedFunctions(), exportedFunctions)
         )
 
+    let loadNativeLibrary(lib: NativeLibrary) =
+        _currentProcess
+        |> Option.iter(fun p ->
+            let baseAddress = lib.Load(this.GetRunningProcess())
+            p.AddHandle(Library {Name = lib.GetLibraryName(); Value = baseAddress})
+        )
+
     let loadNativeLibraries() =
         getNativeLibraries(this.Libraries)
-        |> Seq.iter(fun lib -> lib.Load(this.GetRunningProcess()))
+        |> Seq.iter(loadNativeLibrary)
         
     let resolveHooks() =
         _hooks.Clear()
@@ -227,7 +234,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
 
     let tryGetMappedLibrary(filename: String) =
         getNativeLibraries(this.Libraries) 
-        |> Seq.tryFind(fun lib -> lib.Filename.Value.Equals(filename, StringComparison.Ordinal))
+        |> Seq.tryFind(fun lib -> lib.Filename.Value.Equals(filename, StringComparison.OrdinalIgnoreCase))
 
     let run() =
         _stopExecution <- Some false
@@ -271,7 +278,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
             _stopExecution
             |> Option.iter(fun _ ->
                 let library = tryGetMappedLibrary(filename).Value
-                library.Load(this.GetRunningProcess())  
+                loadNativeLibrary(library)
                 mapManagedLibraries()
             )            
 

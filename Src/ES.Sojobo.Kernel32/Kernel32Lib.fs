@@ -126,14 +126,18 @@ module Kernel32 =
         if File.Exists(filename) then
             sandbox.AddLibrary(filename)
 
-        let libHandle = 
-            sandbox.GetRunningProcess().Memory.GetMemoryMap() 
-            |> Array.tryFind(fun memRegion -> memRegion.Type.Equals(filename))
-            |> function
-                | Some libMemRegion -> int32 libMemRegion.BaseAddress
-                | None -> 0
-
+        let (Handle.Library {Name = _; Value = libHandle}) = 
+            sandbox.GetRunningProcess().Handles 
+            |> Array.find(fun hdl ->
+                match hdl with
+                | Library info when info.Name.Equals(filename |> Path.GetFileName, StringComparison.OrdinalIgnoreCase) -> true
+                | _ -> false
+            )
         {
-            ReturnValue = Some <| createInt32(libHandle).Value
             Convention = CallingConvention.Cdecl
+            ReturnValue = 
+                if sandbox.GetRunningProcess().GetPointerSize() = 32
+                then createUInt32(uint32 libHandle).Value
+                else createUInt64(libHandle).Value
+                |> Some            
         }

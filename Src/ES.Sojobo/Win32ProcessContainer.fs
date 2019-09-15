@@ -11,6 +11,7 @@ open B2R2.FrontEnd.Intel
 type Win32ProcessContainer() as this =  
     inherit BaseProcessContainer(32)
 
+    let _handles = new List<Handle>()
     let _memoryManager = new MemoryManager(32)
     let _iat = new List<Symbol>()
     let _cpu = new Cpu()
@@ -53,6 +54,10 @@ type Win32ProcessContainer() as this =
     
     default this.Memory = _memoryManager
     default this.Cpu = _cpu
+    default this.Handles = _handles |> Seq.toArray
+
+    member this.AddHandle(handle: Handle) =
+        _handles.Add(handle)
         
     member this.Initialize(buffer: Byte array) =
         let isa = ISA.OfString "x86"

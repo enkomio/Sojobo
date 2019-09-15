@@ -24,6 +24,7 @@ type BaseProcessContainer(pointerSize: Int32) =
     abstract GetCallStack: unit -> UInt64 array
     abstract Memory: MemoryManager with get
     abstract Cpu: Cpu with get
+    abstract Handles: Handle array with get
 
     member internal this.UpdateActiveMemoryRegion(memRegion: MemoryRegion) =
         _activeRegion <- Some memRegion
@@ -96,6 +97,9 @@ type BaseProcessContainer(pointerSize: Int32) =
 
         member this.Cpu
             with get() = this.Cpu
+
+        member this.Handles
+            with get() = this.Handles
 
         member this.Pid
             with get() = this.Pid

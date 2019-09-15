@@ -13,6 +13,9 @@ type IProcessContainer =
         /// Get the CPU object associated with the process
         abstract Cpu: Cpu with get
 
+        /// A list of the hadnel owned by the process
+        abstract Handles: Handle array with get
+
         /// Return the Pid valued of the emulated process
         abstract Pid: UInt32 with get, set
 
