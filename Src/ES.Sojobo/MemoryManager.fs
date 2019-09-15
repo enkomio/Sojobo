@@ -11,15 +11,16 @@ open B2R2
 open B2R2.FrontEnd
 open ES.Sojobo.Model
 open B2R2.BinFile
+open ES.Sojobo.Helpers
 
 type private Fixup = {
     Offset: Int64
-    FieldHashCode: Int32
-    SourceHashCode: Int32
+    ReferencedField: Object
+    This: Object
 }
 
 type private MemoryEntry = {
-    HashCode: Int32
+    Object: Object
     Buffer: Byte array
 }
 
@@ -65,43 +66,9 @@ type MemoryManager(pointerSize: Int32) =
         let realSize = min (memRegion.Content.Length-offset) size
         BinHandler.ReadBytes(memRegion.Handler, address, realSize)
 
-    let rec getFieldArrayLength(field: FieldInfo, computedSize: Dictionary<Type, Int32>) =
-        let arrayLength = field.GetCustomAttribute<MarshalAsAttribute>().SizeConst
-        let elementType = field.FieldType.GetElementType()
-        arrayLength * calculateSize(elementType, computedSize)
-
-    and calculateSize(objectType: Type, computedSize: Dictionary<Type, Int32>) =
-        if computedSize.ContainsKey(objectType) then
-            computedSize.[objectType]
-
-        elif objectType.IsValueType then
-            Marshal.SizeOf(objectType)
-
-        elif objectType.IsArray then
-            let arrayLength = objectType.GetCustomAttribute<MarshalAsAttribute>().SizeConst
-            let elementType = objectType.GetElementType()
-            arrayLength * calculateSize(elementType, computedSize)
-
-        elif objectType.IsClass then
-            let flags = BindingFlags.Instance ||| BindingFlags.NonPublic ||| BindingFlags.Public        
-            objectType.GetFields(flags)
-            |> Array.sumBy(fun field ->
-                if field.FieldType.IsArray then
-                    getFieldArrayLength(field, computedSize)
-                elif field.FieldType.IsClass then
-                    pointerSize / 8
-                else
-                    Marshal.SizeOf(field.FieldType)
-            )
-            |> fun totalSize ->
-                computedSize.[objectType] <- totalSize
-                totalSize
-        else
-            failwith("Unable to get size of type: " + objectType.FullName)
-
     let rec serializeImpl(value: Object, entries: List<MemoryEntry>, fixups: List<Fixup>, analyzedObjects: HashSet<Object>) : Byte array =
         // allocate buffer
-        let size = calculateSize(value.GetType(), new Dictionary<Type, Int32>())        
+        let size = deepSizeOf(value.GetType(), pointerSize)        
         use buffer = new MemoryStream(size)
         use binWriter = new BinaryWriter(buffer)
         
@@ -110,10 +77,12 @@ type MemoryManager(pointerSize: Int32) =
         value.GetType().GetFields(flags)
         |> Array.iter(fun field ->
             let fieldValue = field.GetValue(value)
-            if fieldValue = null then
-                let size = getFieldArrayLength(field, new Dictionary<Type, Int32>())
-                let nullValue = Array.zeroCreate<Byte>(size)
-                binWriter.Write(nullValue)
+            if fieldValue = null then                
+                if field.FieldType.IsArray
+                then getFieldArrayLength(field, pointerSize, new Dictionary<Type, Int32>())
+                else deepSizeOf(field.FieldType, pointerSize)
+                |> Array.zeroCreate<Byte>
+                |> binWriter.Write
 
             elif field.FieldType.IsArray then
                 let arrayLength = field.GetCustomAttribute<MarshalAsAttribute>().SizeConst
@@ -121,16 +90,17 @@ type MemoryManager(pointerSize: Int32) =
                 
                 for i=0 to arrayLength - 1 do
                     if arrayValue.MoveNext() then
-                        binWriter.Write(serializeImpl(arrayValue.Current, entries, fixups, analyzedObjects))
+                        serializeImpl(arrayValue.Current, entries, fixups, analyzedObjects)
+                        |> binWriter.Write
                                 
             elif field.FieldType.IsClass then                
                 if analyzedObjects.Add(fieldValue) then
                     serializeImpl(fieldValue, entries, fixups, analyzedObjects) |> ignore
                      
                 {
-                    SourceHashCode = value.GetHashCode()
-                    FieldHashCode = fieldValue.GetHashCode()
                     Offset = binWriter.BaseStream.Position
+                    ReferencedField = fieldValue
+                    This = value
                 }
                 |> fixups.Add
 
@@ -153,17 +123,17 @@ type MemoryManager(pointerSize: Int32) =
 
         // add entry
         let entry = {
-            HashCode = value.GetHashCode()
             Buffer = buffer.ToArray()
+            Object = value
         }
-        entries.Add(entry)        
+        entries.Add(entry)
         entry.Buffer
 
     let rec serialize(value: Object, entries: List<MemoryEntry>, fixup: List<Fixup>): Byte array =        
         serializeImpl(value, entries, fixup, new HashSet<Object>())
 
-    let allocateMemoryForEntries(entries: MemoryEntry seq, mainHashCode: Int32, mainObjectAddress: UInt64, memory: MemoryManager) =
-        let entriesFixup = new Dictionary<Int32, MemoryEntry * UInt64>()
+    let allocateMemoryForEntries(entries: MemoryEntry seq, mainObject: Object, mainObjectAddress: UInt64, memory: MemoryManager) =        
+        let entriesFixup = new Dictionary<Object, MemoryEntry * UInt64>()
 
         // allocate a big chunk of memory
         let totalSize = entries |> Seq.sumBy(fun entry -> entry.Buffer.Length)
@@ -172,11 +142,11 @@ type MemoryManager(pointerSize: Int32) =
         // copy all entries to the just allocated memory
         entries
         |> Seq.iter(fun entry ->
-            let address = 
-                if entry.HashCode = mainHashCode 
+            let address =
+                if Object.ReferenceEquals(entry.Object, mainObject)
                 then createMemoryRegion(mainObjectAddress, entry.Buffer.Length, Permission.Readable).BaseAddress
                 else currentAddress
-            entriesFixup.[entry.HashCode] <- (entry, address)
+            entriesFixup.[entry.Object] <- (entry, address)
             currentAddress <- currentAddress + uint64 entry.Buffer.Length
         )
 
@@ -188,15 +158,14 @@ type MemoryManager(pointerSize: Int32) =
             memory.WriteMemory(address, entry.Buffer, false)
         )
 
-    let applyPatches(entriesFixup: Dictionary<Int32, MemoryEntry * UInt64>, fixups: List<Fixup>) =
-        let entries = entriesFixup.Values |> Seq.map(fun (e, _) -> e)
+    let applyPatches(entriesFixup: Dictionary<Object, MemoryEntry * UInt64>, fixups: List<Fixup>) =
+        let entries = entriesFixup.Values |> Seq.map(fun (e, _) -> e) |> Seq.toList
         
         fixups
         |> Seq.iter(fun fixup ->
-            // get source entry and effective address
-            let fieldEntry = entries |> Seq.find(fun entry -> entry.HashCode = fixup.FieldHashCode)
-            let (_, fieldAddress) = entriesFixup.[fieldEntry.HashCode]
-            let valueEntry = entries |> Seq.find(fun entry -> entry.HashCode = fixup.SourceHashCode)
+            let fieldEntry = entries |> Seq.find(fun entry -> Object.ReferenceEquals(entry.Object, fixup.ReferencedField))
+            let valueEntry = entries |> Seq.find(fun entry -> Object.ReferenceEquals(entry.Object, fixup.This))
+            let (_, fieldAddress) = entriesFixup.[fieldEntry.Object]    
 
             // go to specified offset
             use memStream = new MemoryStream(valueEntry.Buffer)
@@ -210,7 +179,7 @@ type MemoryManager(pointerSize: Int32) =
         )
 
     let readObject(binReader: BinaryReader, objectType: Type) =
-        let size = calculateSize(objectType, new Dictionary<Type, Int32>())
+        let size = deepSizeOf(objectType, pointerSize)
         if objectType.IsClass then                        
             let address =
                 if pointerSize = 32
@@ -271,7 +240,7 @@ type MemoryManager(pointerSize: Int32) =
 
                     analyzedObjects.[address] <- fieldValue
 
-                    let size = calculateSize(field.FieldType, new Dictionary<Type, Int32>())
+                    let size = deepSizeOf(field.FieldType, pointerSize)
                     let fieldBuffer = readMemory(address, size)
                     deserialize(fieldBuffer, fieldValue, analyzedObjects)   
                     
@@ -320,7 +289,7 @@ type MemoryManager(pointerSize: Int32) =
     member this.ReadMemory<'T>(address: UInt64) =
         // read raw bytes
         let objectType = typeof<'T>
-        let size = calculateSize(objectType, new Dictionary<Type, Int32>())
+        let size = deepSizeOf(objectType, pointerSize)
         let buffer = readMemory(address, size)
 
         let objectInstance = 
@@ -356,7 +325,7 @@ type MemoryManager(pointerSize: Int32) =
         let entries = new List<MemoryEntry>()
         let fixup = new List<Fixup>()
         serialize(value, entries, fixup) |> ignore
-        let fixedupEntries = allocateMemoryForEntries(entries, value.GetHashCode(), address, this)
+        let fixedupEntries = allocateMemoryForEntries(entries, value, address, this)
         applyPatches(fixedupEntries, fixup)
         writeEntriesToMemory(fixedupEntries.Values, this)
         
@@ -427,7 +396,7 @@ type MemoryManager(pointerSize: Int32) =
         baseAddress
 
     member this.AllocateMemory(value: Object, permission: Permission) =
-        let size = calculateSize(value.GetType(), new Dictionary<Type, Int32>())
+        let size = deepSizeOf(value.GetType(), pointerSize)
         let baseAddress = this.AllocateMemory(size, permission)
         this.WriteMemory(baseAddress, value)
         baseAddress

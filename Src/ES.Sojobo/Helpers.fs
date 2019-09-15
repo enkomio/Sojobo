@@ -10,6 +10,8 @@ open B2R2.BinFile
 open System.Reflection.PortableExecutable
 
 module internal Helpers = 
+    open System.Collections.Generic
+    open System.Runtime.InteropServices
 
     let toArray(bitVector: BitVector) =
         let size = int32 <| BitVector.getType bitVector
@@ -75,3 +77,40 @@ module internal Helpers =
     let getFunctionKeyName(functioName: String, libraryName: String) =
         let keyName = (libraryName + "::" + functioName).ToLower()
         keyName.Replace(".dll", String.Empty)
+
+    let rec getFieldArrayLength(field: FieldInfo, pointerSize: Int32, computedSize: Dictionary<Type, Int32>) =
+        let arrayLength = field.GetCustomAttribute<MarshalAsAttribute>().SizeConst
+        let elementType = field.FieldType.GetElementType()
+        arrayLength * calculateSize(elementType, pointerSize, computedSize)
+
+    and private calculateSize(objectType: Type, pointerSize: Int32, computedSize: Dictionary<Type, Int32>) =
+        if computedSize.ContainsKey(objectType) then
+            computedSize.[objectType]
+
+        elif objectType.IsValueType then
+            Marshal.SizeOf(objectType)
+
+        elif objectType.IsArray then
+            let arrayLength = objectType.GetCustomAttribute<MarshalAsAttribute>().SizeConst
+            let elementType = objectType.GetElementType()
+            arrayLength * calculateSize(elementType, pointerSize, computedSize)
+
+        elif objectType.IsClass then
+            let flags = BindingFlags.Instance ||| BindingFlags.NonPublic ||| BindingFlags.Public        
+            objectType.GetFields(flags)
+            |> Array.sumBy(fun field ->
+                if field.FieldType.IsArray then
+                    getFieldArrayLength(field, pointerSize, computedSize)
+                elif field.FieldType.IsClass then
+                    pointerSize / 8
+                else
+                    Marshal.SizeOf(field.FieldType)
+            )
+            |> fun totalSize ->
+                computedSize.[objectType] <- totalSize
+                totalSize
+        else
+            failwith("Unable to get size of type: " + objectType.FullName)
+
+    let deepSizeOf(objectType: Type, pointerSize: Int32) =
+        calculateSize(objectType, pointerSize, new Dictionary<Type, Int32>())

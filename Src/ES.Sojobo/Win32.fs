@@ -56,6 +56,7 @@ module Win32 =
     // https://cheesehack.tistory.com/99
     // https://www.aldeid.com/wiki/PEB_LDR_DATA
     // https://docs.microsoft.com/en-us/windows/win32/api/winternl/ns-winternl-peb_ldr_data
+    // https://www.geoffchappell.com/studies/windows/win32/ntdll/structs/peb_ldr_data.htm
     [<CLIMutable>]
     [<ReferenceEquality>]
     [<StructLayout(LayoutKind.Sequential, Pack=1, CharSet=CharSet.Ansi)>]
@@ -63,9 +64,15 @@ module Win32 =
         Length: UInt32
         Initialized: UInt32
         SsHandle: UInt32
-        InLoadOrderModuleList: LDR_DATA_TABLE_ENTRY
-        InMemoryOrderModuleList: LDR_DATA_TABLE_ENTRY
-        InInitializationOrderModuleList: LDR_DATA_TABLE_ENTRY
+        mutable InLoadOrderLinksForward: LDR_DATA_TABLE_ENTRY
+        mutable InLoadOrderLinksBackward: LDR_DATA_TABLE_ENTRY
+        mutable InMemoryOrderLinksForward: LDR_DATA_TABLE_ENTRY
+        mutable InMemoryOrderLinksBackward: LDR_DATA_TABLE_ENTRY
+        mutable InInitializationOrderLinksForward: LDR_DATA_TABLE_ENTRY
+        mutable InInitializationOrderLinksBackward: LDR_DATA_TABLE_ENTRY
+        EntryInProgress: UInt32
+        ShutdownInProgress: UInt32
+        ShutdownThreadId: UInt32
     }
 
     // https://docs.microsoft.com/en-us/windows/desktop/api/winternl/ns-winternl-peb
@@ -230,7 +237,7 @@ module Win32 =
             entry.InLoadOrderLinksForward <- fEntry
             entry.InLoadOrderLinksBackward <- bEntry                    
         )
-        
+                        
         // finally create the PEB
         {Activator.CreateInstance<PEB32>() with 
             Reserved1 = Array.zeroCreate<Byte>(2)
@@ -238,12 +245,15 @@ module Win32 =
             Reserved2 = Array.zeroCreate<Byte>(1)
             Reserved3 = Array.zeroCreate<UInt32>(2)            
             Ldr = 
-                {Activator.CreateInstance<PEB_LDR_DATA>() with    
-                    InLoadOrderModuleList = Seq.head dataEntries
-                    InMemoryOrderModuleList = Seq.head dataEntries
-                    InInitializationOrderModuleList = Seq.head dataEntries
+                {Activator.CreateInstance<PEB_LDR_DATA>() with
+                    InInitializationOrderLinksForward = Seq.head dataEntries
+                    InInitializationOrderLinksBackward = Seq.last dataEntries
+                    InMemoryOrderLinksForward = Seq.head dataEntries
+                    InMemoryOrderLinksBackward = Seq.last dataEntries
+                    InLoadOrderLinksForward = Seq.head dataEntries 
+                    InLoadOrderLinksBackward = Seq.last dataEntries
                     Initialized = 1u
-                    Length = uint32 sizeof<PEB_LDR_DATA>
+                    Length = uint32 <| Helpers.deepSizeOf(typeof<PEB_LDR_DATA>, proc.GetPointerSize())
                 }
             ProcessParameters = 0u
             SubSystemData = 0u

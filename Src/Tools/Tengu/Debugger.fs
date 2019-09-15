@@ -195,7 +195,7 @@ type Debugger(sandbox: ISandbox) as this =
                 chunk
                 |> Array.map(fun b -> if b > 31uy && b < 127uy then char b else '.')
                 |> fun chars -> new String(chars)
-            Console.WriteLine("0x{0}  {1,-50}{2}", address, BitConverter.ToString(chunk).Replace('-', ' '), asciiString)
+            Console.WriteLine("0x{0}  {1,-50}{2}", address.ToString("X"), BitConverter.ToString(chunk).Replace('-', ' '), asciiString)
         )
 
     let parseTarget(target: String) =
