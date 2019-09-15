@@ -66,7 +66,7 @@ type MemoryManager(pointerSize: Int32) =
         let realSize = min (memRegion.Content.Length-offset) size
         BinHandler.ReadBytes(memRegion.Handler, address, realSize)
 
-    let rec serializeImpl(value: Object, entries: List<MemoryEntry>, fixups: List<Fixup>, analyzedObjects: HashSet<Object>) : Byte array =
+    let rec doSerialize(value: Object, entries: List<MemoryEntry>, addEntry: Boolean, fixups: List<Fixup>, analyzedObjects: HashSet<Object>): Byte array =
         // allocate buffer
         let size = deepSizeOf(value.GetType(), pointerSize)        
         use buffer = new MemoryStream(size)
@@ -90,12 +90,12 @@ type MemoryManager(pointerSize: Int32) =
                 
                 for i=0 to arrayLength - 1 do
                     if arrayValue.MoveNext() then
-                        serializeImpl(arrayValue.Current, entries, fixups, analyzedObjects)
+                        doSerialize(arrayValue.Current, entries, addEntry, fixups, analyzedObjects)
                         |> binWriter.Write
                                 
             elif field.FieldType.IsClass then                
                 if analyzedObjects.Add(fieldValue) then
-                    serializeImpl(fieldValue, entries, fixups, analyzedObjects) |> ignore
+                    doSerialize(fieldValue, entries, addEntry, fixups, analyzedObjects) |> ignore
                      
                 {
                     Offset = binWriter.BaseStream.Position
@@ -118,19 +118,18 @@ type MemoryManager(pointerSize: Int32) =
                 | :? UInt32 as v -> binWriter.Write(v)
                 | :? Int64 as v -> binWriter.Write(v)
                 | :? UInt64 as v -> binWriter.Write(v)
-                | v -> binWriter.Write(serializeImpl(v, entries, fixups, analyzedObjects))
+                | v -> 
+                    // serialized struct are not added to the list
+                    doSerialize(v, entries, false, fixups, analyzedObjects)
+                    |> binWriter.Write                     
         )
-
-        // add entry
-        let entry = {
-            Buffer = buffer.ToArray()
-            Object = value
-        }
-        entries.Add(entry)
+        
+        let entry = { Buffer = buffer.ToArray(); Object = value}
+        if addEntry then entries.Add(entry)
         entry.Buffer
-
-    let rec serialize(value: Object, entries: List<MemoryEntry>, fixup: List<Fixup>): Byte array =        
-        serializeImpl(value, entries, fixup, new HashSet<Object>())
+        
+    and serialize(value: Object, entries: List<MemoryEntry>, fixup: List<Fixup>) =        
+        doSerialize(value, entries, true, fixup, new HashSet<Object>())
 
     let allocateMemoryForEntries(entries: MemoryEntry seq, mainObject: Object, mainObjectAddress: UInt64, memory: MemoryManager) =        
         let entriesFixup = new Dictionary<Object, MemoryEntry * UInt64>()

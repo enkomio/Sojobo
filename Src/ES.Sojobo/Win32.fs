@@ -220,6 +220,7 @@ module Win32 =
             dataEntries.Add(dataTableEntry)
         )        
 
+        
         // connect the link among them
         dataEntries        
         |> Seq.iteri(fun index entry -> 
@@ -237,6 +238,25 @@ module Win32 =
             entry.InLoadOrderLinksForward <- fEntry
             entry.InLoadOrderLinksBackward <- bEntry                    
         )
+
+        // connect Ldr to head and last
+        let head = Seq.head dataEntries
+        let last = Seq.last dataEntries
+        let ldr =
+            {Activator.CreateInstance<PEB_LDR_DATA>() with
+                InInitializationOrderLinksForward = head
+                InInitializationOrderLinksBackward = last
+                InMemoryOrderLinksForward = head
+                InMemoryOrderLinksBackward = last
+                InLoadOrderLinksForward = head
+                InLoadOrderLinksBackward = last
+                Initialized = 1u
+                Length = uint32 <| Helpers.deepSizeOf(typeof<PEB_LDR_DATA>, proc.GetPointerSize())
+            }
+        
+        //head.InInitializationOrderLinksBackward <- ldr
+        //head.InMemoryOrderLinksBackward <- ldr
+        //head.InLoadOrderLinksBackward <- ldr
                         
         // finally create the PEB
         {Activator.CreateInstance<PEB32>() with 
@@ -244,17 +264,7 @@ module Win32 =
             BeingDebugged = 0uy
             Reserved2 = Array.zeroCreate<Byte>(1)
             Reserved3 = Array.zeroCreate<UInt32>(2)            
-            Ldr = 
-                {Activator.CreateInstance<PEB_LDR_DATA>() with
-                    InInitializationOrderLinksForward = Seq.head dataEntries
-                    InInitializationOrderLinksBackward = Seq.last dataEntries
-                    InMemoryOrderLinksForward = Seq.head dataEntries
-                    InMemoryOrderLinksBackward = Seq.last dataEntries
-                    InLoadOrderLinksForward = Seq.head dataEntries 
-                    InLoadOrderLinksBackward = Seq.last dataEntries
-                    Initialized = 1u
-                    Length = uint32 <| Helpers.deepSizeOf(typeof<PEB_LDR_DATA>, proc.GetPointerSize())
-                }
+            Ldr = ldr
             ProcessParameters = 0u
             SubSystemData = 0u
             ProcessHeap = uint32 proc.Memory.Heap.BaseAddress
