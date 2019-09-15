@@ -33,6 +33,14 @@ module Model =
         IsTemp: Boolean
     }
 
+    type LibraryHandle = {
+        Name: String
+        Value: UInt64
+    }
+
+    type Handle =
+        | Library of LibraryHandle
+
     type SymbolDto = {
         Name: String
         Library: String
@@ -195,6 +203,9 @@ module Model =
 
     let createUInt32(value: UInt32) =
         createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofUInt32 value 32<rt>)
+
+    let createInt64(value: Int64) =
+        createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofInt64 value 64<rt>)
 
     let createUInt64(value: UInt64) =
         createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofUInt64 value 64<rt>)
