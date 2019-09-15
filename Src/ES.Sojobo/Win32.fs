@@ -28,6 +28,14 @@ module Win32 =
         MaximumLength: UInt16
         Buffer: UInt32
     }
+
+    [<CLIMutable>]
+    [<Struct>]
+    [<StructLayout(LayoutKind.Sequential, Pack=1, CharSet=CharSet.Ansi)>]
+    type ListEntry = {
+        mutable Forward: Object
+        mutable Backward: Object
+    }
     
     // https://www.aldeid.com/wiki/LDR_DATA_TABLE_ENTRY 
     // https://docs.microsoft.com/en-us/windows/desktop/api/winternl/ns-winternl-_peb_ldr_data    
@@ -35,12 +43,9 @@ module Win32 =
     [<ReferenceEquality>]
     [<StructLayout(LayoutKind.Sequential, Pack=1, CharSet=CharSet.Ansi)>]
     type LDR_DATA_TABLE_ENTRY = {
-        mutable InLoadOrderLinksForward: LDR_DATA_TABLE_ENTRY
-        mutable InLoadOrderLinksBackward: LDR_DATA_TABLE_ENTRY
-        mutable InMemoryOrderLinksForward: LDR_DATA_TABLE_ENTRY
-        mutable InMemoryOrderLinksBackward: LDR_DATA_TABLE_ENTRY
-        mutable InInitializationOrderLinksForward: LDR_DATA_TABLE_ENTRY
-        mutable InInitializationOrderLinksBackward: LDR_DATA_TABLE_ENTRY
+        mutable InLoadOrderLinks: ListEntry
+        mutable InMemoryOrderLinks: ListEntry
+        mutable InInitializationOrderLinks: ListEntry
         DllBase: UInt32
         EntryPoint: UInt32
         Reserved3: UInt32
@@ -64,12 +69,9 @@ module Win32 =
         Length: UInt32
         Initialized: UInt32
         SsHandle: UInt32
-        mutable InLoadOrderLinksForward: LDR_DATA_TABLE_ENTRY
-        mutable InLoadOrderLinksBackward: LDR_DATA_TABLE_ENTRY
-        mutable InMemoryOrderLinksForward: LDR_DATA_TABLE_ENTRY
-        mutable InMemoryOrderLinksBackward: LDR_DATA_TABLE_ENTRY
-        mutable InInitializationOrderLinksForward: LDR_DATA_TABLE_ENTRY
-        mutable InInitializationOrderLinksBackward: LDR_DATA_TABLE_ENTRY
+        mutable InLoadOrderLinks: ListEntry
+        mutable InMemoryOrderLinks: ListEntry
+        mutable InInitializationOrderLinks: ListEntry
         EntryInProgress: UInt32
         ShutdownInProgress: UInt32
         ShutdownThreadId: UInt32
@@ -202,24 +204,13 @@ module Win32 =
             libraryNamesRegionOffset <- libraryNamesRegionOffset + uint64 fullNameBytes.Length
                 
             // create Data Table Entry
-            let dataTableEntry =
-                {Activator.CreateInstance<LDR_DATA_TABLE_ENTRY>() with
-                    FullDllName = fullNameDll
-                    DllBase = imageBase
-                    EntryPoint = entryPoint
-                }
-
-            // set link to refer to itself
-            dataTableEntry.InInitializationOrderLinksForward <- dataTableEntry
-            dataTableEntry.InInitializationOrderLinksBackward <- dataTableEntry
-            dataTableEntry.InMemoryOrderLinksForward <- dataTableEntry
-            dataTableEntry.InMemoryOrderLinksBackward <- dataTableEntry
-            dataTableEntry.InLoadOrderLinksForward <- dataTableEntry
-            dataTableEntry.InLoadOrderLinksBackward <- dataTableEntry
-
-            dataEntries.Add(dataTableEntry)
-        )        
-
+            {Activator.CreateInstance<LDR_DATA_TABLE_ENTRY>() with
+                FullDllName = fullNameDll
+                DllBase = imageBase
+                EntryPoint = entryPoint
+            }
+            |> dataEntries.Add
+        ) 
         
         // connect the link among them
         dataEntries        
@@ -231,12 +222,12 @@ module Win32 =
             let bEntry = dataEntries.[bIndex]
            
             // set connection            
-            entry.InInitializationOrderLinksForward <- fEntry
-            entry.InInitializationOrderLinksBackward <- bEntry
-            entry.InMemoryOrderLinksForward <- fEntry
-            entry.InMemoryOrderLinksBackward <- bEntry
-            entry.InLoadOrderLinksForward <- fEntry
-            entry.InLoadOrderLinksBackward <- bEntry                    
+            entry.InInitializationOrderLinks.Forward <- fEntry
+            entry.InInitializationOrderLinks.Backward <- bEntry
+            entry.InMemoryOrderLinks.Forward <- fEntry
+            entry.InMemoryOrderLinks.Backward <- bEntry
+            entry.InLoadOrderLinks.Forward <- fEntry
+            entry.InLoadOrderLinks.Backward <- bEntry                    
         )
 
         // connect Ldr to head and last
@@ -244,20 +235,21 @@ module Win32 =
         let last = Seq.last dataEntries
         let ldr =
             {Activator.CreateInstance<PEB_LDR_DATA>() with
-                InInitializationOrderLinksForward = head
-                InInitializationOrderLinksBackward = last
-                InMemoryOrderLinksForward = head
-                InMemoryOrderLinksBackward = last
-                InLoadOrderLinksForward = head
-                InLoadOrderLinksBackward = last
+                InInitializationOrderLinks = {Forward = head; Backward = last}
+                InMemoryOrderLinks = {Forward = head; Backward = last}
+                InLoadOrderLinks = {Forward = head; Backward = last}
                 Initialized = 1u
                 Length = uint32 <| Helpers.deepSizeOf(typeof<PEB_LDR_DATA>, proc.GetPointerSize())
             }
-        
-        //head.InInitializationOrderLinksBackward <- ldr
-        //head.InMemoryOrderLinksBackward <- ldr
-        //head.InLoadOrderLinksBackward <- ldr
-                        
+
+        head.InInitializationOrderLinks.Backward <- ldr
+        head.InLoadOrderLinks.Backward <- ldr
+        head.InMemoryOrderLinks.Backward <- ldr
+
+        last.InInitializationOrderLinks.Forward <- ldr
+        last.InLoadOrderLinks.Forward <- ldr
+        last.InMemoryOrderLinks.Forward <- ldr
+                                
         // finally create the PEB
         {Activator.CreateInstance<PEB32>() with 
             Reserved1 = Array.zeroCreate<Byte>(2)
