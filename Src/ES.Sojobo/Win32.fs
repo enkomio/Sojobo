@@ -13,7 +13,7 @@ open ES.Sojobo.Model
     The following structures follow the definition provided by MS.
     As general rule, reserved fields are not valorized.
     Serialization info:
-        - Class type are serialized as pointer to anothe memory region
+        - Class type (as record) are serialized as pointer to anothe memory region
         - Add "Struct" attribute if the class must be serialized as struct and not as a pointer
         - For array type always add the "MarshalAs" with "SizeConst" property in order to know how many items must be serialized
 *)
@@ -55,7 +55,7 @@ module Win32 =
 
     // https://cheesehack.tistory.com/99
     // https://www.aldeid.com/wiki/PEB_LDR_DATA
-    // https://docs.microsoft.com/en-us/windows/desktop/api/winternl/ns-winternl-_peb_ldr_data
+    // https://docs.microsoft.com/en-us/windows/win32/api/winternl/ns-winternl-peb_ldr_data
     [<CLIMutable>]
     [<ReferenceEquality>]
     [<StructLayout(LayoutKind.Sequential, Pack=1, CharSet=CharSet.Ansi)>]
@@ -242,6 +242,8 @@ module Win32 =
                     InLoadOrderModuleList = Seq.head dataEntries
                     InMemoryOrderModuleList = Seq.head dataEntries
                     InInitializationOrderModuleList = Seq.head dataEntries
+                    Initialized = 1u
+                    Length = uint32 sizeof<PEB_LDR_DATA>
                 }
             ProcessParameters = 0u
             SubSystemData = 0u
