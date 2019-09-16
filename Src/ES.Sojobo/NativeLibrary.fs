@@ -18,7 +18,8 @@ module private UnknowLibrary =
 type NativeLibrary(content: Byte array) =
     let mutable _isLoaded = false
 
-    member val Filename: String option = None with get, set
+    member val FileName: String option = None with get, set
+    member val Name: String option = None with get, set
     member val Content = content with get
     member val EntryPoint = 0UL with get, set
     member val BaseAddress = 0UL with get, set
@@ -27,9 +28,9 @@ type NativeLibrary(content: Byte array) =
     static member Create(content: Byte array) =
         new NativeLibrary(content)
 
-    static member Create(filename: String) =
-        let content = File.ReadAllBytes(filename)
-        new NativeLibrary(content, Filename = Some filename)
+    static member Create(fileName: String) =
+        let content = File.ReadAllBytes(fileName)
+        new NativeLibrary(content, FileName = Some fileName, Name = Some(Path.GetFileName(fileName)))
 
     override this.ToString() =
         String.Format("{0}:0x{1}", this.GetLibraryName(), this.BaseAddress.ToString("X"))
@@ -52,7 +53,7 @@ type NativeLibrary(content: Byte array) =
                         Name = kv.Value
                         Kind = SymbolKind.FunctionType
                         Target = TargetKind.DynamicSymbol
-                        LibraryName = (defaultArg this.Filename String.Empty) |> Path.GetFileName
+                        LibraryName = (defaultArg this.FileName String.Empty) |> Path.GetFileName
                 })
             )
         )
@@ -92,10 +93,10 @@ type NativeLibrary(content: Byte array) =
         )
 
     member internal this.GetLibraryName() =
-        match this.Filename with
+        match this.FileName with
         | Some _ -> ()
-        | None -> this.Filename <- Some <| UnknowLibrary.getName()
-        Path.GetFileName(this.Filename.Value)
+        | None -> this.FileName <- Some <| UnknowLibrary.getName()
+        Path.GetFileName(this.FileName.Value)
 
     member this.IsLoaded() =
         _isLoaded
@@ -104,7 +105,7 @@ type NativeLibrary(content: Byte array) =
         // create handler
         let isa = ISA.OfString "x86"
         let mutable handler = 
-            match this.Filename with
+            match this.FileName with
             | Some filename -> BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, filename)
             | None -> BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, content)
 

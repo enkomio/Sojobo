@@ -55,7 +55,7 @@ type SnapshotManager(sandbox: BaseSandbox) =
                 | _ -> Array.empty
             Libraries = 
                 getNativeLibraries(sandbox.Libraries)
-                |> Array.filter(fun lib -> lib.Filename.IsSome)
+                |> Array.filter(fun lib -> lib.FileName.IsSome)
                 |> Array.map(fun lib -> {
                     Name = lib.GetLibraryName()
                     EntryPoint = lib.EntryPoint

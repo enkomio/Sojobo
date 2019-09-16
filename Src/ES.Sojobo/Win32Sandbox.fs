@@ -64,7 +64,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         
     let getAllExportedFunctions() =
         getNativeLibraries(this.Libraries)
-        |> Array.filter(fun lib -> lib.Filename.IsSome)
+        |> Array.filter(fun lib -> lib.FileName.IsSome)
         |> Array.collect(fun lib ->
             lib.Exports
             |> Seq.map(fun symbol ->
@@ -89,11 +89,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
             let baseAddress = lib.Load(this.GetRunningProcess())
             p.AddHandle(Library {Name = lib.GetLibraryName(); Value = baseAddress})
         )
-
-    let loadNativeLibraries() =
-        getNativeLibraries(this.Libraries)
-        |> Seq.iter(loadNativeLibrary)
-        
+                
     let resolveHooks() =
         _hooks.Clear()
         this.Hooks
@@ -106,8 +102,8 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
                 let (moduleName, functionName) = (items.[0].Trim(), items.[1].Trim())
                 this.Libraries
                 |> Seq.iter(function 
-                    | Native lib when lib.Filename.IsSome -> 
-                        let filename = (Path.GetFileName <| lib.Filename.Value.ToLowerInvariant()).Replace(".dll", String.Empty).Trim()
+                    | Native lib when lib.FileName.IsSome -> 
+                        let filename = (Path.GetFileName <| lib.FileName.Value.ToLowerInvariant()).Replace(".dll", String.Empty).Trim()
                         if moduleName.Equals(filename, StringComparison.OrdinalIgnoreCase) then
                             // try to identify an exported function with the same name
                             lib.Exports
@@ -160,9 +156,6 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         if settings.InitializeEnvironment then
             loadCoreLibrariesFromFilesystem()
             
-        // setup the native libraries
-        loadNativeLibraries()
-
         // setup the emulated functions
         mapManagedLibraries()
 
@@ -232,9 +225,10 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
             |> Seq.map(fun lib -> lib.LibraryName)
             |> Seq.iter(fun libName -> loadLibraryFile(libName, loadedLibraries))
 
-    let tryGetMappedLibrary(filename: String) =
+    let tryGetMappedLibrary(fileName: String) =
+        let name = Path.GetFileName(fileName)
         getNativeLibraries(this.Libraries) 
-        |> Seq.tryFind(fun lib -> lib.Filename.Value.Equals(filename, StringComparison.OrdinalIgnoreCase))
+        |> Seq.tryFind(fun lib -> lib.Name.Value.Equals(name, StringComparison.OrdinalIgnoreCase))
 
     let run() =
         _stopExecution <- Some false
@@ -275,8 +269,8 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         | Some _ -> ()
         | None ->
             base.AddLibrary(filename)
-            let library = tryGetMappedLibrary(filename).Value
-            loadNativeLibrary(library)
+            tryGetMappedLibrary(filename)
+            |> Option.iter(loadNativeLibrary)
 
             _stopExecution
             |> Option.iter(fun stopExecution ->

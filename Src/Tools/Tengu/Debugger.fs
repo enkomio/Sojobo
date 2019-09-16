@@ -158,6 +158,7 @@ type Debugger(sandbox: ISandbox) as this =
         @"
             g                                   continue execution
             r                                   print register values
+            r <register> [<value>]              show the value of a register or set its value
             t                                   execution trace
             p                                   execution step
             bl                                  list all breakpoints
@@ -171,8 +172,7 @@ type Debugger(sandbox: ISandbox) as this =
             comment <address> <value>           add a comment to the specified address
             bp <address/register>               set a breakpoint
             bc <address>                        clear a previously setted breakpoint
-            u [<address/register>] [count]      disassemble the bytes at the specified address (if specified otherwise at PC)
-            r <register> [<value>]              show the value of a register or set its value
+            u [<address/register>] [count]      disassemble the bytes at the specified address (if specified otherwise at PC)            
             eb <address> <value>                write memory, value in hex form, like: 01 02 03
             ew <address> <value>                write memory at address with word value
             ed <address> <value>                write memory at address with double word value

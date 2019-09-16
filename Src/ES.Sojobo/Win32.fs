@@ -241,14 +241,6 @@ module Win32 =
                 Initialized = 1u
                 Length = uint32 <| Helpers.deepSizeOf(typeof<PEB_LDR_DATA>, proc.GetPointerSize())
             }
-
-        //last.InInitializationOrderLinks.Forward <- ldr
-        //last.InLoadOrderLinks.Forward <- ldr.InLoadOrderLinks
-        //last.InMemoryOrderLinks.Forward <- ldr.InMemoryOrderLinks
-
-        //head.InInitializationOrderLinks.Backward <- ldr 
-        //head.InLoadOrderLinks.Backward <- ldr.InLoadOrderLinks
-        //head.InMemoryOrderLinks.Backward <- ldr.InMemoryOrderLinks
                                 
         // finally create the PEB
         {Activator.CreateInstance<PEB32>() with 
