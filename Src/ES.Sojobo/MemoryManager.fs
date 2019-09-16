@@ -14,9 +14,9 @@ open B2R2.BinFile
 open ES.Sojobo.Helpers
 
 type private Fixup = {
-    Offset: Int64
-    ReferencedField: Object
-    This: Object
+    mutable Offset: Int64
+    mutable ReferencedField: Object
+    mutable This: Object
 }
 
 type private MemoryEntry = {
@@ -66,11 +66,12 @@ type MemoryManager(pointerSize: Int32) =
         let realSize = min (memRegion.Content.Length-offset) size
         BinHandler.ReadBytes(memRegion.Handler, address, realSize)
 
-    let rec doSerialize(value: Object, entries: List<MemoryEntry>, addEntry: Boolean, fixups: List<Fixup>, analyzedObjects: HashSet<Object>): Byte array =
+    let rec serialize(value: Object, entries: List<MemoryEntry>, addEntry: Boolean, fixups: List<Fixup>, analyzedObjects: HashSet<Object>): (Byte array * List<Fixup>) =
         // allocate buffer
         let size = deepSizeOf(value.GetType(), pointerSize)        
         use buffer = new MemoryStream(size)
         use binWriter = new BinaryWriter(buffer)
+        let newFixup = new List<Fixup>()
         
         // serialize object fields
         let flags = BindingFlags.Instance ||| BindingFlags.NonPublic ||| BindingFlags.Public        
@@ -84,25 +85,25 @@ type MemoryManager(pointerSize: Int32) =
                 |> Array.zeroCreate<Byte>
                 |> binWriter.Write
 
-            elif field.FieldType.IsArray then
+            elif fieldValue.GetType().IsArray then
                 let arrayLength = field.GetCustomAttribute<MarshalAsAttribute>().SizeConst
                 let arrayValue = (fieldValue :?> IEnumerable).GetEnumerator()
                 
                 for i=0 to arrayLength - 1 do
                     if arrayValue.MoveNext() then
-                        doSerialize(arrayValue.Current, entries, addEntry, fixups, analyzedObjects)
-                        |> binWriter.Write
+                        serialize(arrayValue.Current, entries, true, fixups, analyzedObjects)
+                        |> fun (buffer, _) -> binWriter.Write(buffer)
                                 
-            elif field.FieldType.IsClass then                
+            elif fieldValue.GetType().IsClass then                
                 if analyzedObjects.Add(fieldValue) then
-                    doSerialize(fieldValue, entries, addEntry, fixups, analyzedObjects) |> ignore
+                    serialize(fieldValue, entries, true, fixups, analyzedObjects) |> ignore
                      
                 {
                     Offset = binWriter.BaseStream.Position
                     ReferencedField = fieldValue
                     This = value
                 }
-                |> fixups.Add
+                |> newFixup.Add
 
                 // write address placeholder to be fixed later
                 if pointerSize = 32
@@ -110,7 +111,7 @@ type MemoryManager(pointerSize: Int32) =
                 else binWriter.Write(uint64 0)
                 
             else
-                match field.GetValue(value) with
+                match fieldValue with
                 | :? Byte as v -> binWriter.Write(v)
                 | :? Int16 as v -> binWriter.Write(v)
                 | :? UInt16 as v -> binWriter.Write(v)
@@ -118,34 +119,44 @@ type MemoryManager(pointerSize: Int32) =
                 | :? UInt32 as v -> binWriter.Write(v)
                 | :? Int64 as v -> binWriter.Write(v)
                 | :? UInt64 as v -> binWriter.Write(v)
-                | v -> 
+                | v ->
                     // serialized struct are not added to the list
-                    doSerialize(v, entries, false, fixups, analyzedObjects)
-                    |> binWriter.Write                     
-        )
+                    let (buffer, createdFixup) = serialize(v, entries, false, fixups, analyzedObjects)
+                    
+                    // modify fixup in order to reference my object
+                    createdFixup
+                    |> Seq.iter(fun fixup ->
+                        fixup.This <- value
+                        fixup.Offset <- binWriter.BaseStream.Position + fixup.Offset
+                    )
+                    binWriter.Write(buffer)                
+        )        
         
-        let entry = { Buffer = buffer.ToArray(); Object = value}
-        if addEntry then entries.Add(entry)
-        entry.Buffer
-        
-    and serialize(value: Object, entries: List<MemoryEntry>, fixup: List<Fixup>) =        
-        doSerialize(value, entries, true, fixup, new HashSet<Object>())
+        fixups.AddRange(newFixup)
+        if addEntry then 
+            let entry = { Buffer = buffer.ToArray(); Object = value}
+            entries.Add(entry)            
+            (entry.Buffer, newFixup)
+        else
+            (buffer.ToArray(), newFixup)        
 
     let allocateMemoryForEntries(entries: MemoryEntry seq, mainObject: Object, mainObjectAddress: UInt64, memory: MemoryManager) =        
         let entriesFixup = new Dictionary<Object, MemoryEntry * UInt64>()
 
         // allocate a big chunk of memory
         let totalSize = entries |> Seq.sumBy(fun entry -> entry.Buffer.Length)
-        let mutable currentAddress = memory.AllocateMemory(totalSize, Permission.Readable)
+        let mutable currentAddress = memory.AllocateMemory(mainObjectAddress, totalSize, Permission.Readable)
 
-        // copy all entries to the just allocated memory
+        // copy main object first
+        let mainObjectEntry = entries |> Seq.find(fun entry -> Object.ReferenceEquals(entry.Object, mainObject))
+        entriesFixup.[mainObjectEntry.Object] <- (mainObjectEntry, currentAddress)
+        currentAddress <- currentAddress + uint64 mainObjectEntry.Buffer.Length
+
+        // copy all entries sequentially
         entries
+        |> Seq.filter(fun entry -> Object.ReferenceEquals(entry.Object, mainObject) |> not)
         |> Seq.iter(fun entry ->
-            let address =
-                if Object.ReferenceEquals(entry.Object, mainObject)
-                then createMemoryRegion(mainObjectAddress, entry.Buffer.Length, Permission.Readable).BaseAddress
-                else currentAddress
-            entriesFixup.[entry.Object] <- (entry, address)
+            entriesFixup.[entry.Object] <- (entry, currentAddress)
             currentAddress <- currentAddress + uint64 entry.Buffer.Length
         )
 
@@ -232,24 +243,23 @@ type MemoryManager(pointerSize: Int32) =
                     field.SetValue(objectInstance, analyzedObjects.[address])
                 else
                     // set the field value                 
-                    let fieldValue =
+                    let fieldInstance =
                         if field.FieldType.IsPrimitive || field.FieldType.IsValueType 
                         then Activator.CreateInstance(field.FieldType) |> box
                         else Activator.CreateInstance(field.FieldType)
 
-                    analyzedObjects.[address] <- fieldValue
+                    analyzedObjects.[address] <- fieldInstance
 
                     let size = deepSizeOf(field.FieldType, pointerSize)
                     let fieldBuffer = readMemory(address, size)
-                    deserialize(fieldBuffer, fieldValue, analyzedObjects)   
+                    deserialize(fieldBuffer, fieldInstance, analyzedObjects)   
                     
-                    field.SetValue(
-                        (
-                            if field.FieldType.IsPrimitive || field.FieldType.IsValueType 
-                            then unbox fieldValue
-                            else fieldValue
-                        ), fieldValue
-                    )
+                    let effectiveValue = 
+                        if field.FieldType.IsPrimitive || field.FieldType.IsValueType 
+                        then unbox fieldInstance
+                        else fieldInstance
+                    
+                    field.SetValue(objectInstance, effectiveValue)
             else
                 match field.GetValue(objectInstance) with
                 | :? Byte -> binReader.ReadByte() :> Object
@@ -323,7 +333,7 @@ type MemoryManager(pointerSize: Int32) =
     member this.WriteMemory(address: UInt64, value: Object) =        
         let entries = new List<MemoryEntry>()
         let fixup = new List<Fixup>()
-        serialize(value, entries, fixup) |> ignore
+        serialize(value, entries, true, fixup, new HashSet<Object>()) |> ignore
         let fixedupEntries = allocateMemoryForEntries(entries, value, address, this)
         applyPatches(fixedupEntries, fixup)
         writeEntriesToMemory(fixedupEntries.Values, this)

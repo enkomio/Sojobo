@@ -275,11 +275,12 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         | Some _ -> ()
         | None ->
             base.AddLibrary(filename)
+            let library = tryGetMappedLibrary(filename).Value
+            loadNativeLibrary(library)
+
             _stopExecution
-            |> Option.iter(fun _ ->
-                let library = tryGetMappedLibrary(filename).Value
-                loadNativeLibrary(library)
-                mapManagedLibraries()
+            |> Option.iter(fun stopExecution ->
+                if not stopExecution then mapManagedLibraries()
             )            
 
     default this.Run() =

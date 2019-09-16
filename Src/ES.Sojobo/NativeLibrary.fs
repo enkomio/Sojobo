@@ -8,6 +8,13 @@ open B2R2.BinFile
 open B2R2.BinFile.PE
 open System.Collections.Generic
 
+module private UnknowLibrary =
+    let mutable private _currentIndex = 0
+
+    let getName() =
+        _currentIndex <- _currentIndex + 1
+        String.Format("Unknown{0}", _currentIndex)
+
 type NativeLibrary(content: Byte array) =
     let mutable _isLoaded = false
 
@@ -25,7 +32,7 @@ type NativeLibrary(content: Byte array) =
         new NativeLibrary(content, Filename = Some filename)
 
     override this.ToString() =
-        String.Format("{0}:0x{1}", defaultArg this.Filename "N/A", this.BaseAddress.ToString("X"))
+        String.Format("{0}:0x{1}", this.GetLibraryName(), this.BaseAddress.ToString("X"))
 
     member internal this.SetProperties(entryPoint: UInt64, baseAddress: UInt64, exports: List<Symbol>) =
         this.EntryPoint <- entryPoint
@@ -85,6 +92,9 @@ type NativeLibrary(content: Byte array) =
         )
 
     member internal this.GetLibraryName() =
+        match this.Filename with
+        | Some _ -> ()
+        | None -> this.Filename <- Some <| UnknowLibrary.getName()
         Path.GetFileName(this.Filename.Value)
 
     member this.IsLoaded() =

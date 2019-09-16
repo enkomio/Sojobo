@@ -78,33 +78,47 @@ module internal Helpers =
         let keyName = (libraryName + "::" + functioName).ToLower()
         keyName.Replace(".dll", String.Empty)
 
+        (*
+    let rec private sizeOf(t: Type, pointerSize: Int32) =
+        if t.IsPrimitive || t.IsUnicodeClass || t.IsEnum then
+            Marshal.SizeOf(t)
+        else
+            let notGenericSize = 
+                t.GetFields(BindingFlags.Instance ||| BindingFlags.Public ||| BindingFlags.NonPublic) 
+                |> Seq.filter(fun f -> not f.FieldType.IsGenericType) 
+                |> Seq.sumBy(fun f -> sizeOf(f.FieldType))
+
+            let genericSize =
+                t.GenericTypeArguments 
+                |> Seq.sumBy(sizeOf)
+
+            notGenericSize + genericSize*)
+
     let rec getFieldArrayLength(field: FieldInfo, pointerSize: Int32, computedSize: Dictionary<Type, Int32>) =
         let arrayLength = field.GetCustomAttribute<MarshalAsAttribute>().SizeConst
         let elementType = field.FieldType.GetElementType()
         arrayLength * calculateSize(elementType, pointerSize, computedSize)
 
     and private calculateSize(objectType: Type, pointerSize: Int32, computedSize: Dictionary<Type, Int32>) =
+        let flags = BindingFlags.Instance ||| BindingFlags.NonPublic ||| BindingFlags.Public        
+
         if computedSize.ContainsKey(objectType) then
             computedSize.[objectType]
-
-        elif objectType.IsValueType then
-            Marshal.SizeOf(objectType)
-
+            
         elif objectType.IsArray then
             let arrayLength = objectType.GetCustomAttribute<MarshalAsAttribute>().SizeConst
             let elementType = objectType.GetElementType()
             arrayLength * calculateSize(elementType, pointerSize, computedSize)
 
-        elif objectType.IsClass then
-            let flags = BindingFlags.Instance ||| BindingFlags.NonPublic ||| BindingFlags.Public        
+        elif objectType.IsClass || objectType.IsValueType then            
             objectType.GetFields(flags)
             |> Array.sumBy(fun field ->
-                if field.FieldType.IsArray then
-                    getFieldArrayLength(field, pointerSize, computedSize)
-                elif field.FieldType.IsClass then
-                    pointerSize / 8
-                else
-                    Marshal.SizeOf(field.FieldType)
+                let t = field.FieldType
+                if t.IsArray then getFieldArrayLength(field, pointerSize, computedSize)
+                elif t.IsPrimitive || t.IsUnicodeClass || t.IsEnum then Marshal.SizeOf(t)
+                elif t.IsClass then pointerSize / 8                
+                elif t.IsValueType then calculateSize(t, pointerSize, computedSize)                
+                else failwith("Unable to get size of type: " + t.FullName)
             )
             |> fun totalSize ->
                 computedSize.[objectType] <- totalSize

@@ -1,67 +1,27 @@
 ﻿namespace IntegrationTests
 
 open System
+open B2R2.BinFile
 open ES.Sojobo
 open ES.Sojobo.Win32
-open ES.Sojobo.Model
-open System.Runtime.InteropServices
-
-[<CLIMutable>]
-[<ReferenceEquality>]
-[<StructLayout(LayoutKind.Sequential, Pack=1, CharSet=CharSet.Ansi)>]
-type LIST_ENTRY_FORWARD = {
-    mutable Flink: LIST_ENTRY_FORWARD
-}
-
-[<CLIMutable>]
-[<ReferenceEquality>]
-[<StructLayout(LayoutKind.Sequential, Pack=1, CharSet=CharSet.Ansi)>]
-type LIST_ENTRY_BACKWARD = {
-    mutable Blink: LIST_ENTRY_BACKWARD
-}   
-
-[<CLIMutable>]
-[<ReferenceEquality>]
-[<StructLayout(LayoutKind.Sequential, Pack=1, CharSet=CharSet.Ansi)>]
-type ListEntryData = {
-    mutable Forward: LIST_ENTRY_FORWARD
-    mutable Backward: LIST_ENTRY_BACKWARD
-}
-
-[<CLIMutable>]
-[<ReferenceEquality>]
-[<StructLayout(LayoutKind.Sequential, Pack=1, CharSet=CharSet.Ansi)>]
-type TestData = {
-    mutable D1: ListEntryData
-    mutable D2: ListEntryData
-}
 
 module SerializationTests =
-    open B2R2.BinFile
 
-    let ``Serialize auto-referenced object``() =
-        let d1 = Activator.CreateInstance<ListEntryData>()
-        let d2 = Activator.CreateInstance<ListEntryData>()
+    let ``[Test] Serialize an Ldr structure``() =
+        let sandbox = new Win32Sandbox({Win32SandboxSettings.Default with InitializeEnvironment = false})
+        sandbox.Load(Helper.getTestFile("help.exe"))
+        sandbox.AddLibrary(Helper.getTestFullPath("kernel32.dll"))
+        sandbox.AddLibrary(Helper.getTestFullPath("msvcrt.dll"))
 
-        // set link to refer to itself
-        d1.Forward <- Activator.CreateInstance<LIST_ENTRY_FORWARD>()
-        d1.Backward <- Activator.CreateInstance<LIST_ENTRY_BACKWARD>()
-
-        d2.Forward <- Activator.CreateInstance<LIST_ENTRY_FORWARD>()        
-        d2.Backward <- Activator.CreateInstance<LIST_ENTRY_BACKWARD>()
-
-        d1.Forward.Flink <- d2.Forward
-        d1.Backward.Blink <- d2.Backward
-
-        d2.Forward.Flink <- d1.Forward
-        d2.Backward.Blink <- d1.Backward
+        let ldr = buildPeb(sandbox).Ldr
+        let proc = sandbox.GetRunningProcess()
+        let address = proc.Memory.AllocateMemory(0x10000, Permission.Readable)
         
-        // serialize the data
-        let testData1 = {D1 = d1; D2 = d2}
-        let memManager = new MemoryManager(32)
-        let addr = memManager.AllocateMemory(testData1, Permission.Readable)
+        // write object to memory and read result
+        proc.Memory.WriteMemory(address, ldr)
+        let loadedLdr = proc.Memory.ReadMemory<PEB_LDR_DATA>(address)
 
-        // unserialize the object
-        let testData2 = memManager.ReadMemory<TestData>(addr)
-        assert(testData2.D1.Forward.Flink.Flink = testData2.D1.Forward)
+        // Check that the first and last dll base is the same
+        assert(loadedLdr.InInitializationOrderLinks.Forward.DllBase = ldr.InInitializationOrderLinks.Forward.DllBase)
+        assert(loadedLdr.InInitializationOrderLinks.Backward.DllBase = ldr.InInitializationOrderLinks.Backward.DllBase)
 

@@ -32,9 +32,9 @@ module Win32 =
     [<CLIMutable>]
     [<Struct>]
     [<StructLayout(LayoutKind.Sequential, Pack=1, CharSet=CharSet.Ansi)>]
-    type ListEntry = {
-        mutable Forward: Object
-        mutable Backward: Object
+    type ListEntry<'T> = {
+        mutable Forward: 'T
+        mutable Backward: 'T
     }
     
     // https://www.aldeid.com/wiki/LDR_DATA_TABLE_ENTRY 
@@ -43,9 +43,9 @@ module Win32 =
     [<ReferenceEquality>]
     [<StructLayout(LayoutKind.Sequential, Pack=1, CharSet=CharSet.Ansi)>]
     type LDR_DATA_TABLE_ENTRY = {
-        mutable InLoadOrderLinks: ListEntry
-        mutable InMemoryOrderLinks: ListEntry
-        mutable InInitializationOrderLinks: ListEntry
+        mutable InLoadOrderLinks: ListEntry<LDR_DATA_TABLE_ENTRY>
+        mutable InMemoryOrderLinks: ListEntry<LDR_DATA_TABLE_ENTRY>
+        mutable InInitializationOrderLinks: ListEntry<LDR_DATA_TABLE_ENTRY>
         DllBase: UInt32
         EntryPoint: UInt32
         Reserved3: UInt32
@@ -69,9 +69,9 @@ module Win32 =
         Length: UInt32
         Initialized: UInt32
         SsHandle: UInt32
-        mutable InLoadOrderLinks: ListEntry
-        mutable InMemoryOrderLinks: ListEntry
-        mutable InInitializationOrderLinks: ListEntry
+        mutable InLoadOrderLinks: ListEntry<LDR_DATA_TABLE_ENTRY>
+        mutable InMemoryOrderLinks: ListEntry<LDR_DATA_TABLE_ENTRY>
+        mutable InInitializationOrderLinks: ListEntry<LDR_DATA_TABLE_ENTRY>
         EntryInProgress: UInt32
         ShutdownInProgress: UInt32
         ShutdownThreadId: UInt32
@@ -153,7 +153,7 @@ module Win32 =
         TlsExpansionSlots: UInt32
     }
     
-    let private createPeb(sandbox: BaseSandbox) =
+    let buildPeb(sandbox: BaseSandbox) =
         let proc = sandbox.GetRunningProcess()
         let librariesDetails = 
             getNativeLibraries(sandbox.Libraries)
@@ -242,13 +242,13 @@ module Win32 =
                 Length = uint32 <| Helpers.deepSizeOf(typeof<PEB_LDR_DATA>, proc.GetPointerSize())
             }
 
-        head.InInitializationOrderLinks.Backward <- ldr
-        head.InLoadOrderLinks.Backward <- ldr
-        head.InMemoryOrderLinks.Backward <- ldr
+        //last.InInitializationOrderLinks.Forward <- ldr
+        //last.InLoadOrderLinks.Forward <- ldr.InLoadOrderLinks
+        //last.InMemoryOrderLinks.Forward <- ldr.InMemoryOrderLinks
 
-        last.InInitializationOrderLinks.Forward <- ldr
-        last.InLoadOrderLinks.Forward <- ldr
-        last.InMemoryOrderLinks.Forward <- ldr
+        //head.InInitializationOrderLinks.Backward <- ldr 
+        //head.InLoadOrderLinks.Backward <- ldr.InLoadOrderLinks
+        //head.InMemoryOrderLinks.Backward <- ldr.InMemoryOrderLinks
                                 
         // finally create the PEB
         {Activator.CreateInstance<PEB32>() with 
@@ -275,18 +275,21 @@ module Win32 =
             SessionId = 0u
         }
 
+    let buildTeb(sandbox: BaseSandbox) =
+        let proc = sandbox.GetRunningProcess()
+        {Activator.CreateInstance<TEB32>() with
+            StackBase = uint32 proc.Memory.Stack.BaseAddress + uint32 proc.Memory.Stack.Content.Length
+            StackLimit = uint32 proc.Memory.Stack.BaseAddress
+            Self = 0x7ff70000u
+            ProcessEnvironmentBlock = buildPeb(sandbox)
+        }
+
     let createTeb(sandbox: BaseSandbox) =
         let proc = sandbox.GetRunningProcess()
-
+        
         // create the TEB
-        let teb =
-            {Activator.CreateInstance<TEB32>() with
-                StackBase = uint32 proc.Memory.Stack.BaseAddress + uint32 proc.Memory.Stack.Content.Length
-                StackLimit = uint32 proc.Memory.Stack.BaseAddress
-                Self = 0x7ff70000u
-                ProcessEnvironmentBlock = createPeb(sandbox)
-            }
-
+        let teb = buildTeb(sandbox)
+            
         // for TEB I have to specify the base address
         let tebRegion = 
             {createMemoryRegion(uint64 teb.Self, Marshal.SizeOf<TEB32>(), Permission.Readable) with

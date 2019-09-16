@@ -48,12 +48,16 @@
     <Compile Include="AssemblyInfo.fs" />
     <None Include="App.config" />
     <Content Include="packages.config" />
+    <Compile Include="Helper.fs" />
     <Compile Include="SerializationTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="B2R2.BinFile">
       <HintPath>..\ThirdPart\B2R2\src\BinFile\bin\Debug\netstandard2.0\B2R2.BinFile.dll</HintPath>
+    </Reference>
+    <Reference Include="B2R2.FrontEnd.Core">
+      <HintPath>..\Examples\Kpot2StringExtractor\bin\Debug\B2R2.FrontEnd.Core.dll</HintPath>
     </Reference>
     <Reference Include="FSharp.Core">
       <HintPath>..\packages\FSharp.Core.4.5.2\lib\net45\FSharp.Core.dll</HintPath>
@@ -71,6 +75,11 @@
     <ProjectReference Include="..\ES.Sojobo\ES.Sojobo.fsproj">
       <Name>ES.Sojobo</Name>
       <Project>{993ea649-3fa2-4f27-abbd-2ef650b9f4c8}</Project>
+      <Private>True</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\ThirdPart\B2R2\src\BinIR\B2R2.BinIR.fsproj">
+      <Name>B2R2.BinIR</Name>
+      <Project>{3b620c49-b570-4a68-bfbe-44f1ff2c03f6}</Project>
       <Private>True</Private>
     </ProjectReference>
   </ItemGroup>
