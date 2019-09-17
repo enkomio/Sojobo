@@ -22,7 +22,6 @@ type internal Command =
     | Step
     | Go
     | CallStack of count:Int32
-    | FullCallStack
     | PrintRegisters
     | BreakpointList
     | HideDisassembly
@@ -50,7 +49,6 @@ type internal Command =
 type DebuggerSnapshot = {
     Breakpoints: (UInt64 * String) array
     Comments: String array
-    RealCallStack: UInt64 array
 }
 
 type internal DebuggerState() =
@@ -92,7 +90,6 @@ type Debugger(sandbox: ISandbox) as this =
     let _breakpoints = new Dictionary<UInt64, BreakPoint>()
     let _comments = new Dictionary<UInt64, String>()
     let _commandQueue = new ConcurrentQueue<String>()
-    let _callStack = new Stack<UInt64>()
     let mutable _lastCommandString = String.Empty
 
     let printRegisters() =
@@ -112,14 +109,6 @@ type Debugger(sandbox: ISandbox) as this =
         _breakpoints
         |> Seq.iter(fun kv -> 
             Console.WriteLine("0x{0} {1}", kv.Key.ToString("X"), defaultArg kv.Value.Command String.Empty)
-        )
-
-    let printFullCallStack() =
-        Console.WriteLine("-=[ Real Call stack From Last Execution Start ]=-")        
-        _callStack
-        |> Seq.rev
-        |> Seq.iteri(fun index address ->
-            Console.WriteLine("{0}: 0x{1}", _callStack.Count - index, address.ToString("X"))
         )
 
     let printCallStack(count: Int32) =
@@ -234,7 +223,7 @@ type Debugger(sandbox: ISandbox) as this =
         with _ -> proc.Cpu.GetRegister(target).Value |> BitVector.toUInt64
 
     let parseSingleCommandString(rawResult: String) =
-        let result = rawResult.Trim()
+        let result = rawResult.Trim()        
         if result.Equals("g", StringComparison.OrdinalIgnoreCase) then Go
         elif result.Equals("r", StringComparison.OrdinalIgnoreCase) then PrintRegisters
         elif result.Equals("t", StringComparison.OrdinalIgnoreCase) then Trace
@@ -293,8 +282,6 @@ type Debugger(sandbox: ISandbox) as this =
                 let count = if items.Length > 2 then Int32.Parse(items.[2]) else 10
                 Disassemble (address, count)
             with _ -> Error
-        elif result.Equals("k*", StringComparison.OrdinalIgnoreCase) then
-            FullCallStack
         elif result.StartsWith("k") || result.Equals("k", StringComparison.OrdinalIgnoreCase) then
             try 
                 let count = if result.Length = 1 then 10 else Int32.Parse(result.Split().[1])
@@ -373,9 +360,9 @@ type Debugger(sandbox: ISandbox) as this =
             _commandQueue.TryDequeue(command) |> ignore
             !command
         else
-            let d = DateTime.Now.ToString("hh:MM:ss")
+            let d = DateTime.Now.ToString("hh:mm:ss")
             Console.Write("[{0}]> ", d)
-            let commandString = Console.ReadLine().Trim().ToLowerInvariant()
+            let commandString = Console.ReadLine().Trim()
             parseCommandString(commandString)            
             if _commandQueue.Count > 0 then
                 _lastCommandString <- commandString
@@ -413,8 +400,6 @@ type Debugger(sandbox: ISandbox) as this =
             sandbox.RemoveHook(breakpoint.Hook)            
         | _ -> ()
 
-        
-
     let stepExecution() =
         let instruction = sandbox.GetRunningProcess().GetInstruction()
         if instruction.IsCall() then
@@ -447,9 +432,6 @@ type Debugger(sandbox: ISandbox) as this =
                 _breakpoints 
                 |> Seq.map(fun bp -> (bp.Key, defaultArg bp.Value.Command String.Empty))
                 |> Seq.toArray
-
-            RealCallStack =
-                _callStack |> Seq.toArray
         }
 
         let serializedDebuggerSnapshot = JsonConvert.SerializeObject(debuggerSnapshot, Formatting.Indented)
@@ -481,11 +463,6 @@ type Debugger(sandbox: ISandbox) as this =
                 let text = String.Join("|", items.[1..])
                 addComment(address, text)
             )
-
-            // set real call stack
-            _callStack.Clear()
-            debuggerState.RealCallStack
-            |> Array.iter(_callStack.Push)
         with _ -> () 
         
     let showAsciiString(addr: UInt64) =
@@ -511,7 +488,6 @@ type Debugger(sandbox: ISandbox) as this =
         | DeleteBreakPoint address -> removeBreakpoint(address)
         | DumpMemory (addr, size, filename) -> dumpMemory(addr, size, filename)
         | CallStack count -> printCallStack(count)
-        | FullCallStack -> printFullCallStack()
         | ShowAsciiString addr -> showAsciiString(addr)
         | Disassemble(address, count) -> printDisassembly(address, count)
         | Comment(address, text) -> addComment(address, text)
@@ -640,26 +616,7 @@ type Debugger(sandbox: ISandbox) as this =
         if this.PrintIR then writeIR(proc)
 
         _state.InstructionToEmulate <- proc.GetInstruction() |> Some
-
-        // populate real call stack (WRONG)
-        match sandbox with
-        | :? BaseSandbox as bs ->
-            if _state.InstructionToEmulate.Value.IsCall() then
-                let instruction = _state.InstructionToEmulate.Value
-                bs.GetLibraries()
-                |> Array.exists(fun lib ->
-                    match lib with
-                    | Managed lib -> lib.IsLibraryCall(instruction.Address)
-                    | _ -> false
-                )
-                |> fun r -> 
-                    if not r then
-                        let nextInstructionAddress = instruction.Address + uint64 instruction.Length
-                        _callStack.Push(nextInstructionAddress)
-            elif _state.InstructionToEmulate.Value.IsRET() then
-                _callStack.Pop() |> ignore
-        | _ -> ()
-
+        
         // check if must enter debugger loop
         if _state.IsInInteractiveMode() then
             removeStepHook()
