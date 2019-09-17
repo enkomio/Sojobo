@@ -38,7 +38,7 @@ type ISandbox =
         /// the process address space and the exported function resolved in order to be 
         /// emulated
         abstract AddLibrary: content:Byte array -> unit
-
+        
         /// Add the content of the file as a library. If the file is a .NET assembly it will 
         /// be inspected with the same process of the method to add an Assembly file.
         /// If it is a native file, its content will be mapped with the same process of the

@@ -52,8 +52,8 @@
     <Compile Include="IProcessContainer.fs" />
     <Compile Include="IEmulator.fs" />
     <Compile Include="ISandbox.fs" />
-    <Compile Include="Utility.fs" />
     <Compile Include="ManagedLibrary.fs" />
+    <Compile Include="Utility.fs" />
     <Compile Include="NativeLibrary.fs" />
     <Compile Include="ImportedLibrary.fs" />
     <Compile Include="BaseProcessContainer.fs" />

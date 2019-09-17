@@ -411,7 +411,11 @@ type MemoryManager(pointerSize: Int32) =
         baseAddress
 
     member this.ReadAsciiString(address: UInt64) =
-        let memRegionContent = readMemory(address, Int32.MaxValue)
-        let indexOfNullChar = Array.IndexOf(memRegionContent, 0uy)
-        let stringBytes = Array.sub memRegionContent 0 indexOfNullChar
-        Encoding.UTF8.GetString(stringBytes)
+        let asciiString = new StringBuilder()
+        let mutable offset = address
+        let mutable c = readMemory(offset, 1).[0]
+        while c <> 0x00uy do
+            asciiString.Append(char c) |> ignore
+            offset <- offset + 1UL
+            c <- readMemory(offset, 1).[0]
+        asciiString.ToString()

@@ -23,6 +23,12 @@ type BaseSandbox() =
     member val internal Libraries = new List<Library>() with get
     member val Emulator: IEmulator option = None with get, set
     member val internal Hooks = new List<Hook>() with get
+
+    abstract GetLibraries: unit -> Library array
+    default this.GetLibraries() =
+        this.Libraries 
+        |> Seq.readonly 
+        |> Seq.toArray
     
     abstract AddHook: address:UInt64 * callback:Action<ISandbox> -> Hook
     default this.AddHook(address: UInt64, callback: Action<ISandbox>) =
@@ -107,7 +113,7 @@ type BaseSandbox() =
 
         member this.GetHookAddress(hook: Hook) =
             this.GetHookAddress(hook)
-
+            
         [<CLIEvent>]
         member this.SideEffect
             with get() = this.SideEffect

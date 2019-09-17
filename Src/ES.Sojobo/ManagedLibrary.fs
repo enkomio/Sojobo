@@ -197,7 +197,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
             this.EmulatedMethods.[keyName] <- m
         )
 
-    member internal this.IsLibraryCall(programCounter: UInt64) =
+    member this.IsLibraryCall(programCounter: UInt64) =
         programCounter |> this.Callbacks.ContainsKey
 
     member internal this.InvokeLibraryFunction(sandbox: ISandbox) =
