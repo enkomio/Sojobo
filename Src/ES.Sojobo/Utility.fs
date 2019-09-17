@@ -69,7 +69,7 @@ module Utility =
             Type = String.Empty
             Info = fileInfo.FilePath |> Path.GetFileName
         }
-        |> memoryManager.AddMemoryRegion
+        |> memoryManager.AddLibraryMemoryRegion
 
     let internal mapPeHeader(handler: BinHandler, memoryManager: MemoryManager) =
         let pe = Helpers.getPe(handler)
@@ -77,16 +77,18 @@ module Utility =
 
     let internal mapSectionsAtAddress(baseAddress: UInt64, handler: BinHandler, memoryManager: MemoryManager) =
         let pe = Helpers.getPe(handler)
-                
+        
         handler.FileInfo.GetSections()
         |> Seq.map(fun section ->
             let sectionHeader = 
                 pe.SectionHeaders 
                 |> Seq.find(fun sc -> sc.Name.Equals(section.Name, StringComparison.OrdinalIgnoreCase))
-                        
-            let byteToReads = min sectionHeader.SizeOfRawData (int32 section.Size)
+
+            // copy the section content                        
             let sectionBuffer = Array.zeroCreate<Byte>(int32 section.Size)
-            Array.Copy(handler.ReadBytes(section.Address, byteToReads), sectionBuffer, byteToReads)
+            let fileSectionContent = handler.ReadBytes(section.Address, sectionHeader.SizeOfRawData)
+            let bytesToCopy = min sectionHeader.SizeOfRawData (int32 section.Size)
+            Array.Copy(fileSectionContent, sectionBuffer, bytesToCopy)
             
             let sectionBaseAddress = baseAddress + uint64 sectionHeader.VirtualAddress
             let sectionHandler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, false, sectionBaseAddress, sectionBuffer)
@@ -100,7 +102,7 @@ module Utility =
             Type = handler.FileInfo.FilePath |> Path.GetFileName
             Info = section.Name
         })
-        |> Seq.iter(memoryManager.AddMemoryRegion)
+        |> Seq.iter(memoryManager.AddLibraryMemoryRegion)
 
     let internal mapSections(handler: BinHandler, memoryManager: MemoryManager) =
         let pe = Helpers.getPe(handler)

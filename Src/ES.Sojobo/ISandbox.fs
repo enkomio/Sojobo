@@ -9,6 +9,9 @@ exception UnhandledFunction of string
 
 type ISandbox =
     interface 
+        /// Sandbox Id
+        abstract Id: Guid with get
+
         /// Load the binary file name
         abstract Load: String -> unit
 

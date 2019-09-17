@@ -23,6 +23,7 @@ type BaseSandbox() =
     member val internal Libraries = new List<Library>() with get
     member val Emulator: IEmulator option = None with get, set
     member val internal Hooks = new List<Hook>() with get
+    member val Id = Guid.NewGuid()
 
     abstract GetLibraries: unit -> Library array
     default this.GetLibraries() =
@@ -120,3 +121,6 @@ type BaseSandbox() =
 
         member this.Emulator
             with get() = this.Emulator.Value
+
+        member this.Id
+            with get() = this.Id

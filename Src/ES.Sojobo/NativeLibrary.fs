@@ -113,11 +113,13 @@ type NativeLibrary(content: Byte array) =
         match handler.FileInfo.FileFormat with
         | FileFormat.PEBinary ->
             let pe = Helpers.getPe(handler)
+            let peHeader = pe.PEHeaders.PEHeader
+            let nextLibFreeBaseAddress = proc.Memory.GetNextLibraryAllocationBase(peHeader.SizeOfImage, peHeader.ImageBase)
 
             let (mustRelocate, baseAddress) =
-                if proc.Memory.IsAddressMapped(pe.PEHeaders.PEHeader.ImageBase) 
-                then (true, proc.Memory.GetFreeMemory(pe.PEHeaders.PEHeader.SizeOfImage, pe.PEHeaders.PEHeader.ImageBase))
-                else (false, pe.PEHeaders.PEHeader.ImageBase)
+                if proc.Memory.IsAddressMapped(peHeader.ImageBase) || peHeader.ImageBase < nextLibFreeBaseAddress
+                then (true, nextLibFreeBaseAddress)
+                else (false, peHeader.ImageBase)
 
             // map library            
             Utility.mapPeHeaderAtAddress(baseAddress, handler, proc.Memory)

@@ -27,6 +27,7 @@ type private MemoryEntry = {
 type MemoryManager(pointerSize: Int32) =
     let _va = new SortedDictionary<UInt64, MemoryRegion>() 
     let _memoryAccessEvent = new Event<MemoryAccessOperation>()
+    let mutable _lastAllocatedLibBase = 0UL
 
     let createStack() =
         let stack = {
@@ -352,6 +353,13 @@ type MemoryManager(pointerSize: Int32) =
     member this.AddMemoryRegion(memRegion: MemoryRegion) =
         _va.[memRegion.BaseAddress] <- memRegion
 
+    member internal this.AddLibraryMemoryRegion(memRegion: MemoryRegion) =
+        _lastAllocatedLibBase <- _lastAllocatedLibBase + uint64 memRegion.Content.Length
+        let round = _lastAllocatedLibBase % 0x1000UL
+        if round > 0UL then
+            _lastAllocatedLibBase <- _lastAllocatedLibBase + 0x1000UL - round
+        this.AddMemoryRegion(memRegion)
+
     member this.GetMemoryMap() =
         _va.Values 
         |> Seq.sortBy(fun m -> m.BaseAddress)
@@ -395,6 +403,14 @@ type MemoryManager(pointerSize: Int32) =
                 | None -> 
                     let lastRegion = memoryMap |> Array.last
                     lastRegion.BaseAddress + uint64 lastRegion.Content.LongLength
+
+    member internal this.GetNextLibraryAllocationBase(size: Int32, ?startSearchFromAddress: UInt64) = 
+        let freeMemoryBase = 
+            match startSearchFromAddress with
+            | Some sa -> this.GetFreeMemory(size, sa)
+            | None -> this.GetFreeMemory(size)
+            
+        max _lastAllocatedLibBase freeMemoryBase
 
     member this.AllocateMemory(size: Int32, permission: Permission) =
         this.AllocateMemory(this.GetFreeMemory(size), size, permission)
