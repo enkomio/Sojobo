@@ -52,18 +52,15 @@
     <Compile Include="IProcessContainer.fs" />
     <Compile Include="IEmulator.fs" />
     <Compile Include="ISandbox.fs" />
-    <Compile Include="ManagedLibrary.fs" />
-    <Compile Include="Utility.fs" />
+    <Compile Include="ApiEmulator.fs" />
+    <Compile Include="Utility32.fs" />
     <Compile Include="NativeLibrary.fs" />
     <Compile Include="ImportedLibrary.fs" />
     <Compile Include="BaseProcessContainer.fs" />
     <Compile Include="BaseSandbox.fs" />
-    <Compile Include="Win32.fs" />
-    <Compile Include="Win32ProcessContainer.fs" />
     <Compile Include="EmulatorExecutionState.fs" />
     <Compile Include="LowUIREmulator.fs" />
     <Compile Include="SnapshotManager.fs" />
-    <Compile Include="Win32Sandbox.fs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ThirdPart\B2R2\src\FrontEnd\Optimizer\B2R2.FrontEnd.Optimizer.fsproj">

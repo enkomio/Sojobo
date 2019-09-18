@@ -124,7 +124,7 @@ module Kernel32 =
         let libName = sandbox.GetRunningProcess().Memory.ReadAsciiString(uint64 lpLibFileName)
         let filename = Path.Combine(libPath, libName)
         if File.Exists(filename) then
-            sandbox.AddLibrary(filename)
+            sandbox.MapLibrary(filename)
 
         let (Handle.Library {Name = _; Value = libHandle}) = 
             sandbox.GetRunningProcess().Handles 

@@ -1,10 +1,11 @@
-﻿namespace ES.Sojobo
+﻿namespace ES.Sojobo.Windows
 
 open System
 open System.Collections.Generic
 open B2R2
 open B2R2.FrontEnd
 open B2R2.BinFile
+open ES.Sojobo
 open ES.Sojobo.Model
 open B2R2.FrontEnd.Intel
 
@@ -46,8 +47,8 @@ type Win32ProcessContainer() as this =
         )
 
     let initialize(handler: BinHandler) =
-        Utility.mapPeHeader(handler, _memoryManager)
-        Utility.mapSections(handler, _memoryManager)
+        Utility32.mapPeHeader(handler, _memoryManager)
+        Utility32.mapSections(handler, _memoryManager)
         setupStackRegisters()
         setEntryPoint(handler)
         resolveIATSymbols(handler)

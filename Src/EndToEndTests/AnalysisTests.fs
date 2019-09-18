@@ -7,6 +7,7 @@ open ES.Sojobo
 module AnalysisTests =
 
     let ``graph generation``() =
+    (*
         let sandbox = new Win32Sandbox() 
         let exe = Utility.getTestFile()
         sandbox.Load(exe)
@@ -38,5 +39,5 @@ module AnalysisTests =
         Console.WriteLine("#Instruction, #Stack frame")
         for kv in data do
             Console.WriteLine("{0},{1}", kv.Key, kv.Value)
-
+            *)
         Console.WriteLine("DONE")

@@ -72,6 +72,11 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\ES.Sojobo.Windows\ES.Sojobo.Windows.fsproj">
+      <Name>ES.Sojobo.Windows</Name>
+      <Project>{108b8dfe-7688-4259-b2db-e0f4efab05c8}</Project>
+      <Private>True</Private>
+    </ProjectReference>
     <ProjectReference Include="..\ES.Sojobo\ES.Sojobo.fsproj">
       <Name>ES.Sojobo</Name>
       <Project>{993ea649-3fa2-4f27-abbd-2ef650b9f4c8}</Project>

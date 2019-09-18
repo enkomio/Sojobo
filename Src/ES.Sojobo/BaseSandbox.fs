@@ -20,17 +20,12 @@ type BaseSandbox() =
     abstract GetHookAddress: Hook -> UInt64 option
 
     member this.SideEffect = _sideEffectEvent.Publish
-    member val internal Libraries = new List<Library>() with get
+    member val ApiEmulators = new List<ApiEmulator>() with get
+    member val NativeLibraries = new List<NativeLibrary>() with get
     member val Emulator: IEmulator option = None with get, set
-    member val internal Hooks = new List<Hook>() with get
+    member val Hooks = new List<Hook>() with get
     member val Id = Guid.NewGuid()
-
-    abstract GetLibraries: unit -> Library array
-    default this.GetLibraries() =
-        this.Libraries 
-        |> Seq.readonly 
-        |> Seq.toArray
-    
+        
     abstract AddHook: address:UInt64 * callback:Action<ISandbox> -> Hook
     default this.AddHook(address: UInt64, callback: Action<ISandbox>) =
         let hook = Address(address, callback)
@@ -50,27 +45,16 @@ type BaseSandbox() =
     member this.GetHooks() =
         this.Hooks |> Seq.toArray
 
-    member this.AddLibrary(assembly: Assembly) =
-        let library = new ManagedLibrary(assembly, this.Emulator.Value)
-        this.Libraries.Add(Managed library)
+    member this.AddApiEmulator(assembly: Assembly) =
+        let library = new ApiEmulator(assembly, this.Emulator.Value)
+        this.ApiEmulators.Add(library)
 
-    member this.AddLibrary(content: Byte array) = 
-        try
-            // first try to load the library as an Assembly
-            let assembly = Assembly.Load(content)
-            this.AddLibrary(assembly)
-        with
-            | :? BadImageFormatException ->
-                this.Libraries.Add(Native <| NativeLibrary.Create(content))    
+    member this.MapLibrary(content: Byte array) = 
+        this.NativeLibraries.Add(NativeLibrary.Create(content))
 
-    abstract AddLibrary: filename:String -> unit
-    default this.AddLibrary(filename: String) =
-        try
-            // first try to load the library as an Assembly
-            let assembly = Assembly.LoadFile(Path.GetFullPath(filename))
-            this.AddLibrary(assembly)
-        with :? BadImageFormatException ->
-            this.Libraries.Add(Native <| NativeLibrary.Create(filename)) 
+    abstract MapLibrary: filename:String -> unit
+    default this.MapLibrary(filename: String) =
+        this.NativeLibraries.Add(NativeLibrary.Create(filename))
 
     member internal this.TriggerSideEffect(sideEffect: SideEffect) =
         _sideEffectEvent.Trigger(upcast this, sideEffect)
@@ -91,14 +75,14 @@ type BaseSandbox() =
         member this.GetRunningProcess() =
             this.GetRunningProcess()
 
-        member this.AddLibrary(assembly: Assembly) =
-            this.AddLibrary(assembly)
+        member this.AddApiEmulator(assembly: Assembly) =
+            this.AddApiEmulator(assembly)
 
-        member this.AddLibrary(filename: String) =
-            this.AddLibrary(filename)
+        member this.MapLibrary(filename: String) =
+            this.MapLibrary(filename)
 
-        member this.AddLibrary(content: Byte array) =
-            this.AddLibrary(content)
+        member this.MapLibrary(content: Byte array) =
+            this.MapLibrary(content)
 
         member this.AddHook(address: UInt64, callback: Action<ISandbox>) =
             this.AddHook(address, callback)

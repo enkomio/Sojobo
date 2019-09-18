@@ -1,4 +1,4 @@
-﻿namespace ES.Sojobo
+﻿namespace ES.Sojobo.Windows
 
 open System
 open System.Collections.Generic
@@ -7,6 +7,7 @@ open System.Runtime.InteropServices
 open System.Reflection.PortableExecutable
 open System.IO
 open B2R2.BinFile
+open ES.Sojobo
 open ES.Sojobo.Model
 
 (*
@@ -17,7 +18,7 @@ open ES.Sojobo.Model
         - Add "Struct" attribute if the class must be serialized as struct and not as a pointer
         - For array type always add the "MarshalAs" with "SizeConst" property in order to know how many items must be serialized
 *)
-module Win32 =
+module Win32Structures =
     
     // https://docs.microsoft.com/en-us/windows/desktop/api/subauth/ns-subauth-_unicode_string
     [<CLIMutable>]
@@ -156,15 +157,15 @@ module Win32 =
     let buildPeb(sandbox: BaseSandbox) =
         let proc = sandbox.GetRunningProcess()
         let librariesDetails = 
-            getNativeLibraries(sandbox.Libraries)
+            sandbox.NativeLibraries
             |> Seq.map(fun lib -> (lib.GetLibraryName().ToLowerInvariant(), lib))
             |> dict
 
         let dataEntries = new List<LDR_DATA_TABLE_ENTRY>()
 
         // get libraries
-        let sortedRreferencedLibraries =
-            getNativeLibraries(sandbox.Libraries)
+        let sortedReferencedLibraries =
+            sandbox.NativeLibraries
             |> Seq.filter(fun lib -> lib.IsLoaded())
             |> Seq.sortByDescending(fun lib ->
                 // sort this list in order to have ntdll.dll and kernel32.dll on top
@@ -177,12 +178,12 @@ module Win32 =
 
         // allocate the memory for the library unicode name
         let regionSize =
-            sortedRreferencedLibraries
+            sortedReferencedLibraries
             |> Array.sumBy(fun lib -> Encoding.Unicode.GetBytes(lib.GetLibraryName()).Length)
         let mutable libraryNamesRegionOffset = proc.Memory.AllocateMemory(regionSize, Permission.Readable)
                         
         // create the data table entries
-        sortedRreferencedLibraries
+        sortedReferencedLibraries
         |> Array.iter(fun lib ->
             // get details to insert into PEB
             let (imageBase, entryPoint) =

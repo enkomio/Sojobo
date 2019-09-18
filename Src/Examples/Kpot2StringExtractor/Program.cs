@@ -1,4 +1,5 @@
 ﻿using ES.Sojobo;
+using ES.Sojobo.Windows;
 using System;
 using System.IO;
 using System.Linq;
@@ -75,7 +76,7 @@ Do you want to continue (It should be pretty safe to run this test) ? [Y/N]
             sandbox.Load(content);
 
             // this will allows to invoke our functions
-            sandbox.AddLibrary(typeof(Program).Assembly);
+            //sandbox.AddLibrary(typeof(Program).Assembly);
 
             return sandbox;
         }
@@ -100,7 +101,7 @@ Do you want to continue (It should be pretty safe to run this test) ? [Y/N]
         private static Boolean _enableDebugger = false;
         private static void ProcessStep(Object sender, IProcessContainer process)
         {
-            var text = Utility.formatCurrentInstruction(process);
+            var text = "";// Utility.formatCurrentInstruction(process);
             Console.WriteLine(text);
 
             if (_enableDebugger)
@@ -125,7 +126,8 @@ Do you want to continue (It should be pretty safe to run this test) ? [Y/N]
         private static void EnableStepping(ISandbox sandbox)
         {
             var process = sandbox.GetRunningProcess();
-            process.Step += ProcessStep;
+            //process.Step += ProcessStep;
+            //process.Step += ProcessStep;
         }
         
         private static void Run(ISandbox sandbox, Boolean controlledEnv = true)

@@ -9,6 +9,7 @@ open ES.Sojobo
 
 module DumpDynamicMemory =
     let private _memoryRegions = new List<MemoryRegion>()
+    (*
     let mutable private _memoryDumped = false
 
     let private memoryAccessedHandler(operation: MemoryAccessOperation) =
@@ -103,3 +104,4 @@ module DumpDynamicMemory =
         
         // run the sample
         sandbox.Run()
+        *)

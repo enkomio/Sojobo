@@ -15,6 +15,9 @@ module private UnknowLibrary =
         _currentIndex <- _currentIndex + 1
         String.Format("Unknown{0}", _currentIndex)
 
+(**
+This Object represent a mapped library in the process address space
+*)
 type NativeLibrary(content: Byte array) =
     let mutable _isLoaded = false
 
@@ -92,7 +95,7 @@ type NativeLibrary(content: Byte array) =
             | _ -> failwith "Unknow relocation type"
         )
 
-    member internal this.GetLibraryName() =
+    member this.GetLibraryName() =
         match this.FileName with
         | Some _ -> ()
         | None -> this.FileName <- Some <| UnknowLibrary.getName()
@@ -101,7 +104,7 @@ type NativeLibrary(content: Byte array) =
     member this.IsLoaded() =
         _isLoaded
 
-    member internal this.Load(proc: IProcessContainer) =
+    member this.Load(proc: IProcessContainer) =
         // create handler
         let isa = ISA.OfString "x86"
         let mutable handler = 
@@ -122,8 +125,8 @@ type NativeLibrary(content: Byte array) =
                 else (false, peHeader.ImageBase)
 
             // map library            
-            Utility.mapPeHeaderAtAddress(baseAddress, handler, proc.Memory)
-            Utility.mapSectionsAtAddress(baseAddress, handler, proc.Memory)
+            Utility32.mapPeHeaderAtAddress(baseAddress, handler, proc.Memory)
+            Utility32.mapSectionsAtAddress(baseAddress, handler, proc.Memory)
             this.SetProperties(handler, baseAddress) 
 
             // must relocate the library if necessary

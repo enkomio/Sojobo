@@ -8,11 +8,10 @@ open B2R2.FrontEnd
 open B2R2.BinFile.PE
 open B2R2.BinFile
 open System.Reflection.PortableExecutable
+open System.Collections.Generic
+open System.Runtime.InteropServices
 
-module internal Helpers = 
-    open System.Collections.Generic
-    open System.Runtime.InteropServices
-
+module Helpers = 
     let toArray(bitVector: BitVector) =
         let size = int32 <| BitVector.getType bitVector
         let value = BitVector.getValue bitVector
@@ -77,22 +76,6 @@ module internal Helpers =
     let getFunctionKeyName(functioName: String, libraryName: String) =
         let keyName = (libraryName + "::" + functioName).ToLower()
         keyName.Replace(".dll", String.Empty)
-
-        (*
-    let rec private sizeOf(t: Type, pointerSize: Int32) =
-        if t.IsPrimitive || t.IsUnicodeClass || t.IsEnum then
-            Marshal.SizeOf(t)
-        else
-            let notGenericSize = 
-                t.GetFields(BindingFlags.Instance ||| BindingFlags.Public ||| BindingFlags.NonPublic) 
-                |> Seq.filter(fun f -> not f.FieldType.IsGenericType) 
-                |> Seq.sumBy(fun f -> sizeOf(f.FieldType))
-
-            let genericSize =
-                t.GenericTypeArguments 
-                |> Seq.sumBy(sizeOf)
-
-            notGenericSize + genericSize*)
 
     let rec getFieldArrayLength(field: FieldInfo, pointerSize: Int32, computedSize: Dictionary<Type, Int32>) =
         let arrayLength = field.GetCustomAttribute<MarshalAsAttribute>().SizeConst

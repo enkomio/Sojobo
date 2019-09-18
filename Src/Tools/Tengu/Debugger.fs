@@ -161,8 +161,8 @@ type Debugger(sandbox: ISandbox) as this =
             let instruction = proc.GetInstruction(offset)
             offset <- offset + uint64 instruction.Length
             match _comments.TryGetValue(instruction.Address) with
-            | (true, text) -> String.Format("{0} ; {1}", ES.Sojobo.Utility.disassemble(proc, instruction), text)
-            | _ -> ES.Sojobo.Utility.disassemble(proc, instruction)
+            | (true, text) -> String.Format("{0} ; {1}", ES.Sojobo.Utility32.disassemble(proc, instruction), text)
+            | _ -> ES.Sojobo.Utility32.disassemble(proc, instruction)
             |> Console.WriteLine
 
     let printHelp() =
@@ -576,7 +576,7 @@ type Debugger(sandbox: ISandbox) as this =
         _waitEvent.Set()
 
     let writeDisassembly(proc: IProcessContainer) =
-        let instruction = ES.Sojobo.Utility.disassemble(proc, proc.GetInstruction())
+        let instruction = ES.Sojobo.Utility32.disassemble(proc, proc.GetInstruction())
         let pc = proc.ProgramCounter.Value |> BitVector.toUInt64
         match _comments.TryGetValue(pc) with
         | (true, text) -> String.Format("{0} ; {1}", instruction, text)
@@ -584,7 +584,7 @@ type Debugger(sandbox: ISandbox) as this =
         |> Console.WriteLine
 
     let writeIR(proc: IProcessContainer) =
-        ES.Sojobo.Utility.disassembleCurrentInstructionIR(proc)
+        ES.Sojobo.Utility32.disassembleCurrentInstructionIR(proc)
         |> Array.iter(Console.WriteLine)
 
     let processBreakPointCommand(proc: IProcessContainer) =        

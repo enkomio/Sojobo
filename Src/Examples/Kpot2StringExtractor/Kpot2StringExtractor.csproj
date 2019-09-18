@@ -35,6 +35,9 @@
   <ItemGroup>
     <Reference Include="B2R2.Core, Version=0.1.1.0, Culture=neutral, PublicKeyToken=null" />
     <Reference Include="B2R2.FrontEnd.Core, Version=0.1.1.0, Culture=neutral, PublicKeyToken=null" />
+    <Reference Include="ES.Sojobo.Windows">
+      <HintPath>..\..\ES.Sojobo.Windows\bin\Debug\ES.Sojobo.Windows.dll</HintPath>
+    </Reference>
     <Reference Include="FSharp.Core, Version=4.5.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
     <Reference Include="netstandard, Version=2.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51" />
     <Reference Include="System" />

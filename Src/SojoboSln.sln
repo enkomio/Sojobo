@@ -75,6 +75,8 @@ Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "B2R2.ConcEval", "ThirdPart\
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "B2R2.Assembler.MIPS", "ThirdPart\B2R2\src\Assembler\MIPS\B2R2.Assembler.MIPS.fsproj", "{BBC52D02-880E-4FA4-8BAB-C24B3E251659}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "ES.Sojobo.Windows", "ES.Sojobo.Windows\ES.Sojobo.Windows.fsproj", "{108B8DFE-7688-4259-B2DB-E0F4EFAB05C8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -407,6 +409,18 @@ Global
 		{BBC52D02-880E-4FA4-8BAB-C24B3E251659}.Release|x64.Build.0 = Release|Any CPU
 		{BBC52D02-880E-4FA4-8BAB-C24B3E251659}.Release|x86.ActiveCfg = Release|Any CPU
 		{BBC52D02-880E-4FA4-8BAB-C24B3E251659}.Release|x86.Build.0 = Release|Any CPU
+		{108B8DFE-7688-4259-B2DB-E0F4EFAB05C8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{108B8DFE-7688-4259-B2DB-E0F4EFAB05C8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{108B8DFE-7688-4259-B2DB-E0F4EFAB05C8}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{108B8DFE-7688-4259-B2DB-E0F4EFAB05C8}.Debug|x64.Build.0 = Debug|Any CPU
+		{108B8DFE-7688-4259-B2DB-E0F4EFAB05C8}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{108B8DFE-7688-4259-B2DB-E0F4EFAB05C8}.Debug|x86.Build.0 = Debug|Any CPU
+		{108B8DFE-7688-4259-B2DB-E0F4EFAB05C8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{108B8DFE-7688-4259-B2DB-E0F4EFAB05C8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{108B8DFE-7688-4259-B2DB-E0F4EFAB05C8}.Release|x64.ActiveCfg = Release|Any CPU
+		{108B8DFE-7688-4259-B2DB-E0F4EFAB05C8}.Release|x64.Build.0 = Release|Any CPU
+		{108B8DFE-7688-4259-B2DB-E0F4EFAB05C8}.Release|x86.ActiveCfg = Release|Any CPU
+		{108B8DFE-7688-4259-B2DB-E0F4EFAB05C8}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

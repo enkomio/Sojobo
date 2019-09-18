@@ -16,6 +16,7 @@ module Cli =
         SnapshotToSave: String
         SnapshotToLoad: String
         Libs: String array
+        ApiLibs: String array
         Break: Boolean
     }
 
@@ -27,6 +28,7 @@ module Cli =
         | Snapshot of name:String
         | Load_Snapshot of name:String
         | Lib of name:String
+        | Api_Lib of name:String
         | Decode_Content
         | Break
     with
@@ -38,7 +40,8 @@ module Cli =
                 | Load_Snapshot _ -> "load a snapshot before to start emulation."
                 | Print_Disassembly -> "print the disassembly of the emulated instruction."
                 | Print_IR -> "print the IR code of the emulated instruction."
-                | Lib _ -> "library to include for the emulation."
+                | Lib _ -> "a native library to map in the process address space."
+                | Api_Lib _ -> "an API emulator to include for the emulation."
                 | Instruction _ -> "the number of instructions to emulate (default 10000)."
                 | Decode_Content -> "decode the content of the file (previously encoded with MakeSafePE)."
                 | Break -> "break the execution on the first instruction"
@@ -81,6 +84,7 @@ module Cli =
                         PrintIR = results.Contains(<@ Print_IR @>)
                         DecodeContent = results.Contains(<@ Decode_Content @>)
                         Libs = results.GetResults(<@ Lib @>) |> Seq.toArray
+                        ApiLibs = results.GetResults(<@ Api_Lib @>) |> Seq.toArray
                         NumberOfInstructionToEmulate = results.GetResult(<@ Instruction @>, 10000)
                         SaveSnapshotOnExit = results.Contains(<@ Snapshot @>)
                         LoadSnapshotOnStart = results.Contains(<@ Load_Snapshot @>)

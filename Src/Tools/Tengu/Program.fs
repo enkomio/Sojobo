@@ -8,6 +8,7 @@ open B2R2
 open ES.Fslog
 open ES.Fslog.Loggers
 open ES.Sojobo
+open ES.Sojobo.Windows
 open ES.Tengu.Cli
 
 module Program =
@@ -23,7 +24,8 @@ module Program =
         |> info "Details" "File: {0} PID: {1}"
         |> info "Completed" "-=[ Analysis Completed ]=-"
         |> info "SnapshotSaved" "Sandbox snapshot saved to: {0}"
-        |> info "LoadLibrary" "Loaded library: {0}"
+        |> info "LoadLibrary" "Loaded native library to map: {0}"
+        |> info "LoadApiLibrary" "Loaded API Emulation library: {0}"
         |> info "SnapshotLoaded" "Loaded snapshot from: {0}"
         |> info "EmulatedInstructions" "Number of emulated instructions: {0}"
         |> warning "SnapshotNotFound" "Snapshot file '{0}' not found, ignore loading."
@@ -32,15 +34,6 @@ module Program =
 
     let private beforeEmulationEventHandler(settings: Settings) (proc: IProcessContainer) =
         _debugger.BeforeEmulation()
-
-    let private afterEmulationEventHandler(settings: Settings) (proc: IProcessContainer) =
-        _instructionCounter <- _instructionCounter + 1
-        if _instructionCounter  >= settings.NumberOfInstructionToEmulate then
-            _sandbox.Stop()
-
-        // invoke services
-       // _metrics.EmulatedInstruction(proc, _instructionCounter)
-        //_dumper.Step(proc.ProgramCounter.Value |> BitVector.toUInt32)        
 
     let private getFileContent(settings: Settings) =
         if settings.DecodeContent then
@@ -58,18 +51,24 @@ module Program =
     let private initialize(settings: Settings) =
         // setup handlers
         let proc = _sandbox.GetRunningProcess()
-        //proc.Memory.MemoryAccess.Add(_dumper.MemoryAccessedHandler proc)
         proc.BeforeEmulation.Add(beforeEmulationEventHandler settings)
-        //proc.AfterEmulation.Add(afterEmulationEventHandler settings)
 
         // add this file as library for method hooking
-        _sandbox.AddLibrary(typeof<Dumper>.Assembly)
+        _sandbox.AddApiEmulator(typeof<Dumper>.Assembly)
+
+        // add all api emulators
+        settings.ApiLibs 
+        |> Array.iter(fun lib -> 
+            _logger?LoadApiLibrary(lib)
+            let libContent = File.ReadAllBytes(lib)
+            _sandbox.AddApiEmulator(Assembly.Load(libContent))
+        )
 
         // add all the specified input libraries
         settings.Libs 
         |> Array.iter(fun lib -> 
             _logger?LoadLibrary(lib)
-            _sandbox.AddLibrary(lib)
+            _sandbox.MapLibrary(lib)
         )
 
         // configure debugger

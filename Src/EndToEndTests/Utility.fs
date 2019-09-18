@@ -23,13 +23,14 @@ module internal Utility =
         Console.ReadLine() |> ignore
 
     let writeDisassembly(activeProcess: IProcessContainer) =
-        let text = ES.Sojobo.Utility.formatCurrentInstruction(activeProcess)
+        let text = ""//ES.Sojobo.Utility32.formatCurrentInstruction(activeProcess)
         Console.WriteLine(text)
 
     let writeIR(activeProcess: IProcessContainer) =
-        ES.Sojobo.Utility.formatCurrentInstructionIR(activeProcess)
+        (*ES.Sojobo.Utility32.formatCurrentInstructionIR(activeProcess)
         |> Array.iter(Console.WriteLine)
-
+        *)
+        ()
     let getTestFile() =
         ["Release"; "Debug"]
         |> Seq.map(fun dir -> Path.Combine("..", "..", "..", dir, "RunShellcodeWithVirtualAlloc.exe"))

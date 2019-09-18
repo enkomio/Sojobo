@@ -29,24 +29,23 @@ type ISandbox =
         
         /// Add a library (in the form of Assembly) to the list of items
         /// to inspect to resolve function invocation. At runtime this Assembly will 
-        /// analyzed to identify function with the followign signature:
+        /// be analyzed to identify functions with the following signature:
         /// ISandbox -> CallbackResult
         /// It is also possible to specify additional parameters, like:
         /// ISandbox * param1:Int32 * param2:UInt32 -> CallbackResult
         /// The full name (namespace included) will be matched against the exported functions
         /// and if the binary will invoke it, the associated function will be invoked instead.
-        abstract AddLibrary: Assembly -> unit
+        abstract AddApiEmulator: Assembly -> unit
 
         /// Add the content of the parameter as a library. The content will be mapped into
-        /// the process address space and the exported function resolved in order to be 
+        /// the process address space and the exported functions resolved in order to be 
         /// emulated
-        abstract AddLibrary: content:Byte array -> unit
+        abstract MapLibrary: content:Byte array -> unit
         
-        /// Add the content of the file as a library. If the file is a .NET assembly it will 
-        /// be inspected with the same process of the method to add an Assembly file.
-        /// If it is a native file, its content will be mapped with the same process of the
+        /// Add the content of the file as a library. 
+        /// Its content will be mapped with the same process of the
         /// method to add a Byte array
-        abstract AddLibrary: filename:String -> unit
+        abstract MapLibrary: filename:String -> unit
 
         /// Add an hook at the specified address. The callback is invoked before the 
         /// instruction at that address is emulated
@@ -72,7 +71,7 @@ type ISandbox =
         [<CLIEvent>]
         abstract SideEffect: IEvent<ISandbox * SideEffect> with get
 
-        /// Return the istance of the emulator used to run the sample
+        /// Return the istance of the emulator used to emulate the LowUIR code
         abstract Emulator: IEmulator with get
     end
 

@@ -318,18 +318,18 @@ type MemoryManager(pointerSize: Int32) =
     member this.GetMemoryRegion(address: UInt64) =
         getMemoryRegion(address)
 
-    member internal this.WriteMemory(address: UInt64, value: Byte array, verifyProtection: Boolean) =        
+    member this.WriteMemory(address: UInt64, value: Byte array, ?verifyProtection: Boolean) =
+        _memoryAccessEvent.Trigger(MemoryAccessOperation.Write (address, value))
         let region = this.GetMemoryRegion(address)
-        if verifyProtection && region.Permission <> Permission.Writable then
-            // TODO: add check on memory protection
+
+        // TODO: add check on memory protection
+        match verifyProtection with
+        | Some true when region.Permission <> Permission.Writable ->            
             ()
+        | _ -> ()
 
         let offset = region.Handler.FileInfo.TranslateAddress address
         Array.Copy(value, 0, region.Handler.FileInfo.BinReader.Bytes, offset, value.Length)
-
-    member this.WriteMemory(address: UInt64, value: Byte array) =
-        _memoryAccessEvent.Trigger(MemoryAccessOperation.Write (address, value))
-        this.WriteMemory(address, value, true)
         
     member this.WriteMemory(address: UInt64, value: Object) =        
         let entries = new List<MemoryEntry>()

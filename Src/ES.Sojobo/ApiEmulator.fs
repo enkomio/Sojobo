@@ -9,7 +9,10 @@ open ES.Sojobo.Model
 open B2R2.FrontEnd
 open B2R2.BinFile
 
-type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
+(**
+This Library is used in order to implement the emulation of a given native DLL
+*)
+type ApiEmulator(assembly: Assembly, emulator: IEmulator) =
 
     let getArgument(proc: IProcessContainer, position: Int32) =        
         let ebp = proc.Cpu.GetRegister("EBP").Value |> BitVector.toUInt32
@@ -158,7 +161,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
                 memoryManager.WriteMemory(symbol.Address, addressBytes, false)
         )
 
-    member internal this.GetAssembly() =
+    member this.GetAssembly() =
         assembly
 
     member this.GetAddress(name: String) =
@@ -166,14 +169,14 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
         |> Seq.find(fun kv -> kv.Value.Equals(name, StringComparison.OrdinalIgnoreCase))
         |> fun kv -> kv.Key
 
-    member internal this.MapSymbolWithManagedMethods(proc: IProcessContainer, exportedMethods: IDictionary<String, UInt64>) =
+    member this.MapSymbolWithManagedMethods(proc: IProcessContainer, exportedMethods: IDictionary<String, UInt64>) =
         let symbols = proc.GetImportedFunctions()
         if this.EmulatedMethods.Count > 0 && (symbols |> Seq.length) > 0 then
             let iatRegion = getOrCreateIatRegion(proc.Memory, symbols, proc.GetPointerSize())
             this.MapImportAddressTableMethods(proc.Memory, symbols, iatRegion, exportedMethods, proc.GetPointerSize())
             this.MapEmulatedMethods(exportedMethods)
 
-    member internal this.ResolveLibraryFunctions() =
+    member this.ResolveLibraryFunctions() =
         assembly.GetTypes()
         |> Seq.collect(fun t -> t.GetMethods())
         |> Seq.filter(fun m -> m.IsStatic && m.ReturnType = typeof<CallbackResult>)
@@ -201,7 +204,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
     member this.IsLibraryCall(programCounter: UInt64) =
         programCounter |> this.Callbacks.ContainsKey
 
-    member internal this.InvokeLibraryFunction(sandbox: ISandbox) =
+    member this.InvokeLibraryFunction(sandbox: ISandbox) =
         let proc = sandbox.GetRunningProcess()
         let keyName = this.Callbacks.[proc.ProgramCounter.Value |> BitVector.toUInt64]
         let libraryFunction = this.EmulatedMethods.[keyName]
@@ -217,7 +220,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
         executeStackFrameCleanup(proc)
         executeReturn(proc, libraryFunction, libraryFunctionResult)
 
-    member internal this.Initialize(sandbox: ISandbox) =
+    member this.Initialize(sandbox: ISandbox) =
         assembly.GetTypes()
         |> Seq.collect(fun t -> t.GetMethods())
         |> Seq.filter(fun m -> m.Name.Equals("Initialize", StringComparison.Ordinal))

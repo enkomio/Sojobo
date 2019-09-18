@@ -26,7 +26,7 @@ type BaseProcessContainer(pointerSize: Int32) =
     abstract Cpu: Cpu with get
     abstract Handles: Handle array with get
 
-    member internal this.UpdateActiveMemoryRegion(memRegion: MemoryRegion) =
+    member this.UpdateActiveMemoryRegion(memRegion: MemoryRegion) =
         _activeRegion <- Some memRegion
 
     member this.GetActiveMemoryRegion() =
@@ -35,10 +35,10 @@ type BaseProcessContainer(pointerSize: Int32) =
     member this.GetPointerSize() =
         pointerSize
 
-    member internal this.SignalBeforeEmulation() =
+    member this.SignalBeforeEmulation() =
         _beforeEmulationEvent.Trigger(this)
 
-    member internal this.SignalAfterEmulation() =
+    member this.SignalAfterEmulation() =
         _afterEmulationEvent.Trigger(this)
 
     member this.BeforeEmulation = _beforeEmulationEvent.Publish 
@@ -53,7 +53,7 @@ type BaseProcessContainer(pointerSize: Int32) =
     member this.SetSymbol(symbol: Symbol) =
         _symbols.[symbol.Address] <- symbol
 
-    member internal this.ResetState() =
+    member this.ResetState() =
         this.Memory.Clear()
     
     interface IProcessContainer with

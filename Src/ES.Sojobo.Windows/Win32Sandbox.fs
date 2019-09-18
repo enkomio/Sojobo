@@ -1,4 +1,4 @@
-﻿namespace ES.Sojobo
+﻿namespace ES.Sojobo.Windows
 
 open System
 open System.IO
@@ -9,9 +9,8 @@ open B2R2.FrontEnd.Intel
 open B2R2.BinFile
 open B2R2.FrontEnd
 open B2R2.BinFile.PE
-open ES.Sojobo.Win32
+open ES.Sojobo
 open ES.Sojobo.Model
-open System.IO.Ports
 
 [<CLIMutable>]
 type Win32SandboxSettings = {
@@ -43,7 +42,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
     do this.Emulator <- Some(upcast new LowUIREmulator(this))
 
     let setupTeb() =
-        let tebAddress = createTeb(this)
+        let tebAddress = Win32Structures.createTeb(this)
         if this.GetRunningProcess().GetPointerSize() = 32 then [
             createVariableWithValue(string Register.FSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 (uint32 tebAddress) 32<rt>)
             createVariableWithValue(string Register.FS, EmulatedType.DoubleWord, BitVector.ofUInt32 (uint32 tebAddress) 32<rt>)        
@@ -54,16 +53,18 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         |> List.iter(this.GetRunningProcess().Cpu.SetRegister)
 
     let resolveEmulatedFunctions() =
-        getManagedLibraries(this.Libraries)
+        this.ApiEmulators
         |> Seq.iter(fun lib -> lib.ResolveLibraryFunctions())
 
     let removeEmptyLibraries() =
-        getManagedLibraries(this.Libraries)
+        this.ApiEmulators
+        |> Seq.toArray
         |> Array.filter(fun lib -> lib.EmulatedMethods |> Seq.isEmpty)
-        |> Array.iter(fun lib -> this.Libraries.Remove(Managed lib) |> ignore)
+        |> Array.iter(fun lib -> this.ApiEmulators.Remove(lib) |> ignore)
         
     let getAllExportedFunctions() =
-        getNativeLibraries(this.Libraries)
+        this.NativeLibraries
+        |> Seq.toArray
         |> Array.filter(fun lib -> lib.FileName.IsSome)
         |> Array.collect(fun lib ->
             lib.Exports
@@ -77,7 +78,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
 
     let mapEmulatedFunctions() =
         let exportedFunctions = getAllExportedFunctions()
-        getManagedLibraries(this.Libraries)
+        this.ApiEmulators
         |> Seq.iter(fun lib ->
             let proc = this.GetRunningProcess()
             lib.MapSymbolWithManagedMethods(proc, exportedFunctions)
@@ -100,27 +101,25 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
             | Symbol (symbol, callback) ->
                 let items = symbol.ToLowerInvariant().Replace(".dll", String.Empty).Split([|'!'|])
                 let (moduleName, functionName) = (items.[0].Trim(), items.[1].Trim())
-                this.Libraries
-                |> Seq.iter(function 
-                    | Native lib when lib.FileName.IsSome -> 
-                        let filename = (Path.GetFileName <| lib.FileName.Value.ToLowerInvariant()).Replace(".dll", String.Empty).Trim()
-                        if moduleName.Equals(filename, StringComparison.OrdinalIgnoreCase) then
-                            // try to identify an exported function with the same name
-                            lib.Exports
-                            |> Seq.iter(fun symbol ->
-                                if symbol.Name.Equals(functionName, StringComparison.OrdinalIgnoreCase) 
-                                then _hooks.[symbol.Address] <- hook
-                            )
-                    | _ -> ()
+                this.NativeLibraries
+                |> Seq.iter(fun lib ->
+                    let filename = (Path.GetFileName <| lib.FileName.Value.ToLowerInvariant()).Replace(".dll", String.Empty).Trim()
+                    if moduleName.Equals(filename, StringComparison.OrdinalIgnoreCase) then
+                        // try to identify an exported function with the same name
+                        lib.Exports
+                        |> Seq.iter(fun symbol ->
+                            if symbol.Name.Equals(functionName, StringComparison.OrdinalIgnoreCase) 
+                            then _hooks.[symbol.Address] <- hook
+                    )
                 )
         ) 
         
     let initializeLibraries() =
-        getManagedLibraries(this.Libraries)
+        this.ApiEmulators
         |> Seq.iter(fun lib -> lib.Initialize(this))
 
     let addLibrariesToSymbols() =
-        getManagedLibraries(this.Libraries)
+        this.ApiEmulators
         |> Seq.collect(fun lib -> lib.EmulatedMethods |> Seq.map(fun m -> (lib, m)))
         |> Seq.map(fun (lib, kv) -> 
             try
@@ -148,7 +147,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         |> Array.filter(fun dllFile -> Path.GetFileName(dllFile).StartsWith("ES.Sojobo"))
         |> Array.filter(fun dllFile -> dllFile.Equals(Assembly.GetExecutingAssembly().Location) |> not)
         |> Array.iter(fun dllFile ->
-            try this.AddLibrary(Assembly.LoadFile(dllFile))
+            try this.AddApiEmulator(Assembly.LoadFile(dllFile))
             with _ -> ()
         )
 
@@ -167,7 +166,8 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
 
     let tryGetEmulationLibrary(proc: IProcessContainer) =  
         let programCounter = proc.ProgramCounter.Value |> BitVector.toUInt64   
-        getManagedLibraries(this.Libraries)
+        this.ApiEmulators
+        |> Seq.toArray
         |> Array.sortByDescending(fun lib ->
             // this trick will load core libraries at the end, providing custom lib first
             if lib.GetAssembly().FullName.StartsWith("ES.Sojobo")
@@ -201,11 +201,11 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
             emulateInstructionNoCache(proc, pc) |> ignore
         _currentProcess.Value.SignalAfterEmulation()               
 
-    let rec loadLibraryFile(filename: String, loadedLibraries: HashSet<String>) =
+    let rec loadNativeLibraryFile(filename: String, loadedLibraries: HashSet<String>) =
         let libPath = Environment.GetFolderPath(Environment.SpecialFolder.SystemX86)
         let libName = Path.Combine(libPath, filename)
         if File.Exists(libName) && loadedLibraries.Add(libName.ToLowerInvariant()) then
-            this.AddLibrary(libName)
+            this.MapLibrary(libName)
 
             // load also all referenced DLL
             let handler = BinHandler.Init(ISA.OfString "x86", libName)
@@ -215,7 +215,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
                 | ImportByOrdinal (_, dllname) -> dllname
                 | ImportByName (_, _, dllname) -> dllname
             )
-            |> Seq.iter(fun dllName -> loadLibraryFile(dllName, loadedLibraries))
+            |> Seq.iter(fun dllName -> loadNativeLibraryFile(dllName, loadedLibraries))
 
     let loadReferencedLibraries() =
         if settings.InitializeEnvironment then
@@ -223,11 +223,11 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
             _currentProcess.Value.GetImportedFunctions()
             |> Seq.distinctBy(fun symbol -> symbol.LibraryName)
             |> Seq.map(fun lib -> lib.LibraryName)
-            |> Seq.iter(fun libName -> loadLibraryFile(libName, loadedLibraries))
+            |> Seq.iter(fun libName -> loadNativeLibraryFile(libName, loadedLibraries))
 
     let tryGetMappedLibrary(fileName: String) =
         let name = Path.GetFileName(fileName)
-        getNativeLibraries(this.Libraries) 
+        this.NativeLibraries
         |> Seq.tryFind(fun lib -> lib.Name.Value.Equals(name, StringComparison.OrdinalIgnoreCase))
 
     let run() =
@@ -264,11 +264,11 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         base.RemoveHook(hook)
         resolveHooks()
 
-    override this.AddLibrary(filename: String) =
+    override this.MapLibrary(filename: String) =
         match tryGetMappedLibrary(filename) with
         | Some _ -> ()
         | None ->
-            base.AddLibrary(filename)
+            base.MapLibrary(filename)
             tryGetMappedLibrary(filename)
             |> Option.iter(loadNativeLibrary)
 

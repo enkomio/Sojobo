@@ -9,7 +9,7 @@ open B2R2.BinIR
 open B2R2.BinFile
 open B2R2.FrontEnd.Intel
 
-module Utility = 
+module Utility32 = 
     let disassemble(processContainer: IProcessContainer, instruction: Instruction) =
         let mutable functionName = String.Empty
         let handler = processContainer.Memory.GetMemoryRegion(instruction.Address).Handler
@@ -71,7 +71,7 @@ module Utility =
         }
         |> memoryManager.AddLibraryMemoryRegion
 
-    let internal mapPeHeader(handler: BinHandler, memoryManager: MemoryManager) =
+    let mapPeHeader(handler: BinHandler, memoryManager: MemoryManager) =
         let pe = Helpers.getPe(handler)
         mapPeHeaderAtAddress(pe.PEHeaders.PEHeader.ImageBase, handler, memoryManager)
 
@@ -104,6 +104,6 @@ module Utility =
         })
         |> Seq.iter(memoryManager.AddLibraryMemoryRegion)
 
-    let internal mapSections(handler: BinHandler, memoryManager: MemoryManager) =
+    let mapSections(handler: BinHandler, memoryManager: MemoryManager) =
         let pe = Helpers.getPe(handler)
         mapSectionsAtAddress(pe.PEHeaders.PEHeader.ImageBase, handler, memoryManager)

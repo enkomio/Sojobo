@@ -54,7 +54,8 @@ type SnapshotManager(sandbox: BaseSandbox) =
                     |> Seq.toArray
                 | _ -> Array.empty
             Libraries = 
-                getNativeLibraries(sandbox.Libraries)
+                sandbox.NativeLibraries
+                |> Seq.toArray
                 |> Array.filter(fun lib -> lib.FileName.IsSome)
                 |> Array.map(fun lib -> {
                     Name = lib.GetLibraryName()
@@ -67,7 +68,7 @@ type SnapshotManager(sandbox: BaseSandbox) =
                                 Address = symbol.Address
                         }))
                     BaseAddress = lib.BaseAddress                    
-                })
+                })                
         }
 
     member this.LoadSnapshot(snapshot: Snapshot) =
@@ -107,7 +108,8 @@ type SnapshotManager(sandbox: BaseSandbox) =
         // setup loaded libraries info
         snapshot.Libraries
         |> Array.iter(fun snapshotLib ->
-            getNativeLibraries(sandbox.Libraries)
+            sandbox.NativeLibraries
+            |> Seq.toArray
             |> Array.tryFind(fun lib -> lib.GetLibraryName().Equals(snapshotLib.Name, StringComparison.OrdinalIgnoreCase))
             |> function
                 | Some lib ->                 
