@@ -80,7 +80,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         getManagedLibraries(this.Libraries)
         |> Seq.iter(fun lib ->
             let proc = this.GetRunningProcess()
-            lib.MapSymbolWithManagedMethods(proc.Memory, proc.GetImportedFunctions(), exportedFunctions)
+            lib.MapSymbolWithManagedMethods(proc, exportedFunctions)
         )
 
     let loadNativeLibrary(lib: NativeLibrary) =

@@ -51,7 +51,7 @@ type BaseSandbox() =
         this.Hooks |> Seq.toArray
 
     member this.AddLibrary(assembly: Assembly) =
-        let library = new ManagedLibrary(assembly, this.Emulator.Value, this.GetRunningProcess().GetPointerSize())
+        let library = new ManagedLibrary(assembly, this.Emulator.Value)
         this.Libraries.Add(Managed library)
 
     member this.AddLibrary(content: Byte array) = 

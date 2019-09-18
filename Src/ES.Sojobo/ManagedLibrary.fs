@@ -9,10 +9,9 @@ open ES.Sojobo.Model
 open B2R2.FrontEnd
 open B2R2.BinFile
 
-type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32) =
-    let pointerSizeInBytes = pointerSize / 8
+type ManagedLibrary(assembly: Assembly, emulator: IEmulator) =
 
-    let getArgument(proc: IProcessContainer, position: Int32) =
+    let getArgument(proc: IProcessContainer, position: Int32) =        
         let ebp = proc.Cpu.GetRegister("EBP").Value |> BitVector.toUInt32
         let address = ebp + uint32 (position + 2) * 4ul
         let buffer = proc.Memory.ReadMemory(uint64 address, sizeof<UInt32>)
@@ -79,8 +78,8 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
         emulateMovESpEbp(proc)
         emulatePopEbp(proc)
 
-    let executeReturn(proc: IProcessContainer, mi: MethodInfo, callbackResult: CallbackResult) =
-        let bytesToPop = (mi.GetParameters().Length - 1) * pointerSizeInBytes
+    let executeReturn(proc: IProcessContainer, mi: MethodInfo, callbackResult: CallbackResult) =        
+        let bytesToPop = (mi.GetParameters().Length - 1) * (proc.GetPointerSize() / 8)
         
         // compose buffer
         use memWriter = new MemoryStream()
@@ -103,7 +102,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
         let handler = proc.GetActiveMemoryRegion().Handler
         emulator.Emulate(handler, instruction) |> ignore
 
-    let getOrCreateIatRegion(memoryManager: MemoryManager, symbols: BinFile.Symbol seq) =
+    let getOrCreateIatRegion(memoryManager: MemoryManager, symbols: BinFile.Symbol seq, pointerSize: Int32) =
         memoryManager.GetMemoryMap()
         |> Array.tryFind(fun region ->
             region.Info.Equals("EMU_" + assembly.GetName().Name)
@@ -111,7 +110,7 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
         |> function
             | Some region -> region
             | None ->
-                let size = (symbols |> Seq.length) * pointerSizeInBytes
+                let size = (symbols |> Seq.length) * (pointerSize / 8)
                 let baseAddress = memoryManager.GetFreeMemory(size)
                 let newRegion = 
                     {createMemoryRegion(baseAddress, size, Permission.Readable) with
@@ -139,7 +138,8 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
             memoryManager: MemoryManager, 
             importedSymbols: BinFile.Symbol seq, 
             iatRegion: MemoryRegion,
-            exportedMethods: IDictionary<String, UInt64>
+            exportedMethods: IDictionary<String, UInt64>,
+            pointerSize: Int32
         ) =
         importedSymbols
         |> Seq.iteri(fun index symbol ->
@@ -166,10 +166,11 @@ type ManagedLibrary(assembly: Assembly, emulator: IEmulator, pointerSize: Int32)
         |> Seq.find(fun kv -> kv.Value.Equals(name, StringComparison.OrdinalIgnoreCase))
         |> fun kv -> kv.Key
 
-    member internal this.MapSymbolWithManagedMethods(memoryManager: MemoryManager, symbols: BinFile.Symbol seq, exportedMethods: IDictionary<String, UInt64>) =
+    member internal this.MapSymbolWithManagedMethods(proc: IProcessContainer, exportedMethods: IDictionary<String, UInt64>) =
+        let symbols = proc.GetImportedFunctions()
         if this.EmulatedMethods.Count > 0 && (symbols |> Seq.length) > 0 then
-            let iatRegion = getOrCreateIatRegion(memoryManager, symbols)
-            this.MapImportAddressTableMethods(memoryManager, symbols, iatRegion, exportedMethods)
+            let iatRegion = getOrCreateIatRegion(proc.Memory, symbols, proc.GetPointerSize())
+            this.MapImportAddressTableMethods(proc.Memory, symbols, iatRegion, exportedMethods, proc.GetPointerSize())
             this.MapEmulatedMethods(exportedMethods)
 
     member internal this.ResolveLibraryFunctions() =
