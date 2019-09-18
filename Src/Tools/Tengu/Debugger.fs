@@ -14,9 +14,6 @@ open System.Text.RegularExpressions
 open Newtonsoft.Json
 open System.Text
 
-(*
-- display running information, like the numberd of executed instruction, execution time and mean time time to execute 1 instruction (do performance test with and without cache)
-*)
 type internal Command =
     | Trace
     | Step
