@@ -1,3 +1,11 @@
+### 1.2 - XX/XX/2019
+* Added Initialize method in Library to give a chance for initialization before the emulation starts
+* Print function name in disassembly representation
+* Fixed error on Library emulation loading
+* Improved snapshot creation and fixed some errors
+* Added instruction cache to speed up performance
+* Created Tengu utility
+
 ### 1.1.0 - 10/06/2019
 * Added support to load external libraries
 * PEB->Ldr is correctly initialized according to the loaded modules
