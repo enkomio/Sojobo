@@ -10,6 +10,8 @@ open B2R2
 [<AbstractClass>]
 type BaseSandbox() =
     let _sideEffectEvent = new Event<ISandbox * SideEffect>()
+    let _beforeEmulationEvent = new Event<IProcessContainer>()   
+    let _afterEmulationEvent = new Event<IProcessContainer>()
 
     abstract Load: String -> unit
     abstract Load: Byte array -> unit  
@@ -25,6 +27,14 @@ type BaseSandbox() =
     member val Emulator: IEmulator option = None with get, set
     member val Hooks = new List<Hook>() with get
     member val Id = Guid.NewGuid()
+    member this.BeforeEmulation = _beforeEmulationEvent.Publish 
+    member this.AfterEmulation = _afterEmulationEvent.Publish 
+
+    member this.SignalBeforeEmulation() =
+        _beforeEmulationEvent.Trigger(this.GetRunningProcess())
+
+    member this.SignalAfterEmulation() =
+        _afterEmulationEvent.Trigger(this.GetRunningProcess())
         
     abstract AddHook: address:UInt64 * callback:Action<ISandbox> -> Hook
     default this.AddHook(address: UInt64, callback: Action<ISandbox>) =
@@ -98,6 +108,14 @@ type BaseSandbox() =
 
         member this.GetHookAddress(hook: Hook) =
             this.GetHookAddress(hook)
+
+        [<CLIEvent>]
+        member this.BeforeEmulation
+            with get() = this.BeforeEmulation
+
+        [<CLIEvent>]
+        member this.AfterEmulation
+            with get() = this.AfterEmulation
             
         [<CLIEvent>]
         member this.SideEffect

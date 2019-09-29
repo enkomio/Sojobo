@@ -188,7 +188,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         (instruction, this.Emulator.Value.Emulate(handler, instruction))
 
     let emulateInstruction(proc: BaseProcessContainer, pc: UInt64) =
-        _currentProcess.Value.SignalBeforeEmulation()
+        this.SignalBeforeEmulation()
         if settings.CacheInstructions then
             if _cache.IsCached(pc) then 
                 let (instruction, stmts) = _cache.GetCachedInstruction(pc)
@@ -199,7 +199,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
                 _cache.CacheInstruction(pc, instruction, stmts)
         else
             emulateInstructionNoCache(proc, pc) |> ignore
-        _currentProcess.Value.SignalAfterEmulation()               
+        this.SignalAfterEmulation()               
 
     let rec loadNativeLibraryFile(filename: String, loadedLibraries: HashSet<String>) =
         let libPath = Environment.GetFolderPath(Environment.SpecialFolder.SystemX86)

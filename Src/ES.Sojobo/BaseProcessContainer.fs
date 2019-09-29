@@ -10,8 +10,6 @@ open B2R2.BinFile
 [<AbstractClass>]
 type BaseProcessContainer(pointerSize: Int32) =
     let mutable _activeRegion: MemoryRegion option = None
-    let _beforeEmulationEvent = new Event<IProcessContainer>()   
-    let _afterEmulationEvent = new Event<IProcessContainer>()
     let _symbols = new Dictionary<UInt64, Symbol>()
     let _pid = Guid.NewGuid().GetHashCode() |> uint32
 
@@ -34,15 +32,7 @@ type BaseProcessContainer(pointerSize: Int32) =
 
     member this.GetPointerSize() =
         pointerSize
-
-    member this.SignalBeforeEmulation() =
-        _beforeEmulationEvent.Trigger(this)
-
-    member this.SignalAfterEmulation() =
-        _afterEmulationEvent.Trigger(this)
-
-    member this.BeforeEmulation = _beforeEmulationEvent.Publish 
-    member this.AfterEmulation = _afterEmulationEvent.Publish 
+    
     member val Pid = _pid with get, set
 
     member this.TryGetSymbol(address: UInt64) =
@@ -83,14 +73,6 @@ type BaseProcessContainer(pointerSize: Int32) =
 
         member this.SetSymbol(symbol: Symbol) =
             this.SetSymbol(symbol)
-
-        [<CLIEvent>]
-        member this.BeforeEmulation
-            with get() = this.BeforeEmulation
-
-        [<CLIEvent>]
-        member this.AfterEmulation
-            with get() = this.AfterEmulation
 
         member this.Memory
             with get() = this.Memory

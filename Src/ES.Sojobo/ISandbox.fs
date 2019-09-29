@@ -71,6 +71,14 @@ type ISandbox =
         [<CLIEvent>]
         abstract SideEffect: IEvent<ISandbox * SideEffect> with get
 
+        /// This method is invoked before the instruction being emulated
+        [<CLIEvent>]
+        abstract BeforeEmulation: IEvent<IProcessContainer> with get
+
+        /// This method is invoked after the instruction being emulated
+        [<CLIEvent>]
+        abstract AfterEmulation: IEvent<IProcessContainer> with get
+
         /// Return the istance of the emulator used to emulate the LowUIR code
         abstract Emulator: IEmulator with get
     end

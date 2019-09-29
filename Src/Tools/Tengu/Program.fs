@@ -50,8 +50,7 @@ module Program =
 
     let private initialize(settings: Settings) =
         // setup handlers
-        let proc = _sandbox.GetRunningProcess()
-        proc.BeforeEmulation.Add(beforeEmulationEventHandler settings)
+        _sandbox.BeforeEmulation.Add(beforeEmulationEventHandler settings)
 
         // add this file as library for method hooking
         _sandbox.AddApiEmulator(typeof<Dumper>.Assembly)

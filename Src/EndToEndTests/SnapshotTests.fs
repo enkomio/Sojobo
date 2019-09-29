@@ -3,6 +3,7 @@
 open B2R2
 open ES.Sojobo.Model
 open ES.Sojobo
+open ES.Sojobo.Windows
 
 module SnapshotTests =
 
@@ -14,8 +15,7 @@ module SnapshotTests =
         sandbox.Load(exe)
         
         // setup handlers
-        let proc = sandbox.GetRunningProcess()
-        proc.Step.Add(fun proc ->
+        sandbox.BeforeEmulation.Add(fun proc ->
             ES.EndToEndTests.Utility.writeDisassembly(proc)
 
             if 0x401061 = (proc.ProgramCounter.Value |> BitVector.toInt32) then
