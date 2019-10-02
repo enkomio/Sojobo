@@ -58,9 +58,6 @@
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
-    <Reference Include="B2R2.FrontEnd.Core">
-      <HintPath>..\..\Examples\Kpot2StringExtractor\bin\Debug\B2R2.FrontEnd.Core.dll</HintPath>
-    </Reference>
     <Reference Include="mscorlib" />
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -131,6 +128,11 @@
     <ProjectReference Include="..\..\ThirdPart\B2R2\src\Core\B2R2.Core.fsproj">
       <Name>B2R2.Core</Name>
       <Project>{dcb290b6-b373-42be-81cc-12431957721b}</Project>
+      <Private>True</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\..\ThirdPart\B2R2\src\FrontEnd\Core\B2R2.FrontEnd.Core.fsproj">
+      <Name>B2R2.FrontEnd.Core</Name>
+      <Project>{1b240a8a-a3f5-4bc2-8e39-63bb42af0a4a}</Project>
       <Private>True</Private>
     </ProjectReference>
     <ProjectReference Include="..\..\ThirdPart\B2R2\src\FrontEnd\Intel\B2R2.FrontEnd.Intel.fsproj">
