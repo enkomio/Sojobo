@@ -147,7 +147,9 @@ module Model =
         IsTemp: Boolean
         Value: BitVector
         Type: EmulatedType
-    }
+    } with
+        member this.As<'T>() =
+            BitVector.toUInt64 this.Value :> Object :?> 'T
 
     let createVariableWithValue(name: String, t: EmulatedType, v: BitVector) = {
         Name = name
