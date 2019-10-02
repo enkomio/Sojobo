@@ -7,6 +7,7 @@ open B2R2.FrontEnd
 open B2R2.BinFile
 open B2R2.BinFile.PE
 open System.Collections.Generic
+open ES.Sojobo.Model
 
 module private UnknowLibrary =
     let mutable private _currentIndex = 0
@@ -20,6 +21,7 @@ This Object represent a mapped library in the process address space
 *)
 type NativeLibrary(content: Byte array) =
     let mutable _isLoaded = false
+    let mutable _handle: LibraryHandle option = None    
 
     member val FileName: String option = None with get, set
     member val Name: String option = None with get, set
@@ -27,6 +29,15 @@ type NativeLibrary(content: Byte array) =
     member val EntryPoint = 0UL with get, set
     member val BaseAddress = 0UL with get, set
     member val Exports = new List<Symbol>() with get, set
+    member this.Handle
+        with get() =
+            match _handle with
+            | None ->
+                _handle <- 
+                    {Name = defaultArg this.FileName String.Empty; Value = this.BaseAddress}
+                    |> Some
+            | _ -> ()
+            _handle.Value
     
     static member Create(content: Byte array) =
         new NativeLibrary(content)
@@ -122,7 +133,7 @@ type NativeLibrary(content: Byte array) =
             let (mustRelocate, baseAddress) =
                 if proc.Memory.IsAddressMapped(peHeader.ImageBase) || peHeader.ImageBase < nextLibFreeBaseAddress
                 then (true, nextLibFreeBaseAddress)
-                else (false, peHeader.ImageBase)
+                else (false, peHeader.ImageBase)            
 
             // map library            
             Utility32.mapPeHeaderAtAddress(baseAddress, handler, proc.Memory)
@@ -132,7 +143,4 @@ type NativeLibrary(content: Byte array) =
             // must relocate the library if necessary
             if mustRelocate then                                
                 this.ApplyRelocation(pe, proc, baseAddress)
-
-            baseAddress                
-        | _ ->
-            0UL
+        | _ -> ()
