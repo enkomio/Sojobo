@@ -121,18 +121,23 @@ module Kernel32 =
             then Environment.GetFolderPath(Environment.SpecialFolder.SystemX86)
             else Environment.GetFolderPath(Environment.SpecialFolder.System)
 
+        // load library
         let libName = sandbox.GetRunningProcess().Memory.ReadAsciiString(uint64 lpLibFileName)
         let filename = Path.Combine(libPath, libName)
         if File.Exists(filename) then
             sandbox.MapLibrary(filename)
 
-        let (Handle.Library {Name = _; Value = libHandle}) = 
+        let libHandle =
             sandbox.GetRunningProcess().Handles 
-            |> Array.find(fun hdl ->
+            |> Array.tryFind(fun hdl ->
                 match hdl with
                 | Library info when info.Name.Equals(filename |> Path.GetFileName, StringComparison.OrdinalIgnoreCase) -> true
                 | _ -> false
             )
+            |> function
+                | Some (Handle.Library {Name = _; Value = libHandle}) -> libHandle
+                | _ -> 0UL
+
         {
             Convention = CallingConvention.Cdecl
             ReturnValue = 

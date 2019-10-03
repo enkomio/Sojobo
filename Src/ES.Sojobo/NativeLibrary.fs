@@ -34,8 +34,10 @@ type NativeLibrary(content: Byte array) =
             match _handle with
             | None ->
                 _handle <- 
-                    {Name = defaultArg this.FileName String.Empty; Value = this.BaseAddress}
-                    |> Some
+                    {
+                        Name = Path.GetFileName(defaultArg this.FileName String.Empty)
+                        Value = this.BaseAddress
+                    } |> Some
             | _ -> ()
             _handle.Value
     

@@ -11,6 +11,7 @@ open B2R2.FrontEnd
 open B2R2.BinFile.PE
 open ES.Sojobo
 open ES.Sojobo.Model
+open Win32Structures
 
 [<CLIMutable>]
 type Win32SandboxSettings = {
@@ -87,8 +88,8 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
     let loadNativeLibrary(lib: NativeLibrary) =
         _currentProcess
         |> Option.iter(fun p ->
-            let baseAddress = lib.Load(this.GetRunningProcess())
-            p.AddHandle(Library {Name = lib.GetLibraryName(); Value = baseAddress})
+            lib.Load(this.GetRunningProcess())            
+            p.AddHandle(Library lib.Handle)
         )
                 
     let resolveHooks() =
@@ -182,7 +183,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
             | Address (_, callback) -> callback.Invoke(this)
             | Symbol (_, callback) -> callback.Invoke(this)            
 
-    let emulateInstructionNoCache(proc: BaseProcessContainer, pc: UInt64) =
+    let emulateInstructionNoCache(proc: BaseProcessContainer) =
         let instruction = proc.GetInstruction()
         let handler = proc.GetActiveMemoryRegion().Handler
         (instruction, this.Emulator.Value.Emulate(handler, instruction))
@@ -195,10 +196,10 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
                 this.Emulator.Value.Emulate(stmts)
                 this.Emulator.Value.AdvanceProgramCounterIfNecessary(instruction)
             else 
-                let (instruction, stmts) = emulateInstructionNoCache(proc, pc)
+                let (instruction, stmts) = emulateInstructionNoCache(proc)
                 _cache.CacheInstruction(pc, instruction, stmts)
         else
-            emulateInstructionNoCache(proc, pc) |> ignore
+            emulateInstructionNoCache(proc) |> ignore
         this.SignalAfterEmulation()               
 
     let rec loadNativeLibraryFile(filename: String, loadedLibraries: HashSet<String>) =
@@ -269,13 +270,24 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         | Some _ -> ()
         | None ->
             base.MapLibrary(filename)
+            
             tryGetMappedLibrary(filename)
-            |> Option.iter(loadNativeLibrary)
+            |> Option.iter(fun lib ->
+                loadNativeLibrary(lib)
 
-            _stopExecution
-            |> Option.iter(fun stopExecution ->
-                if not stopExecution then mapManagedLibraries()
-            )            
+                _stopExecution
+                |> Option.iter(fun stopExecution ->
+                    // if the process is currently emulated execute pre-init operations
+                    if not stopExecution then 
+                        // update PEB Ldr field by setup it again (yeah not very efficient)
+                        let tebAddress = this.GetRunningProcess().Cpu.GetRegister(string Register.FSBase).As<UInt64>() 
+                        this.GetRunningProcess().Memory.FreeMemoryRegion(tebAddress) |> ignore
+                        setupTeb()
+
+                        // map library
+                        mapManagedLibraries()
+                )        
+            )
 
     default this.Run() =
         // initialize structures and hooks    
