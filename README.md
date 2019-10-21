@@ -18,6 +18,10 @@ With _Sojobo_ you can:
 
 _Sojobo_ is intended to be used as a framework to create program analysis utilities. However, various <a href="https://github.com/enkomio/Sojobo/tree/master/Src/Examples"><strong>sample utilities</strong></a> were created in order to show how to use the framework in a profitable way. 
 
+### Tengu
+
+_Tengu_ is an utility which is based on _Sojobo_. It allows to emulate a given process and control the execution by providing a debugger like UI (in particular it was inspired by the windbg debugger). 
+
 ## Documentation
 The project is fully documented in F# (cit.) :) Joking apart, I plan to write some blog posts related to how to use Sojobo. Below a list of the current posts:
 
