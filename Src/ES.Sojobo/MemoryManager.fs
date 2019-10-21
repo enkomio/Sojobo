@@ -24,9 +24,10 @@ type private MemoryEntry = {
     Buffer: Byte array
 }
 
-type MemoryManager(pointerSize: Int32) =
+type MemoryManager(pointerSize: Int32) as this =
     let _va = new SortedDictionary<UInt64, MemoryRegion>() 
     let _memoryAccessEvent = new Event<MemoryAccessOperation>()
+    let _memoryAccessViolation = new Event<MemoryAccessOperation>()
     let mutable _lastAllocatedLibBase = 0UL
 
     let createStack() =
@@ -56,17 +57,7 @@ type MemoryManager(pointerSize: Int32) =
             let endAddr = memRegion.BaseAddress + uint64 memRegion.Content.Length
             address >= startAddr && address < endAddr
         )
-
-    let readMemory(address: UInt64, size: Int32) =
-        let memRegion = getMemoryRegion(address)
-        if memRegion.Permission <> Permission.Readable then
-            // TODO: add check on memory protection
-            ()
-
-        let offset = address - memRegion.BaseAddress |> int32
-        let realSize = min (memRegion.Content.Length-offset) size
-        BinHandler.ReadBytes(memRegion.Handler, address, realSize)
-
+        
     let rec serialize(value: Object, entries: List<MemoryEntry>, addEntry: Boolean, fixups: List<Fixup>, analyzedObjects: HashSet<Object>): (Byte array * List<Fixup>) =
         // allocate buffer
         let size = deepSizeOf(value.GetType(), pointerSize)        
@@ -163,11 +154,9 @@ type MemoryManager(pointerSize: Int32) =
 
         entriesFixup
 
-    let writeEntriesToMemory(entries: (MemoryEntry * UInt64) seq, memory: MemoryManager) =
+    let writeEntriesToMemory(entries: (MemoryEntry * UInt64) seq) =
         entries
-        |> Seq.iter(fun (entry, address) ->
-            memory.WriteMemory(address, entry.Buffer, false)
-        )
+        |> Seq.iter(fun (entry, address) -> this.WriteMemory(address, entry.Buffer, false))
 
     let applyPatches(entriesFixup: Dictionary<Object, MemoryEntry * UInt64>, fixups: List<Fixup>) =
         let entries = entriesFixup.Values |> Seq.map(fun (e, _) -> e) |> Seq.toList
@@ -198,7 +187,7 @@ type MemoryManager(pointerSize: Int32) =
                 else binReader.ReadUInt64()
             
             if address <> 0UL 
-            then readMemory(address, size)
+            then this.ReadMemory(address, size)
             else Array.zeroCreate<Byte>(size)
         else
             binReader.ReadBytes(size)
@@ -252,7 +241,7 @@ type MemoryManager(pointerSize: Int32) =
                     analyzedObjects.[address] <- fieldInstance
 
                     let size = deepSizeOf(field.FieldType, pointerSize)
-                    let fieldBuffer = readMemory(address, size)
+                    let fieldBuffer = this.ReadMemory(address, size)
                     deserialize(fieldBuffer, fieldInstance, analyzedObjects)   
                     
                     let effectiveValue = 
@@ -286,6 +275,7 @@ type MemoryManager(pointerSize: Int32) =
         )      
 
     member this.MemoryAccess = _memoryAccessEvent.Publish  
+    member this.MemoryAccessViolation = _memoryAccessViolation.Publish
     member val Stack = createStack() with get, set
     member val Heap = createHeap() with get, set
 
@@ -293,14 +283,22 @@ type MemoryManager(pointerSize: Int32) =
         _va.Clear()
     
     member this.ReadMemory(address: UInt64, size: Int32) =        
-        _memoryAccessEvent.Trigger(MemoryAccessOperation.Read address)        
-        readMemory(address, size)
+        _memoryAccessEvent.Trigger(MemoryAccessOperation.Read address)  
+        
+        let memRegion = getMemoryRegion(address)
+        if memRegion.Permission <> Permission.Readable then
+            _memoryAccessViolation.Trigger(MemoryAccessOperation.Read address)  
+            Array.empty
+        else
+            let offset = address - memRegion.BaseAddress |> int32
+            let realSize = min (memRegion.Content.Length-offset) size
+            BinHandler.ReadBytes(memRegion.Handler, address, realSize)
 
     member this.ReadMemory<'T>(address: UInt64) =
         // read raw bytes
         let objectType = typeof<'T>
         let size = deepSizeOf(objectType, pointerSize)
-        let buffer = readMemory(address, size)
+        let buffer = this.ReadMemory(address, size)
 
         let objectInstance = 
             if objectType.IsPrimitive || objectType.IsValueType 
@@ -322,14 +320,12 @@ type MemoryManager(pointerSize: Int32) =
         _memoryAccessEvent.Trigger(MemoryAccessOperation.Write (address, value))
         let region = this.GetMemoryRegion(address)
 
-        // TODO: add check on memory protection
         match verifyProtection with
         | Some true when region.Permission <> Permission.Writable ->            
-            ()
-        | _ -> ()
-
-        let offset = region.Handler.FileInfo.TranslateAddress address
-        Array.Copy(value, 0, region.Handler.FileInfo.BinReader.Bytes, offset, value.Length)
+            _memoryAccessViolation.Trigger(MemoryAccessOperation.Write (address, value))
+        | _ ->
+            let offset = region.Handler.FileInfo.TranslateAddress address
+            Array.Copy(value, 0, region.Handler.FileInfo.BinReader.Bytes, offset, value.Length)
         
     member this.WriteMemory(address: UInt64, value: Object) =        
         let entries = new List<MemoryEntry>()
@@ -337,7 +333,7 @@ type MemoryManager(pointerSize: Int32) =
         serialize(value, entries, true, fixup, new HashSet<Object>()) |> ignore
         let fixedupEntries = allocateMemoryForEntries(entries, value, address, this)
         applyPatches(fixedupEntries, fixup)
-        writeEntriesToMemory(fixedupEntries.Values, this)
+        writeEntriesToMemory(fixedupEntries.Values)
         
     member this.UpdateMemoryRegion(baseAddress: UInt64, memoryRegion: MemoryRegion) =
         _va.[baseAddress] <- memoryRegion
@@ -429,9 +425,9 @@ type MemoryManager(pointerSize: Int32) =
     member this.ReadAsciiString(address: UInt64) =
         let asciiString = new StringBuilder()
         let mutable offset = address
-        let mutable c = readMemory(offset, 1).[0]
+        let mutable c = this.ReadMemory(offset, 1).[0]
         while c <> 0x00uy do
             asciiString.Append(char c) |> ignore
             offset <- offset + 1UL
-            c <- readMemory(offset, 1).[0]
+            c <- this.ReadMemory(offset, 1).[0]
         asciiString.ToString()
