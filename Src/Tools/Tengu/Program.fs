@@ -19,7 +19,7 @@ module Program =
     let mutable private _instructionCounter = 0
 
     let private _logger =
-        log "Tangu"
+        log "Tengu"
         |> info "Start" "-=[ Start Analysis ]=-"
         |> info "Details" "File: {0} PID: {1}"
         |> info "Completed" "-=[ Analysis Completed ]=-"
