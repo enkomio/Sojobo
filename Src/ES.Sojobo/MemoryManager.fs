@@ -286,7 +286,7 @@ type MemoryManager(pointerSize: Int32) as this =
         _memoryAccessEvent.Trigger(MemoryAccessOperation.Read address)  
         
         let memRegion = getMemoryRegion(address)
-        if memRegion.Permission.HasFlag(Permission.Readable) then
+        if not <| memRegion.Permission.HasFlag(Permission.Readable) then
             _memoryAccessViolation.Trigger(MemoryAccessOperation.Read address)  
             Array.empty
         else
@@ -321,7 +321,7 @@ type MemoryManager(pointerSize: Int32) as this =
         let region = this.GetMemoryRegion(address)
 
         match verifyProtection with
-        | Some true when region.Permission.HasFlag(Permission.Writable) ->
+        | Some true when not <| region.Permission.HasFlag(Permission.Writable) ->
             _memoryAccessViolation.Trigger(MemoryAccessOperation.Write (address, value))
         | _ ->
             let offset = region.Handler.FileInfo.TranslateAddress address
