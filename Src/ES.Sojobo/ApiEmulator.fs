@@ -105,10 +105,11 @@ type ApiEmulator(assembly: Assembly, emulator: IEmulator) =
         let handler = proc.GetActiveMemoryRegion().Handler
         emulator.Emulate(handler, instruction) |> ignore
 
-    let getOrCreateIatRegion(memoryManager: MemoryManager, symbols: BinFile.Symbol seq, pointerSize: Int32) =
+    let getOrCreateEatRegion(memoryManager: MemoryManager, symbols: BinFile.Symbol seq, pointerSize: Int32) =
+        let regionName = "EMU_EAT_" + assembly.GetName().Name
         memoryManager.GetMemoryMap()
         |> Array.tryFind(fun region ->
-            region.Info.Equals("EMU_" + assembly.GetName().Name)
+            region.Info.Equals(regionName)
         )
         |> function
             | Some region -> region
@@ -117,7 +118,7 @@ type ApiEmulator(assembly: Assembly, emulator: IEmulator) =
                 let baseAddress = memoryManager.GetFreeMemory(size)
                 let newRegion = 
                     {createMemoryRegion(baseAddress, size, Permission.Readable) with
-                        Info = "EMU_" + assembly.GetName().Name
+                        Info = regionName
                     }
                 memoryManager.AddMemoryRegion(newRegion)
                 newRegion
@@ -136,7 +137,7 @@ type ApiEmulator(assembly: Assembly, emulator: IEmulator) =
             | _ -> ()
         )
 
-    member private this.MapImportAddressTableMethods
+    member private this.MapExportAddressTableMethods
         (
             memoryManager: MemoryManager, 
             importedSymbols: BinFile.Symbol seq, 
@@ -172,8 +173,8 @@ type ApiEmulator(assembly: Assembly, emulator: IEmulator) =
     member this.MapSymbolWithManagedMethods(proc: IProcessContainer, exportedMethods: IDictionary<String, UInt64>) =
         let symbols = proc.GetImportedFunctions()
         if this.EmulatedMethods.Count > 0 && (symbols |> Seq.length) > 0 then
-            let iatRegion = getOrCreateIatRegion(proc.Memory, symbols, proc.GetPointerSize())
-            this.MapImportAddressTableMethods(proc.Memory, symbols, iatRegion, exportedMethods, proc.GetPointerSize())
+            let eatRegion = getOrCreateEatRegion(proc.Memory, symbols, proc.GetPointerSize())
+            this.MapExportAddressTableMethods(proc.Memory, symbols, eatRegion, exportedMethods, proc.GetPointerSize())
             this.MapEmulatedMethods(exportedMethods)
 
     member this.ResolveLibraryFunctions() =
