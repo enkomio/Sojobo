@@ -171,7 +171,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         |> Seq.toArray
         |> Array.sortByDescending(fun lib ->
             // this trick will load core libraries at the end, providing custom lib first
-            if lib.GetAssembly().FullName.StartsWith("ES.Sojobo")
+            if lib.GetAssembly().FullName.StartsWith("ES.Sojobo", StringComparison.OrdinalIgnoreCase)
             then Int32.MinValue
             else Int32.MaxValue
         )
