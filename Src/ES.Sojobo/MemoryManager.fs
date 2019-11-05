@@ -310,10 +310,10 @@ type MemoryManager(pointerSize: Int32) as this =
         // unbox object if necessary
         if objectType.IsPrimitive || objectType.IsValueType 
         then unbox objectInstance
-        else objectInstance :?> 'T
+        else objectInstance
 
     member this.ReadMemory<'T>(address: UInt64) =
-        this.ReadMemory(address, typeof<'T>)
+        this.ReadMemory(address, typeof<'T>) :?> 'T
 
     member this.GetMemoryRegion(address: UInt64) =
         getMemoryRegion(address)
