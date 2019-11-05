@@ -294,9 +294,8 @@ type MemoryManager(pointerSize: Int32) as this =
             let realSize = min (memRegion.Content.Length-offset) size
             BinHandler.ReadBytes(memRegion.Handler, address, realSize)
 
-    member this.ReadMemory<'T>(address: UInt64) =
+    member this.ReadMemory(address: UInt64, objectType: Type) =
         // read raw bytes
-        let objectType = typeof<'T>
         let size = deepSizeOf(objectType, pointerSize)
         let buffer = this.ReadMemory(address, size)
 
@@ -312,6 +311,9 @@ type MemoryManager(pointerSize: Int32) as this =
         if objectType.IsPrimitive || objectType.IsValueType 
         then unbox objectInstance
         else objectInstance :?> 'T
+
+    member this.ReadMemory<'T>(address: UInt64) =
+        this.ReadMemory(address, typeof<'T>)
 
     member this.GetMemoryRegion(address: UInt64) =
         getMemoryRegion(address)

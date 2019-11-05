@@ -170,8 +170,8 @@ module Win32Structures =
             |> Seq.sortByDescending(fun lib ->
                 // sort this list in order to have ntdll.dll and kernel32.dll on top
                 if lib.GetLibraryName().Equals("ntdll.dll", StringComparison.OrdinalIgnoreCase) then Int32.MaxValue
-                elif lib.GetLibraryName().Equals("kernelbase.dll", StringComparison.OrdinalIgnoreCase) then Int32.MaxValue-1
-                elif lib.GetLibraryName().Equals("kernel32.dll", StringComparison.OrdinalIgnoreCase) then Int32.MaxValue-2
+                elif lib.GetLibraryName().Equals("kernel32.dll", StringComparison.OrdinalIgnoreCase) then Int32.MaxValue-1
+                elif lib.GetLibraryName().Equals("kernelbase.dll", StringComparison.OrdinalIgnoreCase) then Int32.MaxValue-2                
                 else lib.GetLibraryName().GetHashCode()
             )
             |> Seq.toArray
