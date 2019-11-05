@@ -119,7 +119,10 @@ type NativeLibrary(content: Byte array) =
 
     member this.Load(proc: IProcessContainer) =
         // create handler
-        let isa = ISA.OfString "x86"
+        let isa = 
+            if proc.GetPointerSize() = 32 then ISA.OfString "x86"
+            else ISA.OfString "x64"
+
         let mutable handler = 
             match this.FileName with
             | Some filename -> BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, filename)
@@ -141,6 +144,9 @@ type NativeLibrary(content: Byte array) =
             Utility32.mapPeHeaderAtAddress(baseAddress, handler, proc.Memory)
             Utility32.mapSectionsAtAddress(baseAddress, handler, proc.Memory)
             this.SetProperties(handler, baseAddress) 
+
+            // add exported symbol to symbol list
+            this.Exports |> Seq.iter(proc.SetSymbol)           
 
             // must relocate the library if necessary
             if mustRelocate then                                
