@@ -24,6 +24,7 @@ type internal Command =
     | HideDisassembly
     | ShowDisassembly
     | ShowMemory of address:UInt64 * size:Int32 * length:Int32 option
+    | DisplayType of address:UInt64
     | MemoryMap
     | HideIr
     | ShowIr
@@ -165,6 +166,13 @@ type Debugger(sandbox: ISandbox) as this =
             | _ -> ES.Sojobo.Utility32.disassemble(proc, instruction)
             |> Console.WriteLine
 
+    let displayType(address: UInt64) =
+        let proc = sandbox.GetRunningProcess()
+        proc.TryGetSymbol(address)
+        |> Option.iter(fun symbol ->
+            Console.WriteLine("0x{0}: {1} [{2}]", address.ToString("X"), symbol.Name, symbol.LibraryName)
+        )
+
     let printHelp() =
         Console.WriteLine("Tengu debugger commands:")
         @"
@@ -175,17 +183,16 @@ type Debugger(sandbox: ISandbox) as this =
             p                                   execution step
             bl                                  list all breakpoints
             k [<frame count>]                   call stack
-            k*                                  real call stack, doesn't walk stack frames
             db <address/register> <size>        disaplay hex view
             dw <address/register>               display word at address
             dd <address/register>               display double word at address
             dq <address/register>               display quad word at address
             da <address/register>               display the ASCII string at the given address
+            dt <address/register>               display information about a local variable, global variable or data type
             hide <disassembly/ir>               hide the disassembly or IR during emulation
             show <disassembly/ir>               show the disassembly or IR during emulation
-            comment <address> <value> [cmd]     add a comment to the specified address, it is 
-                                                possible to specify an optional command to execute
-            bp <address/register>               set a breakpoint
+            comment <address> <value>           add a comment to the specified address
+            bp <address/register> [cmd]         set a breakpoint, it is possible to specify an optional command to execute
             bc <address>                        clear a previously setted breakpoint
             u [<address/register>] [count]      disassemble the bytes at the specified address (if specified otherwise at PC)            
             eb <address> <value>                write memory, value in hex form, like: 01 02 03
@@ -279,11 +286,17 @@ type Debugger(sandbox: ISandbox) as this =
                 let count = if items.Length > 2 then Int32.Parse(items.[2]) else 10
                 Disassemble (address, count)
             with _ -> Error
-        elif result.StartsWith("k") || result.Equals("k", StringComparison.OrdinalIgnoreCase) then
+        elif result.StartsWith("k") then
             try 
                 let count = if result.Length = 1 then 10 else Int32.Parse(result.Split().[1])
                 CallStack(count)
-            with _ -> Error            
+            with _ -> Error   
+        elif result.StartsWith("dt") then
+            try
+                let items = result.Split()
+                let address = parseTarget(items.[1])
+                DisplayType address
+            with _ -> Error  
         elif result.StartsWith("d") && ['a'; 'b'; 'w'; 'd'; 'q'] |> List.contains(result.[1]) then
             try
                 let modifier = result.[1]
@@ -489,6 +502,7 @@ type Debugger(sandbox: ISandbox) as this =
         | Disassemble(address, count) -> printDisassembly(address, count)
         | Comment(address, text) -> addComment(address, text)
         | Echo message -> Console.WriteLine(message)
+        | DisplayType address -> displayType(address)
         | ShowMemory (address, size, length) ->
             let mem = sandbox.GetRunningProcess().Memory
             if size = 8 then
