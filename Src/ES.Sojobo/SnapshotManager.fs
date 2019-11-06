@@ -76,7 +76,7 @@ type SnapshotManager(sandbox: BaseSandbox) =
         sandbox.ResetProcessState()
         let proc = sandbox.GetRunningProcess(Pid=snapshot.ProcessId)
         let memory = proc.Memory
-
+        
         // setup Virtual Address Space
         snapshot.VirtualAddressSpace
         |> Array.iter(fun memRegion ->
@@ -85,7 +85,7 @@ type SnapshotManager(sandbox: BaseSandbox) =
                 memRegion.BaseAddress, 
                 memRegion.Content.Length, 
                 (Enum.Parse(typeof<Permission>, memRegion.Permission.ToString()) :?> Permission)
-            ) |> ignore
+            )
 
             // update memory region with type and info
             let allocatedMemoryRegion =
@@ -95,8 +95,8 @@ type SnapshotManager(sandbox: BaseSandbox) =
                 } 
             memory.UpdateMemoryRegion(memRegion.BaseAddress, allocatedMemoryRegion)
             
-            // write region content
-            memory.WriteMemory(memRegion.BaseAddress, memRegion.Content, false)
+            // write region content 
+            memory.WriteMemory(memRegion.BaseAddress, memRegion.Content)
 
             // check for stack or heap region
             if memRegion.Id = snapshot.StackRegionId then
