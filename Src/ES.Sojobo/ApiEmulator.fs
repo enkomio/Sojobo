@@ -106,7 +106,7 @@ type ApiEmulator(assembly: Assembly, emulator: IEmulator) =
         emulator.Emulate(handler, instruction) |> ignore
 
     let getOrCreateEatRegion(memoryManager: MemoryManager, symbols: BinFile.Symbol seq, pointerSize: Int32) =
-        let regionName = "EMU_EAT_" + assembly.GetName().Name
+        let regionName = "EAT_" + assembly.GetName().Name
         memoryManager.GetMemoryMap()
         |> Array.tryFind(fun region ->
             region.Info.Equals(regionName)
@@ -159,7 +159,7 @@ type ApiEmulator(assembly: Assembly, emulator: IEmulator) =
 
                 // write the function address to IAT
                 let addressBytes = uint32 offset |> BitConverter.GetBytes
-                memoryManager.WriteMemory(symbol.Address, addressBytes, false)
+                memoryManager.WriteMemory(symbol.Address, addressBytes)
         )
 
     member this.GetAssembly() =
