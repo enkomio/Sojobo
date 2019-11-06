@@ -462,6 +462,16 @@ type Debugger(sandbox: ISandbox) as this =
     let saveSnapshot(filename: String) =
         let snapshotManager = new SnapshotManager(sandbox :?> BaseSandbox)
         let snapshot = snapshotManager.TakeSnaphot()
+        Console.WriteLine("-=[ Saving Process Snapshot ]=-")
+        snapshot.VirtualAddressSpace
+        |> Array.iter(fun memRegion ->
+            Console.WriteLine("0x{0} - 0x{1} Size: 0x{2}", 
+                memRegion.BaseAddress.ToString("X"), 
+                (memRegion.BaseAddress + uint64 memRegion.Content.Length).ToString("X"),
+                memRegion.Content.Length.ToString("X")
+            )
+        )
+
         snapshot.SaveTo(filename)
 
         // save comments
@@ -506,11 +516,29 @@ type Debugger(sandbox: ISandbox) as this =
                 let text = String.Join("|", items.[1..])
                 addComment(address, text)
             )
-        with _ -> () 
+        with e ->
+            Console.Error.WriteLine("Exception: {0}", e)            
         
     let showAsciiString(addr: UInt64) =
         sandbox.GetRunningProcess().Memory.ReadAsciiString(addr)
         |> Console.WriteLine
+
+    let showMemory(address: UInt64, size: Int32, length: Int32 option) =
+        try
+            let mem = sandbox.GetRunningProcess().Memory
+            if size = 8 then
+                let buffer = mem.ReadMemory(address, length.Value)                
+                printHexView(address, buffer)
+            elif size = 16 then
+                let num = mem.ReadMemory<UInt16>(address)
+                Console.WriteLine("0x{0}  0x{1}", address, num.ToString("X"))
+            elif size = 32 then
+                let num = mem.ReadMemory<UInt32>(address)
+                Console.WriteLine("0x{0}  0x{1}", address, num.ToString("X"))
+            elif size = 64 then
+                let num = mem.ReadMemory<UInt64>(address)
+                Console.WriteLine("0x{0}  0x{1}", address, num.ToString("X"))
+        with _ -> ()
 
     let parseCommand() =
         match _state.LastCommand with
@@ -536,20 +564,7 @@ type Debugger(sandbox: ISandbox) as this =
         | Comment(address, text) -> addComment(address, text)
         | Echo message -> Console.WriteLine(message)
         | DisplayType(address, typeName) -> displayType(address, typeName)
-        | ShowMemory (address, size, length) ->
-            let mem = sandbox.GetRunningProcess().Memory
-            if size = 8 then
-                let buffer = mem.ReadMemory(address, length.Value)                
-                printHexView(address, buffer)
-            elif size = 16 then
-                let num = mem.ReadMemory<UInt16>(address)
-                Console.WriteLine("0x{0}  0x{1}", address, num.ToString("X"))
-            elif size = 32 then
-                let num = mem.ReadMemory<UInt32>(address)
-                Console.WriteLine("0x{0}  0x{1}", address, num.ToString("X"))
-            elif size = 64 then
-                let num = mem.ReadMemory<UInt64>(address)
-                Console.WriteLine("0x{0}  0x{1}", address, num.ToString("X"))
+        | ShowMemory (address, size, length) -> showMemory(address, size, length)
         | SetRegister (registerName, value) ->
             try
                 let proc = sandbox.GetRunningProcess()
