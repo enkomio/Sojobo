@@ -85,14 +85,14 @@ type NativeLibrary(content: Byte array) =
             
             match entry.Type with
             | BaseRelocType.ImageRelBasedHighlow ->                 
-                proc.Memory.WriteMemory(address, BitConverter.GetBytes(uint32 patch), false)
+                proc.Memory.WriteMemory(address, BitConverter.GetBytes(uint32 patch))
             | BaseRelocType.ImageRelBasedDir64 ->
-                proc.Memory.WriteMemory(address, BitConverter.GetBytes(patch), false)
+                proc.Memory.WriteMemory(address, BitConverter.GetBytes(patch))
             | BaseRelocType.ImageRelBasedHigh -> 
                 let patch = (patch >>> 16) &&& 0xFFFFUL
-                proc.Memory.WriteMemory(address, BitConverter.GetBytes(uint16 patch), false)
+                proc.Memory.WriteMemory(address, BitConverter.GetBytes(uint16 patch))
             | BaseRelocType.ImageRelBasedLow -> 
-                proc.Memory.WriteMemory(address, BitConverter.GetBytes(uint16 patch), false)
+                proc.Memory.WriteMemory(address, BitConverter.GetBytes(uint16 patch))
             
             // ignore
             | BaseRelocType.ImageRelBasedHighadj -> ()
@@ -108,11 +108,14 @@ type NativeLibrary(content: Byte array) =
             | _ -> failwith "Unknow relocation type"
         )
 
-    member this.GetLibraryName() =
+    member this.GetFullName() =
         match this.FileName with
         | Some _ -> ()
         | None -> this.FileName <- Some <| UnknowLibrary.getName()
-        Path.GetFileName(this.FileName.Value)
+        this.FileName.Value
+
+    member this.GetLibraryName() =
+        Path.GetFileName(this.GetFullName())
 
     member this.IsLoaded() =
         _isLoaded
@@ -136,8 +139,8 @@ type NativeLibrary(content: Byte array) =
             let nextLibFreeBaseAddress = proc.Memory.GetNextLibraryAllocationBase(peHeader.SizeOfImage, peHeader.ImageBase)
 
             let (mustRelocate, baseAddress) =
-                if proc.Memory.IsAddressMapped(peHeader.ImageBase) || peHeader.ImageBase < nextLibFreeBaseAddress
-                then (true, nextLibFreeBaseAddress)
+                //if proc.Memory.IsAddressMapped(peHeader.ImageBase) || peHeader.ImageBase < nextLibFreeBaseAddress
+                if proc.Memory.IsAddressMapped(peHeader.ImageBase) then (true, nextLibFreeBaseAddress)
                 else (false, peHeader.ImageBase)            
 
             // map library            
