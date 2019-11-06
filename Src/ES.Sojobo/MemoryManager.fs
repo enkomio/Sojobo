@@ -301,8 +301,8 @@ type MemoryManager(pointerSize: Int32) as this =
 
         let objectInstance = 
             if objectType.IsPrimitive || objectType.IsValueType 
-            then Activator.CreateInstance<'T>() |> box
-            else Activator.CreateInstance<'T>() :> Object
+            then Activator.CreateInstance(objectType) |> box
+            else Activator.CreateInstance(objectType)
 
         // deserialize data
         deserialize(buffer, objectInstance, new Dictionary<UInt64, Object>())
