@@ -1,6 +1,7 @@
 ﻿namespace ES.Tengu
 
 open System
+open System.Reflection
 open System.IO
 open System.Threading
 open System.Collections.Generic
@@ -24,7 +25,7 @@ type internal Command =
     | HideDisassembly
     | ShowDisassembly
     | ShowMemory of address:UInt64 * size:Int32 * length:Int32 option
-    | DisplayType of address:UInt64
+    | DisplayType of address:UInt64 * typeName:String option
     | MemoryMap
     | HideIr
     | ShowIr
@@ -166,12 +167,43 @@ type Debugger(sandbox: ISandbox) as this =
             | _ -> ES.Sojobo.Utility32.disassemble(proc, instruction)
             |> Console.WriteLine
 
-    let displayType(address: UInt64) =
+    let displayType(address: UInt64, typeName: String option) =
         let proc = sandbox.GetRunningProcess()
-        proc.TryGetSymbol(address)
-        |> Option.iter(fun symbol ->
-            Console.WriteLine("0x{0}: {1} [{2}]", address.ToString("X"), symbol.Name, symbol.LibraryName)
-        )
+        match typeName with
+        | Some typeName -> 
+            AppDomain.CurrentDomain.GetAssemblies()
+            |> Seq.collect(fun assembly -> assembly.GetTypes())
+            |> Seq.filter(fun t -> t.Name.Equals(typeName))
+            |> Seq.tryHead
+            |> function 
+                | Some objectType ->    
+                    try
+                        Console.WriteLine("-=[Object type: {0} ]=-", objectType)
+                        let flags = BindingFlags.Instance ||| BindingFlags.NonPublic ||| BindingFlags.Public 
+                        let obj = proc.Memory.ReadMemory(address, objectType)
+                        let mutable offset = 0
+                        obj.GetType().GetFields(flags)
+                        |> Array.iter(fun field ->        
+                            let fieldValue = field.GetValue(obj)
+                            let stringValue =
+                                if field.FieldType.IsArray then "Array"
+                                elif field.FieldType.IsPrimitive then fieldValue.ToString()
+                                elif field.FieldType.IsClass then "Ptr " + field.FieldType.Name
+                                else "(N/A)"
+                            Console.WriteLine("\t+0x{0} {1} : {2}", offset.ToString("X"), field.Name, stringValue)
+                            offset <- 
+                                (if field.FieldType.IsArray then Helpers.getFieldArrayLength(field, proc.GetPointerSize(), new Dictionary<Type, Int32>())
+                                else Helpers.deepSizeOf(fieldValue.GetType(), proc.GetPointerSize())) 
+                                + offset
+                        )
+                    with e -> 
+                        Console.Error.WriteLine(e)
+                | None -> ()
+        | _ ->
+            proc.TryGetSymbol(address)
+            |> Option.iter(fun symbol ->
+                Console.WriteLine("0x{0}: {1} [{2}]", address.ToString("X"), symbol.Name, symbol.LibraryName)
+            )
 
     let printHelp() =
         Console.WriteLine("Tengu debugger commands:")
@@ -188,7 +220,7 @@ type Debugger(sandbox: ISandbox) as this =
             dd <address/register>               display double word at address
             dq <address/register>               display quad word at address
             da <address/register>               display the ASCII string at the given address
-            dt <address/register>               display information about a local variable, global variable or data type
+            dt <address/register> [type]        display information about a local variable, global variable or data type
             hide <disassembly/ir>               hide the disassembly or IR during emulation
             show <disassembly/ir>               show the disassembly or IR during emulation
             comment <address> <value>           add a comment to the specified address
@@ -295,7 +327,8 @@ type Debugger(sandbox: ISandbox) as this =
             try
                 let items = result.Split()
                 let address = parseTarget(items.[1])
-                DisplayType address
+                let typeName = if items.Length > 2 then Some(items.[2]) else None
+                DisplayType(address, typeName)
             with _ -> Error  
         elif result.StartsWith("d") && ['a'; 'b'; 'w'; 'd'; 'q'] |> List.contains(result.[1]) then
             try
@@ -502,7 +535,7 @@ type Debugger(sandbox: ISandbox) as this =
         | Disassemble(address, count) -> printDisassembly(address, count)
         | Comment(address, text) -> addComment(address, text)
         | Echo message -> Console.WriteLine(message)
-        | DisplayType address -> displayType(address)
+        | DisplayType(address, typeName) -> displayType(address, typeName)
         | ShowMemory (address, size, length) ->
             let mem = sandbox.GetRunningProcess().Memory
             if size = 8 then
