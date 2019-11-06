@@ -319,15 +319,16 @@ type MemoryManager(pointerSize: Int32) as this =
         getMemoryRegion(address)
 
     member this.WriteMemory(address: UInt64, value: Byte array, ?verifyProtection: Boolean) =
-        _memoryAccessEvent.Trigger(MemoryAccessOperation.Write (address, value))
-        let region = this.GetMemoryRegion(address)
+        if value.Length > 0 then
+            _memoryAccessEvent.Trigger(MemoryAccessOperation.Write (address, value))
+            let region = this.GetMemoryRegion(address)
 
-        match verifyProtection with
-        | Some true when not <| region.Permission.HasFlag(Permission.Writable) ->
-            _memoryAccessViolation.Trigger(MemoryAccessOperation.Write (address, value))
-        | _ ->
-            let offset = region.Handler.FileInfo.TranslateAddress address
-            Array.Copy(value, 0, region.Handler.FileInfo.BinReader.Bytes, offset, value.Length)
+            match verifyProtection with
+            | Some true when not <| region.Permission.HasFlag(Permission.Writable) ->
+                _memoryAccessViolation.Trigger(MemoryAccessOperation.Write (address, value))
+            | _ ->
+                let offset = region.Handler.FileInfo.TranslateAddress address
+                Array.Copy(value, 0, region.Handler.FileInfo.BinReader.Bytes, offset, value.Length)
         
     member this.WriteMemory(address: UInt64, value: Object) =        
         let entries = new List<MemoryEntry>()
