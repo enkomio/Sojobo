@@ -115,7 +115,18 @@ module Kernel32 =
         Convention = CallingConvention.Cdecl
     }
 
-    let loadLibraryA(sandbox: ISandbox, lpLibFileName: UInt32) = 
+    let private tryGetLibHandle(sandbox: ISandbox, libName: String ) =
+        let libName = libName |> Path.GetFileNameWithoutExtension
+        sandbox.GetRunningProcess().Handles
+        |> Array.tryFind(fun handle ->
+            match handle with
+            | Library lib -> 
+                let curLibName = lib.Name |> Path.GetFileNameWithoutExtension
+                libName.Equals(curLibName, StringComparison.OrdinalIgnoreCase)
+            | _ -> false
+        )
+
+    let loadLibraryA(sandbox: ISandbox, lpLibFileName: UInt32) =
         let libPath =
             if sandbox.GetRunningProcess().GetPointerSize() = 32
             then Environment.GetFolderPath(Environment.SpecialFolder.SystemX86)
@@ -124,25 +135,44 @@ module Kernel32 =
         // load library
         let libName = sandbox.GetRunningProcess().Memory.ReadAsciiString(uint64 lpLibFileName)
         let filename = Path.Combine(libPath, libName)
-        if File.Exists(filename) then
-            sandbox.MapLibrary(filename)
 
-        let libHandle =
-            sandbox.GetRunningProcess().Handles 
-            |> Array.tryFind(fun hdl ->
-                match hdl with
-                | Library info when info.Name.Equals(filename |> Path.GetFileName, StringComparison.OrdinalIgnoreCase) -> true
-                | _ -> false
-            )
-            |> function
-                | Some (Handle.Library {Name = _; Value = libHandle}) -> libHandle
-                | _ -> 0UL
+        // check if the lib is already loaded, if so return it
+        tryGetLibHandle(sandbox, libName)
+        |> function
+            | Some handle ->
+                // return the already loaded lib
+                match handle with
+                | Library libHandle ->
+                    {
+                        Convention = CallingConvention.Cdecl
+                        ReturnValue = 
+                            if sandbox.GetRunningProcess().GetPointerSize() = 32
+                            then createUInt32(uint32 libHandle.Value).Value
+                            else createUInt64(libHandle.Value).Value
+                            |> Some            
+                    }
+                | _ -> failwith "Should neverreach"
+            | _ ->
+                // load the lib
+                if File.Exists(filename) then
+                    sandbox.MapLibrary(filename)
 
-        {
-            Convention = CallingConvention.Cdecl
-            ReturnValue = 
-                if sandbox.GetRunningProcess().GetPointerSize() = 32
-                then createUInt32(uint32 libHandle).Value
-                else createUInt64(libHandle).Value
-                |> Some            
-        }
+                let libHandle =
+                    sandbox.GetRunningProcess().Handles 
+                    |> Array.tryFind(fun hdl ->
+                        match hdl with
+                        | Library info when info.Name.Equals(filename |> Path.GetFileName, StringComparison.OrdinalIgnoreCase) -> true
+                        | _ -> false
+                    )
+                    |> function
+                        | Some (Handle.Library {Name = _; Value = libHandle}) -> libHandle
+                        | _ -> 0UL
+
+                {
+                    Convention = CallingConvention.Cdecl
+                    ReturnValue = 
+                        if sandbox.GetRunningProcess().GetPointerSize() = 32
+                        then createUInt32(uint32 libHandle).Value
+                        else createUInt64(libHandle).Value
+                        |> Some            
+                }
