@@ -39,7 +39,7 @@ module Win32Structures =
     }
     
     // https://www.aldeid.com/wiki/LDR_DATA_TABLE_ENTRY 
-    // https://docs.microsoft.com/en-us/windows/desktop/api/winternl/ns-winternl-_peb_ldr_data    
+    // https://docs.microsoft.com/en-us/windows/win32/api/winternl/ns-winternl-peb_ldr_data  
     [<CLIMutable>]
     [<ReferenceEquality>]
     [<StructLayout(LayoutKind.Sequential, Pack=1, CharSet=CharSet.Ansi)>]
@@ -51,8 +51,7 @@ module Win32Structures =
         EntryPoint: UInt32
         Reserved3: UInt32
         FullDllName: UNICODE_STRING
-        [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)>]
-        Reserved4: Byte array
+        BaseDllName: UNICODE_STRING           
         [<MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)>]
         Reserved5: UInt32 array        
         Reserved6: UInt32
@@ -156,13 +155,6 @@ module Win32Structures =
     
     let buildPeb(sandbox: BaseSandbox) =
         let proc = sandbox.GetRunningProcess()
-        let programNameBytes = 
-            proc.GetActiveMemoryRegion().Handler.FileInfo.FilePath 
-            |> Path.GetFileName
-            |> fun p -> 
-                if String.IsNullOrEmpty(p) then Array.zeroCreate<Byte>(1)
-                else Encoding.Unicode.GetBytes(p)
-
         let librariesDetails = 
             sandbox.NativeLibraries
             |> Seq.map(fun lib -> (lib.GetLibraryName().ToLowerInvariant(), lib))
@@ -173,11 +165,33 @@ module Win32Structures =
             |> Seq.filter(fun lib -> lib.IsLoaded())
             |> Seq.toArray
 
+        let createUnicodeString(libName: String, currentOffset: UInt64) =
+            let fullNameBytes = 
+                if String.IsNullOrEmpty(libName) then Array.zeroCreate<Byte>(proc.GetPointerSize() / 8)
+                else Encoding.Unicode.GetBytes(libName)
+            proc.Memory.WriteMemory(currentOffset, fullNameBytes)       
+
+            let unicodeString = 
+                {Activator.CreateInstance<UNICODE_STRING>() with 
+                    Length = uint16 fullNameBytes.Length
+                    MaximumLength = uint16 fullNameBytes.Length   
+                    Buffer = uint32 currentOffset
+                }
+            (currentOffset + uint64 fullNameBytes.Length, unicodeString)
+
         // allocate the memory for the library unicode name
         let regionSize =
             loadedLibrary
-            |> Array.sumBy(fun lib -> Encoding.Unicode.GetBytes(lib.GetLibraryName()).Length)
-            |> fun s -> s + programNameBytes.Length
+            |> Array.sumBy(fun lib -> 
+                Encoding.Unicode.GetBytes(lib.GetLibraryName()).Length +
+                Encoding.Unicode.GetBytes(lib.GetFullName()).Length
+            )
+            |> fun s -> 
+                let programSize = 
+                    let n = proc.GetActiveMemoryRegion().Handler.FileInfo.FilePath                    
+                    if String.IsNullOrEmpty(n) then proc.GetPointerSize() / 8 * 2
+                    else Encoding.Unicode.GetBytes(n).Length + Encoding.Unicode.GetBytes(Path.GetFileName(n)).Length                
+                s + programSize
         let mutable libraryNamesRegionOffset = proc.Memory.AllocateMemory(regionSize, Permission.Readable)
                         
         // create the data table entries
@@ -189,19 +203,7 @@ module Win32Structures =
                 match librariesDetails.TryGetValue(lib.GetLibraryName().ToLowerInvariant()) with
                 | (true, lib) -> (uint32 lib.BaseAddress, uint32 lib.EntryPoint)
                 | (false, _) -> (0u, 0u)
-
-            // write UnicodeString
-            let fullNameBytes = Encoding.Unicode.GetBytes(lib.GetLibraryName())
-            proc.Memory.WriteMemory(libraryNamesRegionOffset, fullNameBytes, false)            
-
-            let fullNameDll = 
-                {Activator.CreateInstance<UNICODE_STRING>() with 
-                    Length = uint16 fullNameBytes.Length
-                    MaximumLength = uint16 fullNameBytes.Length   
-                    Buffer = uint32 libraryNamesRegionOffset
-                }
-            libraryNamesRegionOffset <- libraryNamesRegionOffset + uint64 fullNameBytes.Length
-                
+                            
             let position =
                 // sort this list in order to have ntdll.dll and kernel32.dll on top
                 if lib.GetLibraryName().Equals("ntdll.dll", StringComparison.OrdinalIgnoreCase) then Int32.MaxValue - 1
@@ -209,26 +211,29 @@ module Win32Structures =
                 elif lib.GetLibraryName().Equals("kernelbase.dll", StringComparison.OrdinalIgnoreCase) then Int32.MaxValue - 3
                 else lib.GetLibraryName().GetHashCode()
 
+            // create fullname UnicodeString
+            let (nextOffset, fullNameDll) = createUnicodeString(lib.GetFullName(), libraryNamesRegionOffset)
+            let (nextOffset, baseNameDll) = createUnicodeString(lib.GetLibraryName(), nextOffset)
+            libraryNamesRegionOffset <- nextOffset
+
             // create Data Table Entry
             {Activator.CreateInstance<LDR_DATA_TABLE_ENTRY>() with
                 FullDllName = fullNameDll
+                BaseDllName = baseNameDll
                 DllBase = imageBase
                 EntryPoint = entryPoint
             }
             |> fun entry -> dataEntries.Add(position, entry)
         ) 
-
+                
         // add as first module the current program
-        let fullNameProgram = 
-            {Activator.CreateInstance<UNICODE_STRING>() with 
-                Length = uint16 programNameBytes.Length
-                MaximumLength = uint16 programNameBytes.Length   
-                Buffer = uint32 libraryNamesRegionOffset
-            }
-        proc.Memory.WriteMemory(libraryNamesRegionOffset, programNameBytes, false)    
-
+        let fullProgramName = proc.GetActiveMemoryRegion().Handler.FileInfo.FilePath
+        let (nextOffset, fullName) = createUnicodeString(fullProgramName, libraryNamesRegionOffset)
+        let (_, baseName) = createUnicodeString(Path.GetFileName(fullProgramName), nextOffset)
+        
         {Activator.CreateInstance<LDR_DATA_TABLE_ENTRY>() with
-            FullDllName = fullNameProgram
+            FullDllName = fullName
+            BaseDllName = baseName
             DllBase = uint32 <| proc.GetActiveMemoryRegion().BaseAddress
             EntryPoint = uint32 <| proc.GetActiveMemoryRegion().Handler.FileInfo.EntryPoint
         }
@@ -298,7 +303,7 @@ module Win32Structures =
             Reserved12 = Array.zeroCreate<Byte>(1)
             SessionId = 0u
         }
-
+        
     let buildTeb(sandbox: BaseSandbox) =
         let proc = sandbox.GetRunningProcess()
         {Activator.CreateInstance<TEB32>() with
@@ -311,14 +316,16 @@ module Win32Structures =
     let createTeb(sandbox: BaseSandbox) =
         let proc = sandbox.GetRunningProcess()
         
-        // create the TEB
+        // create the TEB and fix address if necessary. 
+        // I multiple by 2 just to reserve enough space and avoid to move it in the future
         let teb = buildTeb(sandbox)
-            
-        // for TEB I have to specify the base address
-        let tebRegion = 
-            {createMemoryRegion(uint64 teb.Self, 0xB000, Permission.Readable) with
-                Type = "TEB"
-            }
-        proc.Memory.AddMemoryRegion(tebRegion)
+        let tebSize = Helpers.deepSizeOf(teb.GetType(), proc.GetPointerSize()) * 2
+        let tebAddress = proc.Memory.GetFreeMemory(tebSize, 0x7ff70000UL) 
+        let teb = {teb with Self = uint32 tebAddress}
+
+        // write TEB to memory
         proc.Memory.WriteMemory(uint64 teb.Self, teb)
+        let tebRegion = {proc.Memory.GetMemoryRegion(uint64 teb.Self) with Info = "TEB"}
+        proc.Memory.UpdateMemoryRegion(uint64 teb.Self, tebRegion)
+        
         uint64 teb.Self
