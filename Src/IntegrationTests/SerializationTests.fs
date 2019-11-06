@@ -11,6 +11,8 @@ module SerializationTests =
         sandbox.Load(Helper.getTestFile("help.exe"))
         sandbox.MapLibrary(Helper.getTestFullPath("kernel32.dll"))
         sandbox.MapLibrary(Helper.getTestFullPath("msvcrt.dll"))
+        sandbox.MapLibrary(Helper.getTestFullPath("ntdll.dll"))
+        sandbox.MapLibrary(Helper.getTestFullPath("KernelBase.dll"))
 
         let ldr = Win32Structures.buildPeb(sandbox).Ldr
         let proc = sandbox.GetRunningProcess()
@@ -23,4 +25,3 @@ module SerializationTests =
         // Check that the first and last dll base is the same
         assert(loadedLdr.InInitializationOrderLinks.Forward.DllBase = ldr.InInitializationOrderLinks.Forward.DllBase)
         assert(loadedLdr.InInitializationOrderLinks.Backward.DllBase = ldr.InInitializationOrderLinks.Backward.DllBase)
-
