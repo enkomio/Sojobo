@@ -279,13 +279,14 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
                 |> Option.iter(fun stopExecution ->
                     // if the process is currently emulated execute pre-init operations
                     if not stopExecution then 
+                        // map library in order to place hooks for 
+                        // functions exported from the just loaded lib
+                        mapManagedLibraries()
+
                         // update PEB Ldr field by setup it again (yeah not very efficient)
                         let tebAddress = this.GetRunningProcess().Cpu.GetRegister(string Register.FSBase).As<UInt64>() 
                         this.GetRunningProcess().Memory.FreeMemoryRegion(tebAddress) |> ignore
                         setupTeb()
-
-                        // map library
-                        mapManagedLibraries()
                 )        
             )
 
