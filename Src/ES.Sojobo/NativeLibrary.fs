@@ -136,10 +136,10 @@ type NativeLibrary(content: Byte array) =
         | FileFormat.PEBinary ->
             let pe = Helpers.getPe(handler)
             let peHeader = pe.PEHeaders.PEHeader
+
             let nextLibFreeBaseAddress = proc.Memory.GetNextLibraryAllocationBase(peHeader.SizeOfImage, peHeader.ImageBase)
 
             let (mustRelocate, baseAddress) =
-                //if proc.Memory.IsAddressMapped(peHeader.ImageBase) || peHeader.ImageBase < nextLibFreeBaseAddress
                 if proc.Memory.IsAddressMapped(peHeader.ImageBase) then (true, nextLibFreeBaseAddress)
                 else (false, peHeader.ImageBase)            
 
