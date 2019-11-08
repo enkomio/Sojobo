@@ -41,6 +41,7 @@ type internal Command =
     | LoadSnapshot of name:String
     | Echo of message:String
     | ShowAsciiString of address:UInt64
+    | Script of filename:String
     | ShowHelp
     | NoCommand
     | Error
@@ -233,6 +234,7 @@ type Debugger(sandbox: ISandbox) as this =
             eq <address> <value>                write memory at address with quad word value    
             save <filename>                     save a snapshot to the given filename
             load <filename>                     load a snapshot from the given filename
+            script <filename>                   load commands from the given filename
             address                             show memory map
             dump <filename> <addr> <size>       save memory to file
             .echo <message>                     print the message to the debugger console
@@ -301,6 +303,9 @@ type Debugger(sandbox: ISandbox) as this =
         elif result.StartsWith("load") then
             try LoadSnapshot(result.Split().[1])
             with _ -> Error   
+        elif result.StartsWith("script") then
+            try Script(result.Split().[1])
+            with _ -> Error  
         elif result.StartsWith("r") && result.Length > 1 then 
             try
                 let items = result.Split()
@@ -490,6 +495,18 @@ type Debugger(sandbox: ISandbox) as this =
         let serializedDebuggerSnapshot = JsonConvert.SerializeObject(debuggerSnapshot, Formatting.Indented)
         File.WriteAllText(filename + ".json", serializedDebuggerSnapshot)
 
+    let loadScript(filename: String) =
+        try
+            File.ReadAllLines(filename)
+            |> Array.map(fun l -> l.Trim())
+            |> Array.filter(fun l  -> (l.StartsWith("#") || l.StartsWith("//") || String.IsNullOrWhiteSpace(l)) |> not)
+            |> Array.iter(fun command -> 
+                Console.WriteLine("Cmd: {0}", command)
+                parseCommandString(command)
+            )
+        with e ->
+            Console.Error.WriteLine("Exception: {0}", e) 
+
     let loadSnapshot(filename: String) =
         try
             // load snapshot
@@ -555,6 +572,7 @@ type Debugger(sandbox: ISandbox) as this =
         | ShowIr -> this.PrintIR <- true
         | SaveSnapshot filename -> saveSnapshot(filename)
         | LoadSnapshot filename -> loadSnapshot(filename)
+        | Script filename -> loadScript(filename)
         | BreakPoint (address, cmd) -> addBreakpoint(address, cmd)
         | DeleteBreakPoint address -> removeBreakpoint(address)
         | DumpMemory (addr, size, filename) -> dumpMemory(addr, size, filename)
