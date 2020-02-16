@@ -47,37 +47,10 @@ module Utility32 =
         BinHandler.LiftInstr handler instruction
         |> Array.map(fun stmt ->
             String.Format("type: {0,-10} => {1}", stmt.GetType().Name, LowUIR.Pp.stmtToString(stmt))
-        )
+        )    
 
-    let internal mapPeHeaderAtAddress(baseAddress: UInt64, handler: BinHandler, memoryManager: MemoryManager) =
-        let pe = Helpers.getPe(handler)
-        let fileInfo = handler.FileInfo
-        let struct (buffer, _) = fileInfo.BinReader.ReadBytes(int32 pe.PEHeaders.PEHeader.SizeOfHeaders, 0)
-        
-        {
-            BaseAddress = baseAddress
-            Content = buffer
-            Handler =
-                BinHandler.Init(
-                    ISA.OfString "x86", 
-                    ArchOperationMode.NoMode, 
-                    false, 
-                    baseAddress,
-                    buffer
-                )
-            Permission = Permission.Readable
-            Type = String.Empty
-            Info = fileInfo.FilePath |> Path.GetFileName
-        }
-        |> memoryManager.AddLibraryMemoryRegion
-
-    let mapPeHeader(handler: BinHandler, memoryManager: MemoryManager) =
-        let pe = Helpers.getPe(handler)
-        mapPeHeaderAtAddress(pe.PEHeaders.PEHeader.ImageBase, handler, memoryManager)
-
-    let internal mapSectionsAtAddress(baseAddress: UInt64, handler: BinHandler, memoryManager: MemoryManager) =
-        let pe = Helpers.getPe(handler)
-        
+    let private mapSectionsAtAddress(baseAddress: UInt64, handler: BinHandler, memoryManager: MemoryManager) =
+        let pe = Helpers.getPe(handler)        
         handler.FileInfo.GetSections()
         |> Seq.map(fun section ->
             let sectionHeader = 
@@ -104,6 +77,51 @@ module Utility32 =
         })
         |> Seq.iter(memoryManager.AddLibraryMemoryRegion)
 
-    let mapSections(handler: BinHandler, memoryManager: MemoryManager) =
+        // create memory holes if necessary
+        handler.FileInfo.GetSections()
+        |> Seq.sortBy(fun s -> s.Address)
+        |> Seq.pairwise
+        |> Seq.iter(fun (bottomSec, topSec) ->
+            let holeStart = bottomSec.Address + bottomSec.Size
+            let holeSize = topSec.Address - holeStart
+            memoryManager.AllocateMemory(holeStart, int32 holeSize, Permission.Readable, regionInfo = "<Reserved>")
+        )
+
+    let private mapPeHeaderAtAddress(baseAddress: UInt64, handler: BinHandler, memoryManager: MemoryManager) =
         let pe = Helpers.getPe(handler)
-        mapSectionsAtAddress(pe.PEHeaders.PEHeader.ImageBase, handler, memoryManager)
+        let fileInfo = handler.FileInfo
+        let struct (buffer, _) = fileInfo.BinReader.ReadBytes(int32 pe.PEHeaders.PEHeader.SizeOfHeaders, 0)
+        
+        {
+            BaseAddress = baseAddress
+            Content = buffer
+            Handler =
+                BinHandler.Init(
+                    ISA.OfString "x86", 
+                    ArchOperationMode.NoMode, 
+                    false, 
+                    baseAddress,
+                    buffer
+                )
+            Permission = Permission.Readable
+            Type = String.Empty
+            Info = fileInfo.FilePath |> Path.GetFileName
+        }
+        |> memoryManager.AddLibraryMemoryRegion
+
+        // create memory hole if necessary, recompute the offset due to possible relocation
+        let firstSection = handler.FileInfo.GetSections() |> Seq.minBy(fun s -> s.Address)
+        let firstSectionRva = firstSection.Address - uint64 pe.PEHeaders.PEHeader.ImageBase
+        let firstSectionStart = baseAddress + firstSectionRva
+
+        let holeStart = baseAddress + uint64 pe.PEHeaders.PEHeader.SizeOfHeaders
+        let holeSize = firstSectionStart - holeStart
+        memoryManager.AllocateMemory(holeStart, int32 holeSize, Permission.Readable)
+        
+    let mapPeAtAddress(handler: BinHandler, memoryManager: MemoryManager, baseAddress: UInt64) =
+        mapPeHeaderAtAddress(baseAddress, handler, memoryManager)
+        mapSectionsAtAddress(baseAddress, handler, memoryManager)
+
+    let mapPe(handler: BinHandler, memoryManager: MemoryManager) =
+        let pe = Helpers.getPe(handler)
+        mapPeAtAddress(handler, memoryManager, pe.PEHeaders.PEHeader.ImageBase)
