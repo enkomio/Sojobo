@@ -10,8 +10,11 @@ open B2R2.BinFile
 [<AbstractClass>]
 type BaseProcessContainer(pointerSize: Int32) =
     let mutable _activeRegion: MemoryRegion option = None
+    let mutable _fileName = String.Empty
     let _symbols = new Dictionary<UInt64, Symbol>()
-    let _pid = Guid.NewGuid().GetHashCode() |> uint32
+    let _pid = 
+        let rnd = new Random()
+        rnd.Next(200, 4000) |> uint32
 
     member val PointerSize = pointerSize with get
 
@@ -23,6 +26,13 @@ type BaseProcessContainer(pointerSize: Int32) =
     abstract Memory: MemoryManager with get
     abstract Cpu: Cpu with get
     abstract Handles: Handle array with get
+
+    abstract FileName: String with get
+    override this.FileName 
+        with get() = _fileName
+
+    member this.SetFileName(fileName: String) =
+        _fileName <- fileName
 
     member this.UpdateActiveMemoryRegion(memRegion: MemoryRegion) =
         _activeRegion <- Some memRegion
@@ -82,6 +92,9 @@ type BaseProcessContainer(pointerSize: Int32) =
 
         member this.Handles
             with get() = this.Handles
+
+        member this.FileName
+            with get() = this.FileName
 
         member this.Pid
             with get() = this.Pid

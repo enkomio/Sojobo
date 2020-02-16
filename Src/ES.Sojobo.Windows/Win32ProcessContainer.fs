@@ -47,15 +47,14 @@ type Win32ProcessContainer() as this =
         )
 
     let initialize(handler: BinHandler) =
-        Utility32.mapPeHeader(handler, _memoryManager)
-        Utility32.mapSections(handler, _memoryManager)
+        Utility32.mapPe(handler, _memoryManager)
         setupStackRegisters()
         setEntryPoint(handler)
         resolveIATSymbols(handler)
     
     default this.Memory = _memoryManager
     default this.Cpu = _cpu
-    default this.Handles = _handles |> Seq.toArray
+    default this.Handles = _handles |> Seq.toArray    
 
     member this.AddHandle(handle: Handle) =
         _handles.Add(handle)
@@ -67,6 +66,7 @@ type Win32ProcessContainer() as this =
 
     member this.Initialize(filename: String) =  
         let isa = ISA.OfString "x86"
+        this.SetFileName(filename)
         let handler = BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, filename)        
         initialize(handler)
 

@@ -47,4 +47,7 @@ type IProcessContainer =
 
         /// Add a new symbol to the list
         abstract SetSymbol: Symbol -> unit
+
+        /// The name of the file used to create the process
+        abstract FileName: String with get
     end
