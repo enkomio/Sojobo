@@ -27,7 +27,7 @@ type private MemoryEntry = {
 type MemoryManager(pointerSize: Int32) as this =
     let _va = new SortedDictionary<UInt64, MemoryRegion>() 
     let _memoryAccessEvent = new Event<MemoryAccessOperation>()
-    let _memoryAccessViolation = new Event<MemoryAccessOperation>()
+    let _memoryAccessViolation = new Event<MemoryAccessOperation>()    
     let mutable _lastAllocatedLibBase = 0UL
 
     let createStack() =
@@ -184,6 +184,14 @@ type MemoryManager(pointerSize: Int32) as this =
             else Array.zeroCreate<Byte>(size)
         else
             binReader.ReadBytes(size)
+
+    let roundToPageSize(address: UInt64) =
+        let _pageSize = 0x1000UL
+        let m = address % _pageSize
+        if m = 0UL then address
+        else
+            let gap = _pageSize - m
+            (address + gap)
 
     let rec deserialize(buffer: Byte array, objectInstance: Object, analyzedObjects: Dictionary<UInt64, Object>) =        
         use binReader = new BinaryReader(new MemoryStream(buffer))
@@ -366,10 +374,40 @@ type MemoryManager(pointerSize: Int32) as this =
         _memoryAccessEvent.Trigger(MemoryAccessOperation.Free region)
         _va.Remove(region.BaseAddress) 
         
-    member internal this.AllocateMemory(baseAddress: UInt64, size: Int32, permission: Permission) : unit =
-        let region = createMemoryRegion(baseAddress, size, permission)
+    member internal this.AllocateMemory(baseAddress: UInt64, size: Int32, permission: Permission, ?regionType: String, ?regionInfo: String) : unit =
+        let mutable region = createMemoryRegion(baseAddress, size, permission)
+        match (regionType, regionInfo) with
+        | (None, None) -> ()
+        | _ ->
+            let regionType = defaultArg regionType String.Empty
+            let regionInfo = defaultArg regionInfo String.Empty
+            region <- {region with Info = regionInfo; Type = regionType}
+
         _memoryAccessEvent.Trigger(MemoryAccessOperation.Allocate region)
         this.AddMemoryRegion(region)
+
+    member private this.FullSearchFreeMemory(size: Int32, memoryMap: MemoryRegion array, startSearchFromAddress: UInt64 option) =
+        memoryMap
+        |> Seq.filter(fun m -> 
+            match startSearchFromAddress with
+            | Some addr -> m.BaseAddress > addr
+            | None -> true
+        )
+        |> Seq.sortBy(fun m -> m.BaseAddress)
+        |> Seq.pairwise
+        |> Seq.tryFind(fun (m1, m2) ->
+            let availableSize = m2.BaseAddress - (m1.BaseAddress + uint64 m1.Content.LongLength)
+            availableSize > uint64 size
+        )
+        |> function
+            | Some (m1, _) -> 
+                m1.BaseAddress + uint64 m1.Content.LongLength
+            | None -> 
+                let lastRegion = memoryMap |> Array.last
+                let proposedAddress = lastRegion.BaseAddress + uint64 lastRegion.Content.LongLength
+                match startSearchFromAddress with
+                | Some sa when proposedAddress < sa -> sa
+                | _ ->  lastRegion.BaseAddress + uint64 lastRegion.Content.LongLength
 
     member private this.GetUnboundedFreeMemory(size: Int32, ?startSearchFromAddress: UInt64) =
         let memoryMap = this.GetMemoryMap()
@@ -379,28 +417,27 @@ type MemoryManager(pointerSize: Int32) as this =
         elif memoryMap.Length = 1 then
             let lastRegion = memoryMap |> Array.last
             lastRegion.BaseAddress + uint64 lastRegion.Content.LongLength
+            |> roundToPageSize
         else
-            memoryMap
-            |> Seq.filter(fun m -> 
-                match startSearchFromAddress with
-                | Some addr -> m.BaseAddress > addr
-                | None -> true
-            )
-            |> Seq.sortBy(fun m -> m.BaseAddress)
-            |> Seq.pairwise
-            |> Seq.tryFind(fun (m1, m2) ->
-                let availableSize = m2.BaseAddress - (m1.BaseAddress + uint64 m1.Content.LongLength)
-                availableSize > uint64 size
-            )
-            |> function
-                | Some (m1, _) -> 
-                    m1.BaseAddress + uint64 m1.Content.LongLength
-                | None -> 
-                    let lastRegion = memoryMap |> Array.last
-                    let proposedAddress = lastRegion.BaseAddress + uint64 lastRegion.Content.LongLength
-                    match startSearchFromAddress with
-                    | Some sa when proposedAddress < sa -> sa
-                    | _ ->  lastRegion.BaseAddress + uint64 lastRegion.Content.LongLength
+            match startSearchFromAddress with
+            | None -> 
+                this.FullSearchFreeMemory(size, memoryMap, startSearchFromAddress)
+                |> roundToPageSize
+            | Some sa ->
+                // verify if the desired address is ok
+                if this.IsAddressMapped(sa) |> not then
+                    let availableAddresses = 
+                        memoryMap
+                        |> Seq.filter(fun memReg -> memReg.BaseAddress > sa)
+
+                    if availableAddresses |> Seq.isEmpty then sa
+                    else
+                        let upperMemory = availableAddresses |> Seq.minBy(fun memReg -> memReg.BaseAddress)
+                        if upperMemory.BaseAddress - sa >= uint64 size then sa
+                        else this.FullSearchFreeMemory(size, memoryMap, startSearchFromAddress)
+                else 
+                    this.FullSearchFreeMemory(size, memoryMap, startSearchFromAddress)
+                |> roundToPageSize
 
     member this.GetFreeMemory(size: Int32, ?startSearchFromAddress: UInt64) =
         match startSearchFromAddress with
@@ -416,6 +453,10 @@ type MemoryManager(pointerSize: Int32) as this =
             match startSearchFromAddress with
             | Some sa -> this.GetFreeMemory(size, sa)
             | None -> this.GetFreeMemory(size)
+            |> fun a ->
+                let round = a % 0x1000UL
+                if round > 0UL then a + 0x1000UL - round
+                else a
             
         max _lastAllocatedLibBase freeMemoryBase
 
