@@ -1,6 +1,7 @@
 ﻿namespace ES.Sojobo
 
 open System
+open System.Linq
 open System.IO
 open B2R2
 open B2R2.FrontEnd
@@ -8,6 +9,8 @@ open B2R2.BinFile
 open B2R2.BinFile.PE
 open System.Collections.Generic
 open ES.Sojobo.Model
+open System.Reflection
+open System.Reflection.PortableExecutable
 
 module private UnknowLibrary =
     let mutable private _currentIndex = 0
@@ -74,7 +77,7 @@ type NativeLibrary(content: Byte array) =
             )
         )
         
-    member private this.ApplyRelocation(pe: PE, proc: IProcessContainer, baseAddress: UInt64) =    
+    member private this.ApplyRelocation(pe: PE, proc: IProcessContainer, baseAddress: UInt64) =            
         let libraryAddress = baseAddress - pe.PEHeaders.PEHeader.ImageBase
 
         pe.RelocBlocks
@@ -108,6 +111,29 @@ type NativeLibrary(content: Byte array) =
             | _ -> failwith "Unknow relocation type"
         )
 
+    member private this.RelocateHandler(handler: BinHandler, isa: ISA, baseAddress: UInt64) =
+        // get ImageBase offset
+        use peReader = new BinaryReader(new MemoryStream(handler.FileInfo.BinReader.Bytes))
+        peReader.BaseStream.Seek(0x3CL, SeekOrigin.Begin) |> ignore
+        let peOffset = peReader.ReadUInt32()
+        let imageBaseOffset = peOffset + 0x34u
+                
+        // overwrite value in buffer
+        use memStream = new MemoryStream(handler.FileInfo.BinReader.Bytes |> Array.copy)
+        use binWriter = new BinaryWriter(memStream)
+        binWriter.Seek(int32 imageBaseOffset, SeekOrigin.Begin) |> ignore
+        binWriter.Write(uint32 baseAddress)
+        binWriter.Close()        
+
+        // re-create handler by invoking full init method via reflection if necessary
+        let content = memStream.ToArray()
+        match this.FileName with
+        | Some filename ->
+            let initMethod = handler.GetType().GetMethod("Init", BindingFlags.Static ||| BindingFlags.NonPublic)
+            initMethod.Invoke(null, [|isa; ArchOperationMode.NoMode; true; baseAddress; content; filename|]) :?> BinHandler
+        | None -> 
+            BinHandler.Init(isa, ArchOperationMode.NoMode, true, baseAddress, content)                
+
     member this.GetFullName() =
         match this.FileName with
         | Some _ -> ()
@@ -134,24 +160,28 @@ type NativeLibrary(content: Byte array) =
         // map the file
         match handler.FileInfo.FileFormat with
         | FileFormat.PEBinary ->
-            let pe = Helpers.getPe(handler)
+            let mutable pe = Helpers.getPe(handler)
             let peHeader = pe.PEHeaders.PEHeader
 
             let nextLibFreeBaseAddress = proc.Memory.GetNextLibraryAllocationBase(peHeader.SizeOfImage, peHeader.ImageBase)
-
+            
             let (mustRelocate, baseAddress) =
-                if proc.Memory.IsAddressMapped(peHeader.ImageBase) then (true, nextLibFreeBaseAddress)
-                else (false, peHeader.ImageBase)            
+                if nextLibFreeBaseAddress <> peHeader.ImageBase then (true, nextLibFreeBaseAddress)
+                else (false, peHeader.ImageBase)  
+                            
+            if mustRelocate then
+                // In case of relocation, recreate the handler with the correct address values                
+                handler <- this.RelocateHandler(handler, isa, baseAddress)
+                pe <- Helpers.getPe(handler)
 
             // map library            
-            Utility32.mapPeHeaderAtAddress(baseAddress, handler, proc.Memory)
-            Utility32.mapSectionsAtAddress(baseAddress, handler, proc.Memory)
+            Utility32.mapPeAtAddress(handler, proc.Memory, baseAddress)
             this.SetProperties(handler, baseAddress) 
 
-            // add exported symbol to symbol list
-            this.Exports |> Seq.iter(proc.SetSymbol)           
-
             // must relocate the library if necessary
-            if mustRelocate then                                
+            if mustRelocate then
                 this.ApplyRelocation(pe, proc, baseAddress)
+
+            // add exported symbol to symbol list
+            this.Exports |> Seq.iter(proc.SetSymbol) 
         | _ -> ()
