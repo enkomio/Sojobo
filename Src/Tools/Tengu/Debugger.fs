@@ -158,15 +158,18 @@ type Debugger(sandbox: ISandbox) as this =
         contentLines |> Array.iter(Console.WriteLine)
 
     let printDisassembly(address: UInt64, count: Int32) =
-        let proc = sandbox.GetRunningProcess()
-        let mutable offset = address
-        for i=0 to count-1 do
-            let instruction = proc.GetInstruction(offset)
-            offset <- offset + uint64 instruction.Length
-            match _comments.TryGetValue(instruction.Address) with
-            | (true, text) -> String.Format("{0} ; {1}", ES.Sojobo.Utility32.disassemble(proc, instruction), text)
-            | _ -> ES.Sojobo.Utility32.disassemble(proc, instruction)
-            |> Console.WriteLine
+        try
+            let proc = sandbox.GetRunningProcess()
+            let mutable offset = address
+            for i=0 to count-1 do
+                let instruction = proc.GetInstruction(offset)
+                offset <- offset + uint64 instruction.Length
+                match _comments.TryGetValue(instruction.Address) with
+                | (true, text) -> String.Format("{0} ; {1}", ES.Sojobo.Utility32.disassemble(proc, instruction), text)
+                | _ -> ES.Sojobo.Utility32.disassemble(proc, instruction)
+                |> Console.WriteLine
+        with e ->
+            Console.Error.WriteLine(e)
 
     let displayType(address: UInt64, typeName: String option) =
         let proc = sandbox.GetRunningProcess()
