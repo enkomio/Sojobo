@@ -196,6 +196,21 @@ module Win32Structures =
                         
         // create the data table entries
         let dataEntries = new Dictionary<Int32, LDR_DATA_TABLE_ENTRY>()
+
+        // add as first module the current program
+        let fullProgramName = sandbox.GetRunningProcess().FileName
+        let (nextOffset, fullName) = createUnicodeString(fullProgramName, libraryNamesRegionOffset)
+        let (_, baseName) = createUnicodeString(Path.GetFileName(fullProgramName), nextOffset)
+        
+        {Activator.CreateInstance<LDR_DATA_TABLE_ENTRY>() with
+            FullDllName = fullName
+            BaseDllName = baseName
+            DllBase = uint32 <| proc.GetActiveMemoryRegion().BaseAddress
+            EntryPoint = uint32 <| proc.GetActiveMemoryRegion().Handler.FileInfo.EntryPoint
+        }
+        |> fun entry -> dataEntries.Add(Int32.MaxValue, entry)
+
+        // add all the loaded libraries by considering the priority of ntdll, kernel32 and kernelbase
         loadedLibrary
         |> Array.iter(fun lib ->
             // get details to insert into PEB
@@ -225,19 +240,9 @@ module Win32Structures =
             }
             |> fun entry -> dataEntries.Add(position, entry)
         ) 
-                
-        // add as first module the current program
-        let fullProgramName = proc.GetActiveMemoryRegion().Handler.FileInfo.FilePath
-        let (nextOffset, fullName) = createUnicodeString(fullProgramName, libraryNamesRegionOffset)
-        let (_, baseName) = createUnicodeString(Path.GetFileName(fullProgramName), nextOffset)
-        
-        {Activator.CreateInstance<LDR_DATA_TABLE_ENTRY>() with
-            FullDllName = fullName
-            BaseDllName = baseName
-            DllBase = uint32 <| proc.GetActiveMemoryRegion().BaseAddress
-            EntryPoint = uint32 <| proc.GetActiveMemoryRegion().Handler.FileInfo.EntryPoint
-        }
-        |> fun entry -> dataEntries.Add(Int32.MaxValue, entry)
+
+        // as last entry add an empty record
+        dataEntries.Add(Int32.MinValue, Activator.CreateInstance<LDR_DATA_TABLE_ENTRY>())
         
         // connect the link among them
         let sortedEntries =
@@ -305,7 +310,7 @@ module Win32Structures =
         }
         
     let buildTeb(sandbox: BaseSandbox) =
-        let proc = sandbox.GetRunningProcess()
+        let proc = sandbox.GetRunningProcess()        
         {Activator.CreateInstance<TEB32>() with
             StackBase = uint32 proc.Memory.Stack.BaseAddress + uint32 proc.Memory.Stack.Content.Length
             StackLimit = uint32 proc.Memory.Stack.BaseAddress
