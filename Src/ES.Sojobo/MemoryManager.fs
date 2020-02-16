@@ -396,18 +396,23 @@ type MemoryManager(pointerSize: Int32) as this =
         |> Seq.sortBy(fun m -> m.BaseAddress)
         |> Seq.pairwise
         |> Seq.tryFind(fun (m1, m2) ->
-            let availableSize = m2.BaseAddress - (m1.BaseAddress + uint64 m1.Content.LongLength)
+            let upperBound = m2.BaseAddress |> roundToPageSize
+            let lowerBound = (m1.BaseAddress + uint64 m1.Content.LongLength) |> roundToPageSize
+            let availableSize = upperBound - lowerBound
             availableSize > uint64 size
         )
         |> function
             | Some (m1, _) -> 
-                m1.BaseAddress + uint64 m1.Content.LongLength
+                let rawAddress = m1.BaseAddress + uint64 m1.Content.LongLength
+                roundToPageSize rawAddress
             | None -> 
                 let lastRegion = memoryMap |> Array.last
                 let proposedAddress = lastRegion.BaseAddress + uint64 lastRegion.Content.LongLength
                 match startSearchFromAddress with
                 | Some sa when proposedAddress < sa -> sa
-                | _ ->  lastRegion.BaseAddress + uint64 lastRegion.Content.LongLength
+                | _ ->  
+                    let rawAddress = lastRegion.BaseAddress + uint64 lastRegion.Content.LongLength
+                    roundToPageSize rawAddress
 
     member private this.GetUnboundedFreeMemory(size: Int32, ?startSearchFromAddress: UInt64) =
         let memoryMap = this.GetMemoryMap()
@@ -421,8 +426,7 @@ type MemoryManager(pointerSize: Int32) as this =
         else
             match startSearchFromAddress with
             | None -> 
-                this.FullSearchFreeMemory(size, memoryMap, startSearchFromAddress)
-                |> roundToPageSize
+                this.FullSearchFreeMemory(size, memoryMap, startSearchFromAddress)                
             | Some sa ->
                 // verify if the desired address is ok
                 if this.IsAddressMapped(sa) |> not then
@@ -437,7 +441,6 @@ type MemoryManager(pointerSize: Int32) as this =
                         else this.FullSearchFreeMemory(size, memoryMap, startSearchFromAddress)
                 else 
                     this.FullSearchFreeMemory(size, memoryMap, startSearchFromAddress)
-                |> roundToPageSize
 
     member this.GetFreeMemory(size: Int32, ?startSearchFromAddress: UInt64) =
         match startSearchFromAddress with
