@@ -27,29 +27,9 @@ type private MemoryEntry = {
 type MemoryManager(pointerSize: Int32) as this =
     let _va = new SortedDictionary<UInt64, MemoryRegion>() 
     let _memoryAccessEvent = new Event<MemoryAccessOperation>()
-    let _memoryAccessViolation = new Event<MemoryAccessOperation>()    
+    let _memoryAccessViolation = new Event<MemoryAccessOperation>()
     let mutable _lastAllocatedLibBase = 0UL
-
-    let createStack() =
-        let stack = {
-            createMemoryRegion(0x18C000UL, 0x4000, Permission.Readable ||| Permission.Writable) 
-            with 
-                Type = String.Empty
-                Info = "Stack"                
-        }
-        _va.Add(stack.BaseAddress, stack)
-        stack
-
-    let createHeap() =
-        let heap = {
-            createMemoryRegion(0x520000UL, 0x16000, Permission.Readable ||| Permission.Writable) 
-            with 
-                Type = String.Empty
-                Info = "Heap"
-            }
-        _va.Add(heap.BaseAddress, heap)
-        heap
-        
+    
     let rec serialize(value: Object, entries: List<MemoryEntry>, addEntry: Boolean, fixups: List<Fixup>, analyzedObjects: HashSet<Object>): (Byte array * List<Fixup>) =
         // allocate buffer
         let size = deepSizeOf(value.GetType(), pointerSize)        
@@ -273,15 +253,37 @@ type MemoryManager(pointerSize: Int32) as this =
                     then unbox fieldValue
                     else fieldValue
                 |> fun objectValue -> field.SetValue(objectInstance, objectValue)
-        )      
+        )  
+        
+    let createStack() =
+        let stack = {
+            createMemoryRegion(0x18C000UL, 0x4000, Permission.Readable ||| Permission.Writable) 
+            with 
+                Type = "Stack"
+                Info = String.Empty
+        }
+        _va.[stack.BaseAddress] <- stack
+        stack
+
+    let createHeap() =
+        let heap = {
+            createMemoryRegion(0x520000UL, 0x16000, Permission.Readable ||| Permission.Writable) 
+            with 
+                Type = "Heap"
+                Info = String.Empty
+            }
+        _va.[heap.BaseAddress] <- heap
+        heap
 
     member this.MemoryAccess = _memoryAccessEvent.Publish  
     member this.MemoryAccessViolation = _memoryAccessViolation.Publish
     member val Stack = createStack() with get, set
     member val Heap = createHeap() with get, set
 
-    member internal this.Clear() =
+    member internal this.UnmapModules() =
         _va.Clear()
+        this.Stack <- createStack()
+        this.Heap <- createHeap()
 
     member this.GetMemoryRegion(address: UInt64) =
         _va.Values
@@ -342,8 +344,11 @@ type MemoryManager(pointerSize: Int32) as this =
         applyPatches(fixedupEntries, fixup)
         writeEntriesToMemory(fixedupEntries.Values)
         
-    member this.UpdateMemoryRegion(baseAddress: UInt64, memoryRegion: MemoryRegion) =
+    member this.SetMemoryRegion(baseAddress: UInt64, memoryRegion: MemoryRegion) =
         _va.[baseAddress] <- memoryRegion
+
+    member this.SetMemoryRegion(memRegion: MemoryRegion) =
+        this.SetMemoryRegion(memRegion.BaseAddress, memRegion)
 
     member this.IsAddressMapped(address: UInt64) =
         _va.Values
@@ -353,15 +358,12 @@ type MemoryManager(pointerSize: Int32) as this =
             address >= startAddr && address < endAddr
         )
 
-    member this.AddMemoryRegion(memRegion: MemoryRegion) =
-        _va.[memRegion.BaseAddress] <- memRegion
-
     member internal this.AddLibraryMemoryRegion(memRegion: MemoryRegion) =
         _lastAllocatedLibBase <- _lastAllocatedLibBase + uint64 memRegion.Content.Length
         let round = _lastAllocatedLibBase % 0x1000UL
         if round > 0UL then
             _lastAllocatedLibBase <- _lastAllocatedLibBase + 0x1000UL - round
-        this.AddMemoryRegion(memRegion)
+        this.SetMemoryRegion(memRegion)
 
     member this.GetMemoryMap() =
         _va.Values 
@@ -384,7 +386,7 @@ type MemoryManager(pointerSize: Int32) as this =
             region <- {region with Info = regionInfo; Type = regionType}
 
         _memoryAccessEvent.Trigger(MemoryAccessOperation.Allocate region)
-        this.AddMemoryRegion(region)
+        this.SetMemoryRegion(region)
 
     member private this.FullSearchFreeMemory(size: Int32, memoryMap: MemoryRegion array, startSearchFromAddress: UInt64 option) =
         memoryMap
