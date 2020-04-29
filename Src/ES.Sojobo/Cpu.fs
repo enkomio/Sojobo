@@ -26,14 +26,32 @@ type Cpu() =
             createVariableWithValue(string Register.GS, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
             createVariableWithValue(string Register.GSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
 
-            // general purpose registers
+            // general purpose registers 32
+            createVariableWithValue(string Register.EIP, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 32<rt>)
             createVariableWithValue(string Register.EAX, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 32<rt>)
             createVariableWithValue(string Register.EBX, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 32<rt>)
             createVariableWithValue(string Register.ECX, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 32<rt>)
             createVariableWithValue(string Register.EDX, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 32<rt>)
             createVariableWithValue(string Register.ESI, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 32<rt>)
             createVariableWithValue(string Register.EDI, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 32<rt>)
-
+                
+            // general purpose registers 64
+            createVariableWithValue(string Register.RIP, EmulatedType.QuadWord, BitVector.ofUInt32 0u 64<rt>)
+            createVariableWithValue(string Register.RAX, EmulatedType.QuadWord, BitVector.ofUInt32 0u 64<rt>)
+            createVariableWithValue(string Register.RBX, EmulatedType.QuadWord, BitVector.ofUInt32 0u 64<rt>)
+            createVariableWithValue(string Register.RCX, EmulatedType.QuadWord, BitVector.ofUInt32 0u 64<rt>)
+            createVariableWithValue(string Register.RDX, EmulatedType.QuadWord, BitVector.ofUInt32 0u 64<rt>)
+            createVariableWithValue(string Register.RSI, EmulatedType.QuadWord, BitVector.ofUInt32 0u 64<rt>)
+            createVariableWithValue(string Register.RDI, EmulatedType.QuadWord, BitVector.ofUInt32 0u 64<rt>)
+            createVariableWithValue(string Register.R8, EmulatedType.QuadWord, BitVector.ofUInt32 0u 64<rt>)
+            createVariableWithValue(string Register.R9, EmulatedType.QuadWord, BitVector.ofUInt32 0u 64<rt>)
+            createVariableWithValue(string Register.R10, EmulatedType.QuadWord, BitVector.ofUInt32 0u 64<rt>)
+            createVariableWithValue(string Register.R11, EmulatedType.QuadWord, BitVector.ofUInt32 0u 64<rt>)
+            createVariableWithValue(string Register.R12, EmulatedType.QuadWord, BitVector.ofUInt32 0u 64<rt>)
+            createVariableWithValue(string Register.R13, EmulatedType.QuadWord, BitVector.ofUInt32 0u 64<rt>)
+            createVariableWithValue(string Register.R14, EmulatedType.QuadWord, BitVector.ofUInt32 0u 64<rt>)
+            createVariableWithValue(string Register.R15, EmulatedType.QuadWord, BitVector.ofUInt32 0u 64<rt>)
+            
             // flag registers
             createVariableWithValue(string Register.OF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
             createVariableWithValue(string Register.DF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
