@@ -11,10 +11,10 @@ open B2R2.FrontEnd
 open B2R2.BinFile.PE
 open ES.Sojobo
 open ES.Sojobo.Model
-open Win32Structures
+open WindowsStructures
 
 [<CLIMutable>]
-type Win32SandboxSettings = {
+type WindowsSandboxSettings = {
     /// This settings will initialize the environment by loading
     /// missing libraries or setup default hook for emulated functions
     InitializeEnvironment: Boolean
@@ -33,23 +33,28 @@ type Win32SandboxSettings = {
         CacheInstructions = true
     }
 
-type Win32Sandbox(settings: Win32SandboxSettings) as this =
+type WindowsSandbox(pointerSize: Int32, settings: WindowsSandboxSettings) as this =
     inherit BaseSandbox()
 
     let _hooks = new Dictionary<UInt64, Hook>()
     let _cache = new InstructionCache()
-    let mutable _stopExecution: Boolean option = None
-    let mutable _currentProcess: Win32ProcessContainer option = None
+    let mutable _currentProcess: WindowsProcessContainer option = None
+    let mutable _stopExecution: Boolean option = None    
     do this.Emulator <- Some(upcast new LowUIREmulator(this))
 
     let setupTeb() =
-        let tebAddress = Win32Structures.createTeb(this)
-        if this.GetRunningProcess().GetPointerSize() = 32 then [
+        let tebAddress = 
+            if this.GetRunningProcess().PointerSize = 32 then
+                StructuresFactory.createTeb32(this)
+            else
+                StructuresFactory.createTeb64(this)
+
+        if this.GetRunningProcess().PointerSize = 32 then [
             createVariableWithValue(string Register.FSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 (uint32 tebAddress) 32<rt>)
             createVariableWithValue(string Register.FS, EmulatedType.DoubleWord, BitVector.ofUInt32 (uint32 tebAddress) 32<rt>)        
         ] else [
-            createVariableWithValue(string Register.FSBase, EmulatedType.QuadWord, BitVector.ofUInt64 tebAddress 64<rt>)
-            createVariableWithValue(string Register.FS, EmulatedType.QuadWord, BitVector.ofUInt64 tebAddress 64<rt>)        
+            createVariableWithValue(string Register.GSBase, EmulatedType.QuadWord, BitVector.ofUInt64 tebAddress 64<rt>)
+            createVariableWithValue(string Register.GS, EmulatedType.QuadWord, BitVector.ofUInt64 tebAddress 64<rt>)        
         ] 
         |> List.iter(this.GetRunningProcess().Cpu.SetRegister)
 
@@ -81,8 +86,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         let exportedFunctions = getAllExportedFunctions()
         this.ApiEmulators
         |> Seq.iter(fun lib ->
-            let proc = this.GetRunningProcess()
-            lib.MapSymbolWithManagedMethods(proc, exportedFunctions)
+            lib.MapSymbolWithManagedMethods(this.GetRunningProcess(), exportedFunctions)
         )
 
     let loadNativeLibrary(lib: NativeLibrary) =
@@ -152,9 +156,8 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
             with _ -> ()
         )
 
-    let prepareForExecution() =
-        if settings.InitializeEnvironment then
-            loadCoreLibrariesFromFilesystem()
+    let prepareForExecution() =        
+        loadCoreLibrariesFromFilesystem()
             
         // setup the emulated functions
         mapManagedLibraries()
@@ -203,13 +206,18 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
         this.SignalAfterEmulation()               
 
     let rec loadNativeLibraryFile(filename: String, loadedLibraries: HashSet<String>) =
-        let libPath = Environment.GetFolderPath(Environment.SpecialFolder.SystemX86)
+        let libPath = 
+            if _currentProcess.Value.PointerSize = 32 then Environment.SpecialFolder.SystemX86
+            else Environment.SpecialFolder.System
+            |> Environment.GetFolderPath
+
         let libName = Path.Combine(libPath, filename)
         if File.Exists(libName) && loadedLibraries.Add(libName.ToLowerInvariant()) then
             this.MapLibrary(libName)
 
             // load also all referenced DLL
-            let handler = BinHandler.Init(ISA.OfString "x86", libName)
+            let isa = _currentProcess.Value.GetActiveMemoryRegion().Handler.ISA
+            let handler = BinHandler.Init(isa, libName)
             Helpers.getPe(handler).ImportMap 
             |> Seq.map(fun kv -> 
                 match kv.Value with
@@ -218,13 +226,12 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
             )
             |> Seq.iter(fun dllName -> loadNativeLibraryFile(dllName, loadedLibraries))
 
-    let loadReferencedLibraries() =
-        if settings.InitializeEnvironment then
-            let loadedLibraries = new HashSet<String>()
-            _currentProcess.Value.GetImportedFunctions()
-            |> Seq.distinctBy(fun symbol -> symbol.LibraryName)
-            |> Seq.map(fun lib -> lib.LibraryName)
-            |> Seq.iter(fun libName -> loadNativeLibraryFile(libName, loadedLibraries))
+    let loadReferencedLibraries() =        
+        let loadedLibraries = new HashSet<String>()
+        _currentProcess.Value.GetImportedFunctions()
+        |> Seq.distinctBy(fun symbol -> symbol.LibraryName)
+        |> Seq.map(fun lib -> lib.LibraryName)
+        |> Seq.iter(fun libName -> loadNativeLibraryFile(libName, loadedLibraries))
 
     let tryGetMappedLibrary(fileName: String) =
         let name = Path.GetFileName(fileName)
@@ -242,7 +249,7 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
             | Some library -> library.InvokeLibraryFunction(this)
             | _ -> emulateInstruction(_currentProcess.Value, pc)
             
-    new() = new Win32Sandbox(Win32SandboxSettings.Default) 
+    new(pointerSize: Int32) = new WindowsSandbox(pointerSize, WindowsSandboxSettings.Default) 
     
     default this.GetHookAddress(hook: Hook) =
         _hooks
@@ -311,17 +318,19 @@ type Win32Sandbox(settings: Win32SandboxSettings) as this =
     default this.ResetProcessState() =
         match _currentProcess with
         | Some proc -> proc.ResetState()
-        | _ ->_currentProcess <- new Win32ProcessContainer() |> Some
+        | _ -> _currentProcess <- new WindowsProcessContainer(pointerSize) |> Some
         
     default this.Load(filename: String) =
         this.ResetProcessState()
         _currentProcess.Value.Initialize(filename)
-        loadReferencedLibraries()
+        if settings.InitializeEnvironment then
+            loadReferencedLibraries()
 
     default this.Load(buffer: Byte array) =
         this.ResetProcessState()
         _currentProcess.Value.Initialize(buffer)
-        loadReferencedLibraries()
+        if settings.InitializeEnvironment then
+            loadReferencedLibraries()
 
     default this.GetRunningProcess() =
         _currentProcess.Value :> IProcessContainer
