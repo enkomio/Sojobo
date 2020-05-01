@@ -128,7 +128,7 @@ module Kernel32 =
 
     let loadLibraryA(sandbox: ISandbox, lpLibFileName: UInt32) =
         let libPath =
-            if sandbox.GetRunningProcess().GetPointerSize() = 32
+            if sandbox.GetRunningProcess().PointerSize = 32
             then Environment.GetFolderPath(Environment.SpecialFolder.SystemX86)
             else Environment.GetFolderPath(Environment.SpecialFolder.System)
 
@@ -146,7 +146,7 @@ module Kernel32 =
                     {
                         Convention = CallingConvention.Cdecl
                         ReturnValue = 
-                            if sandbox.GetRunningProcess().GetPointerSize() = 32
+                            if sandbox.GetRunningProcess().PointerSize = 32
                             then createUInt32(uint32 libHandle.Value).Value
                             else createUInt64(libHandle.Value).Value
                             |> Some            
@@ -171,7 +171,7 @@ module Kernel32 =
                 {
                     Convention = CallingConvention.Cdecl
                     ReturnValue = 
-                        if sandbox.GetRunningProcess().GetPointerSize() = 32
+                        if sandbox.GetRunningProcess().PointerSize = 32
                         then createUInt32(uint32 libHandle).Value
                         else createUInt64(libHandle).Value
                         |> Some            

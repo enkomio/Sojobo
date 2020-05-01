@@ -9,5 +9,5 @@ module VCRUNTIME140 =
     let memset(sandbox: ISandbox, dest: UInt32, c: Int32, count: UInt32 ) =
         let winProcess = sandbox.GetRunningProcess()
         winProcess.Memory.WriteMemory(uint64 dest, Array.create<Byte> (int32 count) (byte c))
-        let pointerSize = winProcess.GetPointerSize() |> LanguagePrimitives.Int32WithMeasure<rt>
+        let pointerSize = winProcess.PointerSize |> LanguagePrimitives.Int32WithMeasure<rt>
         {ReturnValue = Some <| BitVector.ofUInt32 dest pointerSize; Convention = CallingConvention.Cdecl}
