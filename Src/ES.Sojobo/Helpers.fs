@@ -38,6 +38,9 @@ module Helpers =
         | EmulatedType.Word -> 16
         | EmulatedType.DoubleWord -> 32
         | EmulatedType.QuadWord -> 64
+        | EmulatedType.XmmWord -> 128
+        | EmulatedType.YmmWord -> 256
+        | EmulatedType.ZmmWord -> 512
 
     let getTypeSize =
         getType >> getSize
@@ -48,7 +51,9 @@ module Helpers =
 
     let getPe(handler: BinHandler) =
         let fileInfo = handler.FileInfo
-        fileInfo.GetType().GetField("pe", BindingFlags.NonPublic ||| BindingFlags.Instance).GetValue(fileInfo) :?> PE
+        let pe = fileInfo.GetType().GetField("pe", BindingFlags.NonPublic ||| BindingFlags.Instance)
+        if pe <> null then Some(pe.GetValue(fileInfo) :?> PE)
+        else None
 
     let getSectionPermission(sectionHeader: SectionHeader) =
         let characteristics = sectionHeader.SectionCharacteristics
