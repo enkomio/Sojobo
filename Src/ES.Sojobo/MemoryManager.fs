@@ -28,6 +28,9 @@ type MemoryManager(pointerSize: Int32) as this =
     let _va = new SortedDictionary<UInt64, MemoryRegion>() 
     let _memoryAccessEvent = new Event<MemoryAccessOperation>()
     let _memoryAccessViolation = new Event<MemoryAccessOperation>()
+    let _isa =
+        if pointerSize = 32 then "x86" else "x64"
+        |> ISA.OfString
     let mutable _lastAllocatedLibBase = 0UL
     
     let rec serialize(value: Object, entries: List<MemoryEntry>, addEntry: Boolean, fixups: List<Fixup>, analyzedObjects: HashSet<Object>): (Byte array * List<Fixup>) =
@@ -257,7 +260,7 @@ type MemoryManager(pointerSize: Int32) as this =
         
     let createStack() =
         let stack = {
-            createMemoryRegion(0x18C000UL, 0x4000, Permission.Readable ||| Permission.Writable) 
+            createMemoryRegion(0x18C000UL, 5 * 1024 * 1024, Permission.Readable ||| Permission.Writable, _isa) 
             with 
                 Type = "Stack"
                 Info = String.Empty
@@ -267,7 +270,7 @@ type MemoryManager(pointerSize: Int32) as this =
 
     let createHeap() =
         let heap = {
-            createMemoryRegion(0x520000UL, 0x16000, Permission.Readable ||| Permission.Writable) 
+            createMemoryRegion(0x520000UL, 100 * 1024 * 1024, Permission.Readable ||| Permission.Writable, _isa) 
             with 
                 Type = "Heap"
                 Info = String.Empty
@@ -377,7 +380,7 @@ type MemoryManager(pointerSize: Int32) as this =
         _va.Remove(region.BaseAddress) 
         
     member internal this.AllocateMemory(baseAddress: UInt64, size: Int32, permission: Permission, ?regionType: String, ?regionInfo: String) : unit =
-        let mutable region = createMemoryRegion(baseAddress, size, permission)
+        let mutable region = createMemoryRegion(baseAddress, size, permission, _isa)
         match (regionType, regionInfo) with
         | (None, None) -> ()
         | _ ->
@@ -480,13 +483,3 @@ type MemoryManager(pointerSize: Int32) as this =
         let baseAddress = this.AllocateMemory(size, permission)
         this.WriteMemory(baseAddress, value)
         baseAddress
-
-    member this.ReadAsciiString(address: UInt64) =
-        let asciiString = new StringBuilder()
-        let mutable offset = address
-        let mutable c = this.ReadMemory(offset, 1).[0]
-        while c <> 0x00uy do
-            asciiString.Append(char c) |> ignore
-            offset <- offset + 1UL
-            c <- this.ReadMemory(offset, 1).[0]
-        asciiString.ToString()
