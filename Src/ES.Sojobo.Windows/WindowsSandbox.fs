@@ -218,13 +218,16 @@ type WindowsSandbox(pointerSize: Int32, settings: WindowsSandboxSettings) as thi
             // load also all referenced DLL
             let isa = _currentProcess.Value.GetActiveMemoryRegion().Handler.ISA
             let handler = BinHandler.Init(isa, libName)
-            Helpers.getPe(handler).ImportMap 
-            |> Seq.map(fun kv -> 
-                match kv.Value with
-                | ImportByOrdinal (_, dllname) -> dllname
-                | ImportByName (_, _, dllname) -> dllname
-            )
-            |> Seq.iter(fun dllName -> loadNativeLibraryFile(dllName, loadedLibraries))
+            Helpers.getPe(handler)
+            |> Option.iter(fun pe ->
+                pe.ImportMap 
+                |> Seq.map(fun kv -> 
+                    match kv.Value with
+                    | ImportByOrdinal (_, dllname) -> dllname
+                    | ImportByName (_, _, dllname) -> dllname
+                )
+                |> Seq.iter(fun dllName -> loadNativeLibraryFile(dllName, loadedLibraries))
+            )            
 
     let loadReferencedLibraries() =        
         let loadedLibraries = new HashSet<String>()

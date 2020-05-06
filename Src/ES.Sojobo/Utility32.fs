@@ -21,9 +21,14 @@ module Utility32 =
                 match op with
                 | OprMem (_, _, disp, _) when disp.IsSome ->
                     let procAddr = 
-                        if processContainer.GetPointerSize() = 32
+                        if processContainer.PointerSize = 32
                         then processContainer.Memory.ReadMemory<UInt32>(uint64 disp.Value) |> uint64
-                        else processContainer.Memory.ReadMemory<UInt64>(uint64 disp.Value)
+                        else 
+                            let effectiveValue = 
+                                processContainer.ProgramCounter.As<UInt64>() + 
+                                uint64 instruction.Length +
+                                uint64 disp.Value
+                            processContainer.Memory.ReadMemory<UInt64>(effectiveValue)
 
                     match processContainer.TryGetSymbol(procAddr) with
                     | Some symbol -> functionName <- String.Format("; <&{0}> [{1}]", symbol.Name, symbol.LibraryName)
@@ -50,78 +55,94 @@ module Utility32 =
         )    
 
     let private mapSectionsAtAddress(baseAddress: UInt64, handler: BinHandler, memoryManager: MemoryManager) =
-        let pe = Helpers.getPe(handler)        
-        handler.FileInfo.GetSections()
-        |> Seq.map(fun section ->
-            let sectionHeader = 
-                pe.SectionHeaders 
-                |> Seq.find(fun sc -> sc.Name.Equals(section.Name, StringComparison.OrdinalIgnoreCase))
+        Helpers.getPe(handler)
+        |> Option.iter(fun pe ->    
+            handler.FileInfo.GetSections()
+            |> Seq.map(fun section ->
+                let sectionHeader = 
+                    pe.SectionHeaders 
+                    |> Seq.find(fun sc -> sc.Name.Equals(section.Name, StringComparison.OrdinalIgnoreCase))
 
-            // copy the section content                        
-            let sectionBuffer = Array.zeroCreate<Byte>(int32 section.Size)
-            let fileSectionContent = handler.ReadBytes(section.Address, sectionHeader.SizeOfRawData)
-            let bytesToCopy = min sectionHeader.SizeOfRawData (int32 section.Size)
-            Array.Copy(fileSectionContent, sectionBuffer, bytesToCopy)
+                // copy the section content                        
+                let sectionBuffer = Array.zeroCreate<Byte>(int32 section.Size)
+                if sectionHeader.SizeOfRawData > 0 then
+                    let fileSectionContent = handler.ReadBytes(section.Address, sectionHeader.SizeOfRawData)
+                    let bytesToCopy = min sectionHeader.SizeOfRawData (int32 section.Size)
+                    Array.Copy(fileSectionContent, sectionBuffer, bytesToCopy)
             
-            let sectionBaseAddress = baseAddress + uint64 sectionHeader.VirtualAddress
-            let sectionHandler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, false, sectionBaseAddress, sectionBuffer)
-            (section, sectionBuffer, sectionHandler, sectionBaseAddress, Helpers.getSectionPermission(sectionHeader))
-        ) 
-        |> Seq.map(fun (section, buffer, sectionHandler, sectionBaseAddress, permission) -> {
-            BaseAddress = sectionBaseAddress
-            Content = buffer
-            Handler = sectionHandler
-            Permission = permission
-            Type = handler.FileInfo.FilePath |> Path.GetFileName
-            Info = section.Name
-        })
-        |> Seq.iter(memoryManager.AddLibraryMemoryRegion)
+                let sectionBaseAddress = baseAddress + uint64 sectionHeader.VirtualAddress
+                let sectionHandler = 
+                    BinHandler.Init(
+                        handler.ISA, 
+                        ArchOperationMode.NoMode, 
+                        false, 
+                        sectionBaseAddress, 
+                        sectionBuffer
+                    )
+                (section, sectionBuffer, sectionHandler, sectionBaseAddress, Helpers.getSectionPermission(sectionHeader))
+            ) 
+            |> Seq.map(fun (section, buffer, sectionHandler, sectionBaseAddress, permission) -> {
+                BaseAddress = sectionBaseAddress
+                Content = buffer
+                Handler = sectionHandler
+                Permission = permission
+                Type = String.Empty
+                Info = String.Format("{0} - {1}", section.Name, handler.FileInfo.FilePath |> Path.GetFileName)
+            })
+            |> Seq.iter(memoryManager.AddLibraryMemoryRegion)
 
-        // create memory holes if necessary
-        handler.FileInfo.GetSections()
-        |> Seq.sortBy(fun s -> s.Address)
-        |> Seq.pairwise
-        |> Seq.iter(fun (bottomSec, topSec) ->
-            let holeStart = bottomSec.Address + bottomSec.Size
-            let holeSize = topSec.Address - holeStart
-            memoryManager.AllocateMemory(holeStart, int32 holeSize, Permission.Readable, regionInfo = "<Reserved>")
+            // create memory holes if necessary
+            // TODO: round region size to page size in order to avoid this gaps
+            handler.FileInfo.GetSections()
+            |> Seq.sortBy(fun s -> s.Address)
+            |> Seq.pairwise
+            |> Seq.iter(fun (bottomSec, topSec) ->
+                let holeStart = bottomSec.Address + bottomSec.Size
+                let holeSize = topSec.Address - holeStart
+                if holeSize > 0UL then
+                    memoryManager.AllocateMemory(holeStart, int32 holeSize, Permission.Readable, regionType = "<Reserved>")
+            )
         )
 
     let private mapPeHeaderAtAddress(baseAddress: UInt64, handler: BinHandler, memoryManager: MemoryManager) =
-        let pe = Helpers.getPe(handler)
-        let fileInfo = handler.FileInfo
-        let struct (buffer, _) = fileInfo.BinReader.ReadBytes(int32 pe.PEHeaders.PEHeader.SizeOfHeaders, 0)
+        Helpers.getPe(handler)
+        |> Option.iter(fun pe ->
+            let fileInfo = handler.FileInfo
+            let struct (buffer, _) = fileInfo.BinReader.ReadBytes(int32 pe.PEHeaders.PEHeader.SizeOfHeaders, 0)
         
-        {
-            BaseAddress = baseAddress
-            Content = buffer
-            Handler =
-                BinHandler.Init(
-                    ISA.OfString "x86", 
-                    ArchOperationMode.NoMode, 
-                    false, 
-                    baseAddress,
-                    buffer
-                )
-            Permission = Permission.Readable
-            Type = String.Empty
-            Info = fileInfo.FilePath |> Path.GetFileName
-        }
-        |> memoryManager.AddLibraryMemoryRegion
+            {
+                BaseAddress = baseAddress
+                Content = buffer
+                Handler =
+                    BinHandler.Init(
+                        handler.ISA,
+                        ArchOperationMode.NoMode, 
+                        false, 
+                        baseAddress,
+                        buffer
+                    )
+                Permission = Permission.Readable
+                Type = String.Empty
+                Info = String.Format("PE - {0}", fileInfo.FilePath |> Path.GetFileName)
+            }
+            |> memoryManager.AddLibraryMemoryRegion
 
-        // create memory hole if necessary, recompute the offset due to possible relocation
-        let firstSection = handler.FileInfo.GetSections() |> Seq.minBy(fun s -> s.Address)
-        let firstSectionRva = firstSection.Address - uint64 pe.PEHeaders.PEHeader.ImageBase
-        let firstSectionStart = baseAddress + firstSectionRva
+            // create memory hole if necessary, recompute the offset due to possible relocation
+            let firstSection = handler.FileInfo.GetSections() |> Seq.minBy(fun s -> s.Address)
+            let firstSectionRva = firstSection.Address - uint64 pe.PEHeaders.PEHeader.ImageBase
+            let firstSectionStart = baseAddress + firstSectionRva
 
-        let holeStart = baseAddress + uint64 pe.PEHeaders.PEHeader.SizeOfHeaders
-        let holeSize = firstSectionStart - holeStart
-        memoryManager.AllocateMemory(holeStart, int32 holeSize, Permission.Readable)
+            let holeStart = baseAddress + uint64 pe.PEHeaders.PEHeader.SizeOfHeaders
+            let holeSize = firstSectionStart - holeStart
+            memoryManager.AllocateMemory(holeStart, int32 holeSize, Permission.Readable)
+        )
         
     let mapPeAtAddress(handler: BinHandler, memoryManager: MemoryManager, baseAddress: UInt64) =
         mapPeHeaderAtAddress(baseAddress, handler, memoryManager)
         mapSectionsAtAddress(baseAddress, handler, memoryManager)
 
     let mapPe(handler: BinHandler, memoryManager: MemoryManager) =
-        let pe = Helpers.getPe(handler)
-        mapPeAtAddress(handler, memoryManager, pe.PEHeaders.PEHeader.ImageBase)
+        Helpers.getPe(handler)
+        |> Option.iter(fun pe ->
+            mapPeAtAddress(handler, memoryManager, pe.PEHeaders.PEHeader.ImageBase)
+        )

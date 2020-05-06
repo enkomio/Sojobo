@@ -61,19 +61,21 @@ type NativeLibrary(content: Byte array) =
         _isLoaded <- true
 
     member private this.SetProperties(handler: BinHandler, baseAddress: UInt64) =
-        let pe = Helpers.getPe(handler)
-        this.SetProperties(
-            uint64 pe.PEHeaders.PEHeader.AddressOfEntryPoint, 
-            uint64 baseAddress,
-            new List<Symbol>(
-                pe.ExportMap
-                |> Seq.map(fun kv -> {                
-                        Address = kv.Key
-                        Name = kv.Value
-                        Kind = SymbolKind.FunctionType
-                        Target = TargetKind.DynamicSymbol
-                        LibraryName = (defaultArg this.FileName String.Empty) |> Path.GetFileName
-                })
+        Helpers.getPe(handler)
+        |> Option.iter(fun pe ->
+            this.SetProperties(
+                uint64 pe.PEHeaders.PEHeader.AddressOfEntryPoint, 
+                uint64 baseAddress,
+                new List<Symbol>(
+                    pe.ExportMap
+                    |> Seq.map(fun kv -> {                
+                            Address = kv.Key
+                            Name = kv.Value
+                            Kind = SymbolKind.FunctionType
+                            Target = TargetKind.DynamicSymbol
+                            LibraryName = (defaultArg this.FileName String.Empty) |> Path.GetFileName
+                    })
+                )
             )
         )
         
@@ -132,7 +134,7 @@ type NativeLibrary(content: Byte array) =
             let initMethod = handler.GetType().GetMethod("Init", BindingFlags.Static ||| BindingFlags.NonPublic)
             initMethod.Invoke(null, [|isa; ArchOperationMode.NoMode; true; baseAddress; content; filename|]) :?> BinHandler
         | None -> 
-            BinHandler.Init(isa, ArchOperationMode.NoMode, true, baseAddress, content)                
+            BinHandler.Init(isa, ArchOperationMode.NoMode, false, baseAddress, content)                
 
     member this.GetFullName() =
         match this.FileName with
@@ -148,40 +150,39 @@ type NativeLibrary(content: Byte array) =
 
     member this.Load(proc: IProcessContainer) =
         // create handler
-        let isa = 
-            if proc.GetPointerSize() = 32 then ISA.OfString "x86"
-            else ISA.OfString "x64"
-
+        let isa = proc.GetActiveMemoryRegion().Handler.ISA
         let mutable handler = 
             match this.FileName with
-            | Some filename -> BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, filename)
-            | None -> BinHandler.Init(isa, ArchOperationMode.NoMode, true, Addr.MinValue, content)
+            | Some filename -> BinHandler.Init(isa, ArchOperationMode.NoMode, false, Addr.MinValue, filename)
+            | None -> BinHandler.Init(isa, ArchOperationMode.NoMode, false, Addr.MinValue, content)
 
         // map the file
         match handler.FileInfo.FileFormat with
         | FileFormat.PEBinary ->
-            let mutable pe = Helpers.getPe(handler)
-            let peHeader = pe.PEHeaders.PEHeader
-
-            let nextLibFreeBaseAddress = proc.Memory.GetNextLibraryAllocationBase(peHeader.SizeOfImage, peHeader.ImageBase)
+            Helpers.getPe(handler)
+            |> Option.iter(fun pe ->
+                let peHeader = pe.PEHeaders.PEHeader
+                let nextLibFreeBaseAddress = 
+                    proc.Memory.GetNextLibraryAllocationBase(peHeader.SizeOfImage, peHeader.ImageBase)
             
-            let (mustRelocate, baseAddress) =
-                if nextLibFreeBaseAddress <> peHeader.ImageBase then (true, nextLibFreeBaseAddress)
-                else (false, peHeader.ImageBase)  
+                let (mustRelocate, baseAddress) =
+                    if nextLibFreeBaseAddress <> peHeader.ImageBase then (true, nextLibFreeBaseAddress)
+                    else (false, peHeader.ImageBase)  
                             
-            if mustRelocate then
-                // In case of relocation, recreate the handler with the correct address values                
-                handler <- this.RelocateHandler(handler, isa, baseAddress)
-                pe <- Helpers.getPe(handler)
+                if mustRelocate then
+                    // In case of relocation, recreate the handler with the correct address values                
+                    handler <- this.RelocateHandler(handler, isa, baseAddress)                    
 
-            // map library            
-            Utility32.mapPeAtAddress(handler, proc.Memory, baseAddress)
-            this.SetProperties(handler, baseAddress) 
+                // map library            
+                Utility32.mapPeAtAddress(handler, proc.Memory, baseAddress)
+                this.SetProperties(handler, baseAddress) 
 
-            // must relocate the library if necessary
-            if mustRelocate then
-                this.ApplyRelocation(pe, proc, baseAddress)
+                // must relocate the library if necessary
+                if mustRelocate then
+                    Helpers.getPe(handler)
+                    |> Option.iter(fun pe -> this.ApplyRelocation(pe, proc, baseAddress))                    
 
-            // add exported symbol to symbol list
-            this.Exports |> Seq.iter(proc.SetSymbol) 
+                // add exported symbol to symbol list
+                this.Exports |> Seq.iter(proc.SetSymbol)
+            )
         | _ -> ()
