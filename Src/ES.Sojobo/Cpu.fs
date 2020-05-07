@@ -10,9 +10,15 @@ type Cpu() =
     let _variables = new Dictionary<String, EmulatedValue>()
     let _tempVariables = new Dictionary<String, EmulatedValue>()
 
+    let createAvxRegisters(regName: String, emulatedType: EmulatedType, value: BitVector) =
+        for i=0 to 15 do
+            let registerName = String.Format("{0}{1}", regName, i)
+            let registerValue = createVariableWithValue(registerName, emulatedType, value)
+            _variables.[registerName.ToUpperInvariant()] <- registerValue
+
     do
-        [
-            // segments
+        // segments
+        [            
             createVariableWithValue(string Register.SS, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
             createVariableWithValue(string Register.SSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
             createVariableWithValue(string Register.CS, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
@@ -25,8 +31,11 @@ type Cpu() =
             createVariableWithValue(string Register.FSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
             createVariableWithValue(string Register.GS, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
             createVariableWithValue(string Register.GSBase, EmulatedType.DoubleWord, BitVector.ofUInt32 0ul 32<rt>)
+        ] |> List.iter(fun register -> _variables.[register.Name.ToUpperInvariant()] <- register)
 
-            // general purpose registers 32
+        // 32-bit
+        [   
+            // general purpose registers
             createVariableWithValue(string Register.EIP, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 32<rt>)
             createVariableWithValue(string Register.EAX, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 32<rt>)
             createVariableWithValue(string Register.EBX, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 32<rt>)
@@ -35,7 +44,21 @@ type Cpu() =
             createVariableWithValue(string Register.ESI, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 32<rt>)
             createVariableWithValue(string Register.EDI, EmulatedType.DoubleWord, BitVector.ofUInt32 0u 32<rt>)
                 
-            // general purpose registers 64
+            // flag registers
+            createVariableWithValue(string Register.OF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
+            createVariableWithValue(string Register.DF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
+            createVariableWithValue(string Register.IF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
+            createVariableWithValue(string Register.TF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
+            createVariableWithValue(string Register.SF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
+            createVariableWithValue(string Register.ZF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
+            createVariableWithValue(string Register.AF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
+            createVariableWithValue(string Register.PF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
+            createVariableWithValue(string Register.CF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
+        ] |> List.iter(fun register -> _variables.[register.Name.ToUpperInvariant()] <- register)
+
+        // 64-bit
+        [   
+            // general purpose registers
             createVariableWithValue(string Register.RIP, EmulatedType.QuadWord, BitVector.ofUInt32 0u 64<rt>)
             createVariableWithValue(string Register.RAX, EmulatedType.QuadWord, BitVector.ofUInt32 0u 64<rt>)
             createVariableWithValue(string Register.RBX, EmulatedType.QuadWord, BitVector.ofUInt32 0u 64<rt>)
@@ -51,18 +74,19 @@ type Cpu() =
             createVariableWithValue(string Register.R13, EmulatedType.QuadWord, BitVector.ofUInt32 0u 64<rt>)
             createVariableWithValue(string Register.R14, EmulatedType.QuadWord, BitVector.ofUInt32 0u 64<rt>)
             createVariableWithValue(string Register.R15, EmulatedType.QuadWord, BitVector.ofUInt32 0u 64<rt>)
-            
-            // flag registers
-            createVariableWithValue(string Register.OF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
-            createVariableWithValue(string Register.DF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
-            createVariableWithValue(string Register.IF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
-            createVariableWithValue(string Register.TF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
-            createVariableWithValue(string Register.SF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
-            createVariableWithValue(string Register.ZF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
-            createVariableWithValue(string Register.AF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
-            createVariableWithValue(string Register.PF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
-            createVariableWithValue(string Register.CF, EmulatedType.Bit, BitVector.ofUInt32 0u 1<rt>)
         ] |> List.iter(fun register -> _variables.[register.Name.ToUpperInvariant()] <- register)
+
+        // set AVX register
+        createAvxRegisters("XMM", EmulatedType.XmmWord, BitVector.ofUInt32 0ul 128<rt>)
+        createAvxRegisters("YMM", EmulatedType.YmmWord, BitVector.ofUInt32 0ul 256<rt>)
+        createAvxRegisters("ZMM", EmulatedType.ZmmWord, BitVector.ofUInt32 0ul 512<rt>)
+        
+        // create the intermediate representation of ZMM
+        for i=0 to 15 do
+            for c in ["A"; "B"; "C"; "D"; "E"; "F"; "G"; "H"] do
+                let registerName = String.Format("ZMM{0}{1}", i, c)
+                let registerValue = createVariableWithValue(registerName, EmulatedType.QuadWord, BitVector.ofUInt32 0ul 64<rt>)
+                _variables.[registerName.ToUpperInvariant()] <- registerValue
 
     member internal this.GetTemporaryVariable(name: String) =
         _tempVariables.[name.ToUpperInvariant()]
