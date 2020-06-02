@@ -27,20 +27,25 @@ type WindowsProcessContainer(pointerSize: Int32) as this =
         this.Cpu.SetRegister(instructionPointer)
 
     let setupStackRegisters() =
-        let startAddress = this.Memory.Stack.BaseAddress + uint64(this.Memory.Stack.Content.Length - 8)
-        let topStackPointer = 
-            if pointerSize = 32 then               
-                createVariableWithValue(string Register.ESP, EmulatedType.DoubleWord, BitVector.ofUInt64 startAddress 32<rt>)
-            else
-                createVariableWithValue(string Register.RSP, EmulatedType.QuadWord, BitVector.ofUInt64 startAddress 64<rt>)
-        this.Cpu.SetRegister(topStackPointer)
-
+        // set base address
+        let baseStackAddress = this.Memory.Stack.BaseAddress + uint64(this.Memory.Stack.Content.Length - 0x10)
         let baseStackPointer = 
             if pointerSize = 32 then  
-                createVariableWithValue(string Register.EBP, EmulatedType.DoubleWord, topStackPointer.Value)
+                createVariableWithValue(string Register.EBP, EmulatedType.DoubleWord, BitVector.ofUInt64 baseStackAddress 32<rt>)
             else
-                createVariableWithValue(string Register.RBP, EmulatedType.QuadWord, topStackPointer.Value)
+                createVariableWithValue(string Register.RBP, EmulatedType.QuadWord, BitVector.ofUInt64 baseStackAddress 64<rt>)
         this.Cpu.SetRegister(baseStackPointer)
+
+        // set top address
+        let topStackAddress = this.Memory.Stack.BaseAddress + uint64(baseStackAddress - 0x100UL)
+        let topStackPointer = 
+            if pointerSize = 32 then               
+                createVariableWithValue(string Register.ESP, EmulatedType.DoubleWord, BitVector.ofUInt64 topStackAddress 32<rt>)
+            else
+                createVariableWithValue(string Register.RSP, EmulatedType.QuadWord, BitVector.ofUInt64 topStackAddress 64<rt>)
+        this.Cpu.SetRegister(topStackPointer)
+
+        
         
     let resolveIATSymbols(handler: BinHandler) =
         handler.FileInfo.GetSymbols()
