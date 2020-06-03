@@ -37,15 +37,13 @@ type WindowsProcessContainer(pointerSize: Int32) as this =
         this.Cpu.SetRegister(baseStackPointer)
 
         // set top address
-        let topStackAddress = this.Memory.Stack.BaseAddress + uint64(baseStackAddress - 0x100UL)
+        let topStackAddress = this.Memory.Stack.BaseAddress + uint64(this.Memory.Stack.Content.Length - 0x110)
         let topStackPointer = 
             if pointerSize = 32 then               
                 createVariableWithValue(string Register.ESP, EmulatedType.DoubleWord, BitVector.ofUInt64 topStackAddress 32<rt>)
             else
                 createVariableWithValue(string Register.RSP, EmulatedType.QuadWord, BitVector.ofUInt64 topStackAddress 64<rt>)
-        this.Cpu.SetRegister(topStackPointer)
-
-        
+        this.Cpu.SetRegister(topStackPointer)        
         
     let resolveIATSymbols(handler: BinHandler) =
         handler.FileInfo.GetSymbols()
