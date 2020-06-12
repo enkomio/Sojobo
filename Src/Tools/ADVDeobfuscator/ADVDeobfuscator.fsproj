@@ -1,0 +1,29 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net47</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Entities.fs" />
+    <Compile Include="InstructionHeuristics.fs" />
+    <Compile Include="BinaryScanner.fs" />
+    <Compile Include="Emulator.fs" />
+    <Compile Include="Deobfuscator.fs" />
+    <Compile Include="Program.fs" />
+    <None Include="paket.references" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\ES.Sojobo.Windows\ES.Sojobo.Windows.fsproj" />
+    <ProjectReference Include="..\..\ES.Sojobo\ES.Sojobo.fsproj" />
+    <ProjectReference Include="..\..\ThirdPart\B2R2\src\Assembler\Intel\B2R2.Assembler.Intel.fsproj" />
+    <ProjectReference Include="..\..\ThirdPart\B2R2\src\BinCorpus\B2R2.BinCorpus.fsproj" />
+    <ProjectReference Include="..\..\ThirdPart\B2R2\src\BinGraph\B2R2.BinGraph.fsproj" />
+    <ProjectReference Include="..\..\ThirdPart\B2R2\src\BinIR\B2R2.BinIR.fsproj" />
+    <ProjectReference Include="..\..\ThirdPart\B2R2\src\Core\B2R2.Core.fsproj" />
+    <ProjectReference Include="..\..\ThirdPart\B2R2\src\FrontEnd\Core\B2R2.FrontEnd.Core.fsproj" />
+    <ProjectReference Include="..\..\ThirdPart\B2R2\src\FrontEnd\Intel\B2R2.FrontEnd.Intel.fsproj" />
+    <ProjectReference Include="..\..\ThirdPart\B2R2\src\FrontEnd\Library\B2R2.FrontEnd.Library.fsproj" />
+  </ItemGroup>
+  <Import Project="..\..\.paket\Paket.Restore.targets" />
+</Project>
