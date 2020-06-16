@@ -18,15 +18,20 @@ module Program =
 
     [<EntryPoint>]
     let main argv =
-        let fileName = argv.[0]
-        let logProvider = configureLogging(false)
+        if argv.Length < 1 then
+            Console.WriteLine("Please specify the file to analyze (also --verbose for verbose log messages)")
+            1
+        else
+            let fileName = argv |> Array.last
+            let isVerbose = argv |> Array.contains("--verbose")
+            let logProvider = configureLogging(isVerbose)
 
-        let logger =
-            log "ADVDeobfuscator"
-            |> info "File" "Deobfuscate file: {0}"
-            |> buildAndAdd(logProvider)
+            let logger =
+                log "ADVDeobfuscator"
+                |> info "File" "Deobfuscate file: {0}"
+                |> buildAndAdd(logProvider)
 
-        logger?File(fileName)
-        let deobfuscator = new Deobfuscator(fileName, logProvider)
-        deobfuscator.Deobfuscate()
-        0
+            logger?File(fileName)
+            let deobfuscator = new Deobfuscator(fileName, logProvider)
+            deobfuscator.Deobfuscate()
+            0
