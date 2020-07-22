@@ -226,12 +226,13 @@ type LowUIREmulator(sandbox: BaseSandbox) =
 
     member this.AdvanceProgramCounterIfNecessary(instruction: Instruction) =
         if instruction.IsBranch() |> not then
-            let proc = sandbox.GetRunningProcess()
-            let size = if proc.GetPointerSize() = 32 then 32<rt> else 64<rt>
-            let increment = BitVector.ofUInt32 (proc.GetInstruction()).Length size
+            let proc = sandbox.GetRunningProcess()    
+            let size = if proc.PointerSize = 32 then 32<rt> else 64<rt>
+            let newValue = proc.ProgramCounter.As<UInt64>() + uint64(proc.GetInstruction().Length)
+
             proc.Cpu.SetVariable(
                 {proc.ProgramCounter with
-                    Value = BitVector.add proc.ProgramCounter.Value increment
+                    Value = BitVector.ofUInt64 newValue size
                 })
 
     member this.EmulateInstruction(handler: BinHandler, instruction: Instruction) =

@@ -5,6 +5,7 @@ open System.IO
 open B2R2.BinFile
 open ES.Sojobo
 open ES.Sojobo.Model
+open ES.Sojobo.MemoryUtility
 
 module Kernel32 =
     let queryPerformanceCounter(sandbox: ISandbox, lpPerformanceCount: UInt32) = {
@@ -133,7 +134,7 @@ module Kernel32 =
             else Environment.GetFolderPath(Environment.SpecialFolder.System)
 
         // load library
-        let libName = sandbox.GetRunningProcess().Memory.ReadAsciiString(uint64 lpLibFileName)
+        let libName = readAsciiString(sandbox.GetRunningProcess().Memory, uint64 lpLibFileName)
         let filename = Path.Combine(libPath, libName)
 
         // check if the lib is already loaded, if so return it
