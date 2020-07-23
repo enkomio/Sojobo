@@ -26,7 +26,7 @@ module MemoryUtility =
                 unicodeString.Clear() |> ignore
             else
                 unicodeString.Append(char c) |> ignore
-                offset <- offset + 1UL
+                offset <- offset + 2UL
                 c <- memManager.ReadMemory<UInt16>(offset)
         unicodeString.ToString()
 
