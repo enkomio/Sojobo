@@ -141,6 +141,20 @@ module Model =
         | Word
         | DoubleWord
         | QuadWord
+        | XmmWord
+        | YmmWord
+        | ZmmWord
+        with
+            member this.ToRegType() =
+                match this with
+                | Bit -> 1<rt>
+                | Byte -> 8<rt>
+                | Word -> 16<rt>
+                | DoubleWord -> 32<rt>
+                | QuadWord -> 64<rt>
+                | XmmWord -> 128<rt>
+                | YmmWord -> 256<rt>
+                | ZmmWord -> 512<rt>
 
     type EmulatedValue = {
         Name: String
@@ -150,7 +164,7 @@ module Model =
     } with
         member this.As<'T>() =
             BitVector.toUInt64 this.Value :> Object :?> 'T
-
+            
     let createVariableWithValue(name: String, t: EmulatedType, v: BitVector) = {
         Name = name
         Value = v
@@ -192,7 +206,7 @@ module Model =
     }
 
     let internal createVariable(name: String, t: EmulatedType) = 
-        createVariableWithValue(name, t, BitVector.zero 1<rt>)
+        createVariableWithValue(name, t, BitVector.zero (t.ToRegType()))
 
     let createInt32(value: Int32) =
         createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofInt32 value 32<rt>)
@@ -212,10 +226,9 @@ module Model =
     let createUInt64(value: UInt64) =
         createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofUInt64 value 64<rt>)
         
-    let createMemoryRegion(baseAddr: UInt64, size: Int32, permission: Permission) = 
+    let createMemoryRegion(baseAddr: UInt64, size: Int32, permission: Permission, isa: ISA) = 
         let content = Array.zeroCreate<Byte>(size)
-        let isa = ISA.OfString "x86"        
-        let handler = BinHandler.Init(isa, ArchOperationMode.NoMode, true, baseAddr, content)
+        let handler = BinHandler.Init(isa, ArchOperationMode.NoMode, false, baseAddr, content)
 
         {
             BaseAddress = baseAddr
