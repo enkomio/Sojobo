@@ -260,7 +260,7 @@ type MemoryManager(pointerSize: Int32) as this =
         
     let createStack() =
         let stack = {
-            createMemoryRegion(0x18C000UL, 5 * 1024 * 1024, Permission.Readable ||| Permission.Writable, _isa) 
+            createMemoryRegion(0x18C000UL, 0x4000, Permission.Readable ||| Permission.Writable, _isa) 
             with 
                 Type = "Stack"
                 Info = String.Empty
@@ -270,7 +270,7 @@ type MemoryManager(pointerSize: Int32) as this =
 
     let createHeap() =
         let heap = {
-            createMemoryRegion(0x520000UL, 100 * 1024 * 1024, Permission.Readable ||| Permission.Writable, _isa) 
+            createMemoryRegion(0x520000UL, 0xC000, Permission.Readable ||| Permission.Writable, _isa) 
             with 
                 Type = "Heap"
                 Info = String.Empty

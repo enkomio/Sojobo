@@ -24,7 +24,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
 
         | BinOp (binOpType, regType, firstOp, secondOp, _, _) ->
             let firstValue = emulateExpr baseProcess firstOp
-            let secondValue = emulateExpr baseProcess secondOp           
+            let secondValue = emulateExpr baseProcess secondOp
 
             let operation =
                 match binOpType with
@@ -43,7 +43,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
                 | BinOpType.XOR -> BitVector.bxor
                 | BinOpType.CONCAT -> BitVector.concat
                 | _ -> failwith("Wrong or unsupported operation")
-            
+                        
             let resultValue = operation firstValue.Value secondValue.Value
             createVariableWithValue(String.Empty, Helpers.getType(regType), resultValue)
 
@@ -83,7 +83,7 @@ type LowUIREmulator(sandbox: BaseSandbox) =
                 | RelOpType.SLT -> BitVector.slt
                 | RelOpType.SLE -> BitVector.sle
                 | _ -> failwith("Wrong or unsupported operation")
-
+            
             let resultValue = operation firstValue.Value secondValue.Value
             createVariableWithValue(String.Empty, firstValue.Type, resultValue)
 
