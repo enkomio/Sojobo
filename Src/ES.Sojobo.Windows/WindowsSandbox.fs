@@ -186,23 +186,24 @@ type WindowsSandbox(pointerSize: Int32, settings: WindowsSandboxSettings) as thi
             | Address (_, callback) -> callback.Invoke(this)
             | Symbol (_, callback) -> callback.Invoke(this)            
 
-    let emulateInstructionNoCache(proc: BaseProcessContainer) =
-        let instruction = proc.GetInstruction()
+    let emulateInstructionNoCache(instruction: Instruction, proc: BaseProcessContainer) =        
         let handler = proc.GetActiveMemoryRegion().Handler
         (instruction, this.Emulator.Value.Emulate(handler, instruction))
 
     let emulateInstruction(proc: BaseProcessContainer, pc: UInt64) =
         this.SignalBeforeEmulation()
+        let instruction = proc.GetInstruction(pc)
+
         if settings.CacheInstructions then
             if _cache.IsCached(pc) then 
                 let (instruction, stmts) = _cache.GetCachedInstruction(pc)
                 this.Emulator.Value.Emulate(stmts)
                 this.Emulator.Value.AdvanceProgramCounterIfNecessary(instruction)
             else 
-                let (instruction, stmts) = emulateInstructionNoCache(proc)
+                let (instruction, stmts) = emulateInstructionNoCache(instruction, proc)
                 _cache.CacheInstruction(pc, instruction, stmts)
         else
-            emulateInstructionNoCache(proc) |> ignore
+            emulateInstructionNoCache(instruction, proc) |> ignore
         this.SignalAfterEmulation()               
 
     let rec loadNativeLibraryFile(filename: String, loadedLibraries: HashSet<String>) =
@@ -299,6 +300,9 @@ type WindowsSandbox(pointerSize: Int32, settings: WindowsSandboxSettings) as thi
                         setupTeb()
                 )        
             )
+
+    member this.EmulateInstruction(instruction: IntelInstruction) =
+        emulateInstruction(_currentProcess.Value, instruction.Address)
 
     default this.Run() =
         // initialize structures and hooks    
