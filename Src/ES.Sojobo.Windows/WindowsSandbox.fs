@@ -301,7 +301,7 @@ type WindowsSandbox(pointerSize: Int32, settings: WindowsSandboxSettings) as thi
                 )        
             )
 
-    member this.EmulateInstruction(instruction: IntelInstruction) =
+    default this.EmulateInstruction(instruction: IntelInstruction) =
         emulateInstruction(_currentProcess.Value, instruction.Address)
 
     default this.Run() =

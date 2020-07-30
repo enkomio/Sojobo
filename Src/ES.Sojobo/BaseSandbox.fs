@@ -5,7 +5,7 @@ open System.Reflection
 open System.Collections.Generic
 open System.IO
 open B2R2.BinIR
-open B2R2
+open B2R2.FrontEnd.Intel
 
 [<AbstractClass>]
 type BaseSandbox() =
@@ -16,6 +16,7 @@ type BaseSandbox() =
     abstract Load: String -> unit
     abstract Load: Byte array -> unit  
     abstract Run: unit -> unit
+    abstract member EmulateInstruction: IntelInstruction -> unit
     abstract Stop: unit -> unit     
     abstract GetRunningProcess: unit -> IProcessContainer
     abstract ResetProcessState: unit -> unit
@@ -78,6 +79,9 @@ type BaseSandbox() =
 
         member this.Run() =
             this.Run()
+
+        member this.EmulateInstruction(instruction: IntelInstruction) =
+            this.EmulateInstruction(instruction)
 
         member this.Stop() =
             this.Stop()

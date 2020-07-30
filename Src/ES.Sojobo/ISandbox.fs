@@ -1,6 +1,7 @@
 ﻿namespace ES.Sojobo
 
 open System
+open B2R2.FrontEnd.Intel
 open B2R2.BinIR
 open System.Reflection
 open ES.Sojobo.Model
@@ -20,6 +21,9 @@ type ISandbox =
 
         /// Start the execution of the process
         abstract Run: unit -> unit
+
+        /// Emulate a signel instruction
+        abstract EmulateInstruction: IntelInstruction -> unit
 
         /// Stop the execution of the process
         abstract Stop: unit -> unit     
