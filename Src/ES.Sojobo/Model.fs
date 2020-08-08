@@ -212,19 +212,19 @@ module Model =
         createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofInt32 value 32<rt>)
 
     let createByte(value: Byte) =
-        createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofArr [|value|])
+        createVariableWithValue(String.Empty, EmulatedType.Byte, BitVector.ofArr [|value|])
 
     let createUInt16(value: UInt16) =
-        createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofArr(BitConverter.GetBytes(value)))
+        createVariableWithValue(String.Empty, EmulatedType.Word, BitVector.ofArr(BitConverter.GetBytes(value)))
 
     let createUInt32(value: UInt32) =
         createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofUInt32 value 32<rt>)
 
     let createInt64(value: Int64) =
-        createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofInt64 value 64<rt>)
+        createVariableWithValue(String.Empty, EmulatedType.QuadWord, BitVector.ofInt64 value 64<rt>)
 
     let createUInt64(value: UInt64) =
-        createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofUInt64 value 64<rt>)
+        createVariableWithValue(String.Empty, EmulatedType.QuadWord, BitVector.ofUInt64 value 64<rt>)
         
     let createMemoryRegion(baseAddr: UInt64, size: Int32, permission: Permission, isa: ISA) = 
         let content = Array.zeroCreate<Byte>(size)
