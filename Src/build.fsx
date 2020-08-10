@@ -119,7 +119,7 @@ Target.create "Compile" (fun _ ->
 
             // compile
             DotNet.MSBuild.runRelease id buildAppDir "Build" [project]
-            |> Trace.logItems "Build Output: "
+            |> Console.WriteLine
         )
 
     compile(fsharpProjects, ".fsproj")
