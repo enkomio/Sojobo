@@ -3,18 +3,18 @@
 open System
 open B2R2.BinFile
 open ES.Sojobo.Windows
-open ES.Sojobo.Windows.Win32Structures
+open ES.Sojobo.Windows.WindowsStructures
 
 module SerializationTests =
     let ``[Test] Serialize an Ldr structure``() =
-        let sandbox = new Win32Sandbox({Win32SandboxSettings.Default with InitializeEnvironment = false})
+        let sandbox = new WindowsSandbox({Win32SandboxSettings.Default with InitializeEnvironment = false})
         sandbox.Load(Helper.getTestFile("help.exe"))
         sandbox.MapLibrary(Helper.getTestFullPath("kernel32.dll"))
         sandbox.MapLibrary(Helper.getTestFullPath("msvcrt.dll"))
         sandbox.MapLibrary(Helper.getTestFullPath("ntdll.dll"))
         sandbox.MapLibrary(Helper.getTestFullPath("KernelBase.dll"))
 
-        let ldr = Win32Structures.buildPeb(sandbox).Ldr
+        let ldr = WindowsStructures.buildPeb32(sandbox).Ldr
         let proc = sandbox.GetRunningProcess()
         let address = proc.Memory.AllocateMemory(0x10000, Permission.Readable)
         
