@@ -7,6 +7,7 @@ open System.Threading
 open System.Collections.Generic
 open System.Collections.Concurrent
 open ES.Sojobo
+open ES.Sojobo.MemoryUtility
 open B2R2
 open ES.Sojobo.Model
 open B2R2.FrontEnd
@@ -94,7 +95,8 @@ type Debugger(sandbox: ISandbox) as this =
 
     let printRegisters() =
         let proc = sandbox.GetRunningProcess()
-        ["EAX"; "EBX"; "ECX"; "EDX"; "ESI"; "EDI"; "ESP"; "EBP"; "EIP"]
+        if proc.PointerSize = 32 then ["EAX"; "EBX"; "ECX"; "EDX"; "ESI"; "EDI"; "ESP"; "EBP"; "EIP"]
+        else ["RAX"; "RBX"; "RCX"; "RDX"; "RSI"; "RDI"; "RSP"; "RBP"; "RIP"; "R8"; "R9"; "R10"; "R11"; "R12"; "R13"; "R14"; "R15"]
         |> List.iter(fun register ->
             let address = proc.Cpu.GetRegister(register).Value |> BitVector.toUInt64
             let info =
@@ -196,8 +198,8 @@ type Debugger(sandbox: ISandbox) as this =
                                 else "(N/A)"
                             Console.WriteLine("\t+0x{0} {1} : {2}", offset.ToString("X"), field.Name, stringValue)
                             offset <- 
-                                (if field.FieldType.IsArray then Helpers.getFieldArrayLength(field, proc.GetPointerSize(), new Dictionary<Type, Int32>())
-                                else Helpers.deepSizeOf(fieldValue.GetType(), proc.GetPointerSize())) 
+                                (if field.FieldType.IsArray then Helpers.getFieldArrayLength(field, proc.PointerSize, new Dictionary<Type, Int32>())
+                                else Helpers.deepSizeOf(fieldValue.GetType(), proc.PointerSize)) 
                                 + offset
                         )
                     with e -> 
@@ -540,7 +542,7 @@ type Debugger(sandbox: ISandbox) as this =
             Console.Error.WriteLine("Exception: {0}", e)            
         
     let showAsciiString(addr: UInt64) =
-        sandbox.GetRunningProcess().Memory.ReadAsciiString(addr)
+        readAsciiString(sandbox.GetRunningProcess().Memory, addr)
         |> Console.WriteLine
 
     let showMemory(address: UInt64, size: Int32, length: Int32 option) =

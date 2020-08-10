@@ -10,7 +10,6 @@ module Cli =
         NumberOfInstructionToEmulate: Int32
         PrintDisassembly: Boolean
         PrintIR: Boolean
-        DecodeContent: Boolean
         SaveSnapshotOnExit: Boolean
         LoadSnapshotOnStart: Boolean
         SnapshotToSave: String
@@ -29,7 +28,6 @@ module Cli =
         | Load_Snapshot of name:String
         | Lib of name:String
         | Api_Lib of name:String
-        | Decode_Content
         | Break
     with
         interface IArgParserTemplate with
@@ -43,7 +41,6 @@ module Cli =
                 | Lib _ -> "a native library to map in the process address space."
                 | Api_Lib _ -> "an API emulator to include for the emulation."
                 | Instruction _ -> "the number of instructions to emulate (default 10000)."
-                | Decode_Content -> "decode the content of the file (previously encoded with MakeSafePE)."
                 | Break -> "break the execution on the first instruction"
 
     let private printColor(msg: String, color: ConsoleColor) =
@@ -82,7 +79,6 @@ module Cli =
                         Filename = filename
                         PrintDisassembly = results.Contains(<@ Print_Disassembly @>)
                         PrintIR = results.Contains(<@ Print_IR @>)
-                        DecodeContent = results.Contains(<@ Decode_Content @>)
                         Libs = results.GetResults(<@ Lib @>) |> Seq.toArray
                         ApiLibs = results.GetResults(<@ Api_Lib @>) |> Seq.toArray
                         NumberOfInstructionToEmulate = results.GetResult(<@ Instruction @>, 10000)
