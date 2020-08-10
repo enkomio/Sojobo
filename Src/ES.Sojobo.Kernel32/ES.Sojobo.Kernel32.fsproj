@@ -85,6 +85,11 @@
       <Project>{1b240a8a-a3f5-4bc2-8e39-63bb42af0a4a}</Project>
       <Private>True</Private>
     </ProjectReference>
+    <ProjectReference Include="..\ThirdPart\B2R2\src\FrontEnd\Intel\B2R2.FrontEnd.Intel.fsproj">
+      <Name>B2R2.FrontEnd.Intel</Name>
+      <Project>{4bc593d3-a392-477c-b78e-a770627a581f}</Project>
+      <Private>True</Private>
+    </ProjectReference>
     <ProjectReference Include="..\ThirdPart\B2R2\src\FrontEnd\Library\B2R2.FrontEnd.Library.fsproj">
       <Name>B2R2.FrontEnd.Library</Name>
       <Project>{a08b64d4-60ab-47fd-95ec-32fbfe6853d7}</Project>

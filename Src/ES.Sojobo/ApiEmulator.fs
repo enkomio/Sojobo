@@ -8,6 +8,7 @@ open B2R2
 open ES.Sojobo.Model
 open B2R2.FrontEnd
 open B2R2.BinFile
+open B2R2.FrontEnd.Intel
 
 (**
 This Library is used in order to implement the emulation of a given native DLL
@@ -15,27 +16,47 @@ This Library is used in order to implement the emulation of a given native DLL
 type ApiEmulator(assembly: Assembly, emulator: IEmulator) =
 
     let getArgument(proc: IProcessContainer, position: Int32) =        
-        let ebp = proc.Cpu.GetRegister("EBP").Value |> BitVector.toUInt32
-        let address = ebp + uint32 (position + 2) * 4ul
-        let buffer = proc.Memory.ReadMemory(uint64 address, sizeof<UInt32>)
-        let varName = Helpers.getTempName(string position, EmulatedType.DoubleWord)            
-        {createVariable(varName, EmulatedType.DoubleWord) with Value = BitVector.ofArr(buffer)}
+        let basePointer = 
+            if proc.PointerSize = 32 then proc.Cpu.GetRegister(Register.EBP.ToString())
+            else proc.Cpu.GetRegister(Register.RBP.ToString())
+
+        let position = (position + 2) * (proc.PointerSize / 8)
+        
+        let address = 
+            if proc.PointerSize = 32 then uint64(basePointer.As<UInt32>() + uint32 position)
+            else basePointer.As<UInt64>() + uint64 position
+
+        let buffer = proc.Memory.ReadMemory(uint64 address, proc.PointerSize / 8)
+
+        let emulatedType =
+            if proc.PointerSize = 32 then EmulatedType.DoubleWord
+            else EmulatedType.QuadWord
+
+        let varName = Helpers.getTempName(string position, emulatedType)
+        {createVariable(varName, emulatedType) with Value = BitVector.ofArr(buffer)}
 
     let getArguments(proc: IProcessContainer, mi: MethodInfo) =
         mi.GetParameters()
         |> Array.skip 1
         |> Array.mapi(fun i p ->
             let argi = getArgument(proc, i)
-            if p.ParameterType = typeof<UInt32>
-            then BitVector.toUInt32 argi.Value :> Object
-            else BitVector.toInt32 argi.Value :> Object
+            if p.ParameterType = typeof<UInt32> then 
+                BitVector.toUInt32 argi.Value :> Object
+            elif p.ParameterType = typeof<UInt64> then 
+                BitVector.toUInt64 argi.Value :> Object
+            elif p.ParameterType = typeof<Int64> then 
+                BitVector.toInt64 argi.Value :> Object
+            else 
+                BitVector.toInt32 argi.Value :> Object
         )
 
     let setResult(proc: IProcessContainer, callbackResult: CallbackResult) =
         callbackResult.ReturnValue
         |> Option.iter(fun retValue ->
-            let eax = createVariableWithValue("EAX", EmulatedType.DoubleWord, retValue)
-            proc.Cpu.SetRegister(eax)
+            let resultVar = 
+                if proc.PointerSize = 32 then createVariableWithValue(Register.EAX.ToString(), EmulatedType.DoubleWord, retValue)
+                else createVariableWithValue(Register.RAX.ToString(), EmulatedType.QuadWord, retValue)
+            proc.Cpu.SetRegister(resultVar)
         )
 
     let emulateInstruction(proc: IProcessContainer, instruction: Instruction) =
@@ -44,35 +65,35 @@ type ApiEmulator(assembly: Assembly, emulator: IEmulator) =
 
     let emulateMovEdiEdi =
         let buffer = [|0x8Buy; 0xFFuy|]
-        let handler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
+        let handler = BinHandler.Init(ISA.DefaultISA, ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
         let instruction = BinHandler.ParseInstr handler Addr.MinValue     
         fun (proc: IProcessContainer) -> emulateInstruction(proc, instruction)
 
     let emulatePushEbp =
         let buffer = [|0x55uy|]
-        let handler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
+        let handler = BinHandler.Init(ISA.DefaultISA, ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
         let instruction = BinHandler.ParseInstr handler Addr.MinValue     
         fun (proc: IProcessContainer) -> emulateInstruction(proc, instruction)
 
     let emulateMovEbpEsp =
         let buffer = [|0x8Buy; 0xECuy|]
-        let handler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
+        let handler = BinHandler.Init(ISA.DefaultISA, ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
         let instruction = BinHandler.ParseInstr handler Addr.MinValue     
         fun (proc: IProcessContainer) -> emulateInstruction(proc, instruction)
 
     let emulateMovESpEbp =
         let buffer = [|0x8Buy; 0xE5uy|]
-        let handler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
+        let handler = BinHandler.Init(ISA.DefaultISA, ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
         let instruction = BinHandler.ParseInstr handler Addr.MinValue     
         fun (proc: IProcessContainer) -> emulateInstruction(proc, instruction)
 
     let emulatePopEbp =
         let buffer = [|0x5Duy|]
-        let handler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
+        let handler = BinHandler.Init(ISA.DefaultISA, ArchOperationMode.NoMode, true, Addr.MinValue, buffer)
         let instruction = BinHandler.ParseInstr handler Addr.MinValue     
         fun (proc: IProcessContainer) -> emulateInstruction(proc, instruction)
 
-    let executeStackFrameSetup(proc: IProcessContainer) =
+    let executeStackFrameSetup(proc: IProcessContainer) =        
         emulateMovEdiEdi(proc)
         emulatePushEbp(proc)
         emulateMovEbpEsp(proc)
@@ -82,7 +103,11 @@ type ApiEmulator(assembly: Assembly, emulator: IEmulator) =
         emulatePopEbp(proc)
 
     let executeReturn(proc: IProcessContainer, mi: MethodInfo, callbackResult: CallbackResult) =        
-        let bytesToPop = (mi.GetParameters().Length - 1) * (proc.GetPointerSize() / 8)
+        let bytesToPop = 
+            // for t32 bit all parameters are passed on the stack
+            if proc.PointerSize = 32 then (mi.GetParameters().Length - 1) * 4
+            // for 64-bit the first 4 parameters are passed via registers
+            else (mi.GetParameters().Length - 1 - 4) * 4
         
         // compose buffer
         use memWriter = new MemoryStream()
@@ -90,24 +115,26 @@ type ApiEmulator(assembly: Assembly, emulator: IEmulator) =
 
         if bytesToPop > 0 && callbackResult.Convention = CallingConvention.Cdecl then            
             binWriter.Write(0xC2uy)
-            binWriter.Write(bytesToPop)
+            binWriter.Write(uint16 bytesToPop)
             memWriter.SetLength(int64 3)
         else            
             binWriter.Write(0xC3uy)        
             memWriter.SetLength(int64 1)
         
+        let handler = proc.GetActiveMemoryRegion().Handler
+
         // compose instruction
         binWriter.Flush()
-        let handler = BinHandler.Init(ISA.OfString "x86", ArchOperationMode.NoMode, true, Addr.MinValue, memWriter.ToArray())
+        let handler = BinHandler.Init(handler.ISA, ArchOperationMode.NoMode, false, Addr.MinValue, memWriter.ToArray())
         let instruction = BinHandler.ParseInstr handler Addr.MinValue        
 
-        // emulate instruction
-        let handler = proc.GetActiveMemoryRegion().Handler
+        // emulate instruction        
         emulator.Emulate(handler, instruction) |> ignore
 
-    let getOrCreateEatRegion(memoryManager: MemoryManager, symbols: BinFile.Symbol seq, pointerSize: Int32) =
+    let getOrCreateEatRegion(proc: IProcessContainer, symbols: BinFile.Symbol seq, pointerSize: Int32) =
         let regionName = "EAT_" + assembly.GetName().Name
-        memoryManager.GetMemoryMap()
+        let isa = proc.GetActiveMemoryRegion().Handler.ISA
+        proc.Memory.GetMemoryMap()
         |> Array.tryFind(fun region ->
             region.Info.Equals(regionName)
         )
@@ -115,12 +142,12 @@ type ApiEmulator(assembly: Assembly, emulator: IEmulator) =
             | Some region -> region
             | None ->
                 let size = (symbols |> Seq.length) * (pointerSize / 8)
-                let baseAddress = memoryManager.GetFreeMemory(size)
+                let baseAddress = proc.Memory.GetFreeMemory(size)
                 let newRegion = 
-                    {createMemoryRegion(baseAddress, size, Permission.Readable) with
+                    {createMemoryRegion(baseAddress, size, Permission.Readable, isa) with
                         Info = regionName
                     }
-                memoryManager.AddMemoryRegion(newRegion)
+                proc.Memory.SetMemoryRegion(newRegion)
                 newRegion
 
     member val EmulatedMethods = new Dictionary<String, MethodInfo>() with get
@@ -173,8 +200,8 @@ type ApiEmulator(assembly: Assembly, emulator: IEmulator) =
     member this.MapSymbolWithManagedMethods(proc: IProcessContainer, exportedMethods: IDictionary<String, UInt64>) =
         let symbols = proc.GetImportedFunctions()
         if this.EmulatedMethods.Count > 0 && (symbols |> Seq.length) > 0 then
-            let eatRegion = getOrCreateEatRegion(proc.Memory, symbols, proc.GetPointerSize())
-            this.MapExportAddressTableMethods(proc.Memory, symbols, eatRegion, exportedMethods, proc.GetPointerSize())
+            let eatRegion = getOrCreateEatRegion(proc, symbols, proc.PointerSize)
+            this.MapExportAddressTableMethods(proc.Memory, symbols, eatRegion, exportedMethods, proc.PointerSize)
             this.MapEmulatedMethods(exportedMethods)
 
     member this.ResolveLibraryFunctions() =
@@ -210,7 +237,9 @@ type ApiEmulator(assembly: Assembly, emulator: IEmulator) =
         let keyName = this.Callbacks.[proc.ProgramCounter.Value |> BitVector.toUInt64]
         let libraryFunction = this.EmulatedMethods.[keyName]
 
-        executeStackFrameSetup(proc)
+        if proc.PointerSize = 32 then
+            executeStackFrameSetup(proc)
+
         let arguments = Array.concat [
             [|sandbox :> Object|]
             getArguments(proc, libraryFunction)
@@ -218,7 +247,8 @@ type ApiEmulator(assembly: Assembly, emulator: IEmulator) =
 
         let libraryFunctionResult = libraryFunction.Invoke(null, arguments) :?> CallbackResult
         setResult(proc, libraryFunctionResult)
-        executeStackFrameCleanup(proc)
+        if proc.PointerSize = 32 then
+            executeStackFrameCleanup(proc)
         executeReturn(proc, libraryFunction, libraryFunctionResult)
 
     member this.Initialize(sandbox: ISandbox) =

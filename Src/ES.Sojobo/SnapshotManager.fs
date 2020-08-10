@@ -93,7 +93,7 @@ type SnapshotManager(sandbox: BaseSandbox) =
                     Type = memRegion.Type
                     Info = memRegion.Info
                 } 
-            memory.UpdateMemoryRegion(memRegion.BaseAddress, allocatedMemoryRegion)
+            memory.SetMemoryRegion(memRegion.BaseAddress, allocatedMemoryRegion)
             
             // write region content 
             memory.WriteMemory(memRegion.BaseAddress, memRegion.Content)

@@ -8,10 +8,10 @@ using System.Runtime.InteropServices;
 [assembly: Guid("274BAD77-1F86-4CBC-A5B6-1FF724940C53")]
 [assembly: AssemblyCompany("Enkomio")]
 [assembly: AssemblyDescription("A binary analysis framework.")]
-[assembly: AssemblyVersion("1.1.479.14")]
-[assembly: AssemblyFileVersion("1.1.479.14")]
-[assembly: AssemblyInformationalVersion("1.1.479.14")]
-[assembly: AssemblyMetadata("BuildDate","2019-06-10")]
+[assembly: AssemblyVersion("1.2.493.11")]
+[assembly: AssemblyFileVersion("1.2.493.11")]
+[assembly: AssemblyInformationalVersion("1.2.493.11")]
+[assembly: AssemblyMetadata("BuildDate","2020-08-10")]
 namespace System {
     internal static class AssemblyVersionInformation {
         internal const System.String AssemblyTitle = "Sojobo";
@@ -19,9 +19,9 @@ namespace System {
         internal const System.String Guid = "274BAD77-1F86-4CBC-A5B6-1FF724940C53";
         internal const System.String AssemblyCompany = "Enkomio";
         internal const System.String AssemblyDescription = "A binary analysis framework.";
-        internal const System.String AssemblyVersion = "1.1.479.14";
-        internal const System.String AssemblyFileVersion = "1.1.479.14";
-        internal const System.String AssemblyInformationalVersion = "1.1.479.14";
-        internal const System.String AssemblyMetadata_BuildDate = "2019-06-10";
+        internal const System.String AssemblyVersion = "1.2.493.11";
+        internal const System.String AssemblyFileVersion = "1.2.493.11";
+        internal const System.String AssemblyInformationalVersion = "1.2.493.11";
+        internal const System.String AssemblyMetadata_BuildDate = "2020-08-10";
     }
 }

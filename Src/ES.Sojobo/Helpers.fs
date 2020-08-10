@@ -29,6 +29,9 @@ module Helpers =
         | 16 -> EmulatedType.Word
         | 32 -> EmulatedType.DoubleWord
         | 64 -> EmulatedType.QuadWord
+        | 128 -> EmulatedType.XmmWord
+        | 256 -> EmulatedType.YmmWord
+        | 512 -> EmulatedType.ZmmWord
         | _ -> failwith("Invalid reg type size: " + regType.ToString())
 
     let getSize(emuType: EmulatedType) =

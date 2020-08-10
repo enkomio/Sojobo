@@ -11,25 +11,35 @@ open B2R2.BinFile
 type BaseProcessContainer(pointerSize: Int32) =
     let mutable _activeRegion: MemoryRegion option = None
     let mutable _fileName = String.Empty
+    let _memoryManager = new MemoryManager(pointerSize)
+    let _cpu = new Cpu()
     let _symbols = new Dictionary<UInt64, Symbol>()
     let _pid = 
         let rnd = new Random()
         rnd.Next(200, 4000) |> uint32
-
-    member val PointerSize = pointerSize with get
-
+        
     abstract ProgramCounter: EmulatedValue with get
     abstract GetImportedFunctions: unit -> Symbol seq
     abstract GetInstruction: unit -> Instruction    
     abstract GetInstruction: address:UInt64 -> Instruction  
-    abstract GetCallStack: unit -> UInt64 array
-    abstract Memory: MemoryManager with get
-    abstract Cpu: Cpu with get
+    abstract GetCallStack: unit -> UInt64 array        
     abstract Handles: Handle array with get
 
     abstract FileName: String with get
-    override this.FileName 
+    default this.FileName 
         with get() = _fileName
+
+    abstract PointerSize: Int32 with get
+    default this.PointerSize 
+        with get() = pointerSize
+
+    abstract Memory: MemoryManager with get
+    default this.Memory 
+        with get() = _memoryManager
+
+    abstract Cpu: Cpu with get
+    default this.Cpu 
+        with get() = _cpu
 
     member this.SetFileName(fileName: String) =
         _fileName <- fileName
@@ -39,10 +49,7 @@ type BaseProcessContainer(pointerSize: Int32) =
 
     member this.GetActiveMemoryRegion() =
         _activeRegion.Value
-
-    member this.GetPointerSize() =
-        pointerSize
-    
+            
     member val Pid = _pid with get, set
 
     member this.TryGetSymbol(address: UInt64) =
@@ -54,15 +61,12 @@ type BaseProcessContainer(pointerSize: Int32) =
         _symbols.[symbol.Address] <- symbol
 
     member this.ResetState() =
-        this.Memory.Clear()
+        this.Memory.UnmapModules()
     
     interface IProcessContainer with
         member this.ProgramCounter
             with get() = this.ProgramCounter            
-
-        member this.GetPointerSize() =
-            this.GetPointerSize()
-
+            
         member this.GetImportedFunctions() =
             this.GetImportedFunctions()
 
@@ -95,6 +99,9 @@ type BaseProcessContainer(pointerSize: Int32) =
 
         member this.FileName
             with get() = this.FileName
+
+        member this.PointerSize
+            with get() = this.PointerSize
 
         member this.Pid
             with get() = this.Pid

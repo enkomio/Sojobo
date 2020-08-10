@@ -47,6 +47,11 @@
     <None Include="paket.references" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\ThirdPart\B2R2\src\FrontEnd\Intel\B2R2.FrontEnd.Intel.fsproj">
+      <Name>B2R2.FrontEnd.Intel</Name>
+      <Project>{4bc593d3-a392-477c-b78e-a770627a581f}</Project>
+      <Private>True</Private>
+    </ProjectReference>
     <Reference Include="FSharp.Core">
       <HintPath>..\packages\FSharp.Core.4.5.2\lib\net45\FSharp.Core.dll</HintPath>
     </Reference>
