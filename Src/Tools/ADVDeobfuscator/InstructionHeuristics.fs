@@ -7,6 +7,30 @@ open ES.ADVDeobfuscator.Entities
 open B2R2
 
 type InstructionHeuristics(functionAddreses: UInt64 array) =
+    let isStackRegister(reg: Register) =
+        [Register.EBP; Register.ESP; Register.RSP; Register.RBP]
+        |> List.contains reg
+
+    let isOperationRegister(reg: Register) =
+        [Register.RAX; Register.EAX; Register.RBX; Register.EBX]
+        |> List.contains reg
+
+    let checkArithmeticWithImmediateHeuristic(instruction: IntelInstruction, opCode: Opcode, flag: InstructionFlags) =
+        if instruction.Info.Opcode = opCode then
+            match instruction.Info.Operands with
+            | TwoOperands (firstOp, secondOp) -> 
+                match (firstOp, secondOp) with
+                | (OprMem (Some regValue, scale, Some disposition, opSize), OprImm opImm) 
+                    when (isStackRegister(regValue) || opSize = 8<rt>) && opImm <= 255L  -> [flag]
+                | (OprReg regValue, OprImm opImm) 
+                    when isOperationRegister(regValue) && opImm <= 255L  -> [flag]                
+                | _ -> List.empty
+            | OneOperand (OprReg regValue)
+                when isOperationRegister(regValue) -> [flag] 
+            | _ -> List.empty        
+        else 
+            List.empty
+
     let getMovdqaToStackRdataAddress(instruction: IntelInstruction) =
         match instruction.Info.Opcode with
         | Opcode.MOVDQA ->
@@ -51,22 +75,22 @@ type InstructionHeuristics(functionAddreses: UInt64 array) =
             | TwoOperands (firstOp, secondOp) -> 
                 match (firstOp, secondOp) with
                 | (OprMem (Some regValue, scale, Some disposition, opSize), OprReg opReg) 
-                    when (regValue = Register.RBP || regValue = Register.RSP) && (registers8bit.Contains(opReg)) -> [InstructionFlags.XorWithStack]
+                    when isStackRegister(regValue) && (registers8bit.Contains(opReg)) -> [InstructionFlags.XorWithStack]
                 | _ -> List.empty
             | _ -> List.empty
-        | _ -> List.empty
+        | _ -> List.empty    
 
-    let checkAddWithImmediateHeuristic(instruction: IntelInstruction) =
-        match instruction.Info.Opcode with      
-        | Opcode.ADD ->
-            match instruction.Info.Operands with
-            | TwoOperands (firstOp, secondOp) -> 
-                match (firstOp, secondOp) with
-                | (OprMem (Some regValue, scale, Some disposition, opSize), OprImm opImm) 
-                    when (regValue = Register.RBP || regValue = Register.RSP || opSize = 8<rt>) && opImm <= 255L  -> [InstructionFlags.AddStackWithImmediate]
-                | _ -> List.empty
-            | _ -> List.empty        
-        | _ -> List.empty
+    let checkAddHeuristic(instruction: IntelInstruction) =
+        checkArithmeticWithImmediateHeuristic(instruction, Opcode.ADD, InstructionFlags.AddWithImmediateOrRegister)
+
+    let checkSubHeuristic(instruction: IntelInstruction) =
+        checkArithmeticWithImmediateHeuristic(instruction, Opcode.SUB, InstructionFlags.SubWithImmediateOrRegister)
+
+    let checkMulHeuristic(instruction: IntelInstruction) =
+        checkArithmeticWithImmediateHeuristic(instruction, Opcode.IMUL, InstructionFlags.MulWithImmediateOrRegister)
+
+    let checkDivHeuristic(instruction: IntelInstruction) =
+        checkArithmeticWithImmediateHeuristic(instruction, Opcode.IDIV, InstructionFlags.DivWithImmediateOrRegister)
 
     let checkIsJumpToLoopHeuristic(instruction: IntelInstruction) =
         if instruction.Info.Opcode = Opcode.JB then
@@ -85,7 +109,7 @@ type InstructionHeuristics(functionAddreses: UInt64 array) =
             | TwoOperands (firstOp, secondOp) -> 
                 match (firstOp, secondOp) with
                 | (OprMem (Some regValue, scale, Some disposition, opSize), OprReg opReg) 
-                    when (regValue = Register.RBP || regValue = Register.RSP) && (registers8bit.Contains(opReg)) -> [InstructionFlags.SetByteRegisterInStack]
+                    when isStackRegister(regValue) && (registers8bit.Contains(opReg)) -> [InstructionFlags.SetByteRegisterInStack]
                 | _ -> List.empty
             | _ -> List.empty
         | _ -> List.empty
@@ -97,7 +121,9 @@ type InstructionHeuristics(functionAddreses: UInt64 array) =
             | TwoOperands (firstOp, secondOp) -> 
                 match (firstOp, secondOp) with
                 | (OprMem (Some regValue, scale, Some disposition, opSize), OprImm opImm) 
-                    when regValue = Register.RBP || regValue = Register.RSP -> [InstructionFlags.MovToStack]
+                    when isStackRegister(regValue) -> [InstructionFlags.MovToStack]
+                | (OprMem (Some regValue, scale, Some disposition, opSize), OprReg opReg) 
+                    when (registers8bit.Contains(opReg)) -> [InstructionFlags.MovToStack]
                 | _ -> List.empty
             | _ -> List.empty
         | _ -> List.empty
@@ -126,21 +152,36 @@ type InstructionHeuristics(functionAddreses: UInt64 array) =
                 let address = uint64(int64 instruction.Address + offset)
                 if functionAddreses |> Array.contains address |> not then [InstructionFlags.CallToExtraneousFunction]
                 else List.empty
+            | OneOperand(OprMem(None, None, Some address, opSize)) ->
+                if functionAddreses |> Array.contains (uint64 address) |> not then [InstructionFlags.CallToExtraneousFunction]
+                else List.empty
             | _ -> List.empty
         | _ -> List.empty
 
     new () = new InstructionHeuristics(Array.empty)
 
-    member this.AnalyzeInstruction(func: Function, instruction: IntelInstruction) =
+    member this.AnalyzeInstruction(func: Function, instruction: IntelInstruction) =        
         List.concat[
-            checkMovdqaToStackHeuristic(instruction)
-            checkMovToStackHeuristic(instruction)
-            checkSetByteRegisterInStackHeuristic(instruction)
-            checkIsJumpToLoopHeuristic(instruction)
-            checkAddWithImmediateHeuristic(instruction)
-            checkXorWithStackHeuristic(instruction)
-            checkXorWith8bitRegisterHeuristic(instruction)
-            checkCallToFunctionWithDecryptionHeuristic(instruction)   
-            checkCallToExtraneousFunctionHeuristic(instruction)
+            if func.Architecture = Arch.X64 then
+                checkMovdqaToStackHeuristic(instruction)
+                checkMovToStackHeuristic(instruction)
+                checkSetByteRegisterInStackHeuristic(instruction)
+                checkIsJumpToLoopHeuristic(instruction)
+                checkAddHeuristic(instruction)
+                checkXorWithStackHeuristic(instruction)
+                checkXorWith8bitRegisterHeuristic(instruction)
+                checkCallToFunctionWithDecryptionHeuristic(instruction)   
+                checkCallToExtraneousFunctionHeuristic(instruction)
+            else
+                checkMovToStackHeuristic(instruction)
+                checkIsJumpToLoopHeuristic(instruction)
+                checkAddHeuristic(instruction)
+                checkXorWithStackHeuristic(instruction)
+                checkXorWith8bitRegisterHeuristic(instruction)
+                checkCallToFunctionWithDecryptionHeuristic(instruction)   
+                checkCallToExtraneousFunctionHeuristic(instruction)
+                checkMulHeuristic(instruction)
+                checkSubHeuristic(instruction)
+                checkDivHeuristic(instruction)
         ]
         |> List.fold(fun state f -> state ||| f) InstructionFlags.Empty

@@ -21,7 +21,9 @@ type BinaryScanner(binHandler: BinHandler, logProvider: ILogProvider) =
 
     let containsDeobfuscationOperation(func: Function) =
         func.Instructions
-        |> Array.map(fun instr -> _heuristics.AnalyzeInstruction(func, instr))
+        |> Array.map(fun instr ->
+            _heuristics.AnalyzeInstruction(func, instr)
+        )
         |> Array.exists(deobfuscationOperationFound)
 
     let retrieveAllFunctions() =     
@@ -32,6 +34,7 @@ type BinaryScanner(binHandler: BinHandler, logProvider: ILogProvider) =
             callee.Addr
             |> Option.map(fun address ->
                 {
+                    Architecture = (if binHandler.ISA.Arch = B2R2.Architecture.IntelX86 then Arch.X86 else Arch.X64)
                     Address = address
                     Instructions =
                         let cfg, _ = scfg.GetFunctionCFG address                    
@@ -53,7 +56,7 @@ type BinaryScanner(binHandler: BinHandler, logProvider: ILogProvider) =
 
     do
         _logger?Start()
-        _allFunctions <- retrieveAllFunctions()
+        _allFunctions <- retrieveAllFunctions()        
 
         // first step identify all function that contain a deobfuscation operation
         let functionsWithDeobfuscationOperationOnly = 

@@ -4,17 +4,14 @@ open System
 open B2R2.FrontEnd.Intel
 
 module Entities =
-    (*
-    type Patch = {
-        VirtualAddress: UInt64
-        OldBytes: Byte array
-        NewBytes: Byte array
-    }
-    *)
+    type Arch =
+        | X86
+        | X64
 
     type Function = {
         Address: UInt64
-        Instructions: IntelInstruction array        
+        Instructions: IntelInstruction array   
+        Architecture: Arch
     } with
         member this.TryGetInstruction(address: UInt64) =
             this.Instructions
@@ -33,7 +30,7 @@ module Entities =
         | Empty = 0
         | XorWith8BitRegister = 1
         | XorWithStack = 2
-        | AddStackWithImmediate = 4
+        | AddWithImmediateOrRegister = 4
         | JumpBelow = 8
         | JumpToPreviousAddress = 16
         | SetByteRegisterInStack = 32
@@ -42,6 +39,9 @@ module Entities =
         | CallToFunctionDecrypt = 256
         | JumpToLoopEdge = 512  
         | CallToExtraneousFunction = 1024
+        | SubWithImmediateOrRegister = 2048
+        | MulWithImmediateOrRegister = 4096
+        | DivWithImmediateOrRegister = 8192
 
     let startFlags = [
         InstructionFlags.MovdqaToStack
@@ -51,7 +51,10 @@ module Entities =
     let encryptionFlags = [
         InstructionFlags.XorWithStack
         InstructionFlags.XorWith8BitRegister
-        InstructionFlags.AddStackWithImmediate
+        InstructionFlags.AddWithImmediateOrRegister
+        InstructionFlags.SubWithImmediateOrRegister
+        InstructionFlags.MulWithImmediateOrRegister
+        InstructionFlags.DivWithImmediateOrRegister
     ]
 
     let deobfuscationFlags = 
@@ -74,7 +77,7 @@ module Entities =
         |> (~~~)
 
     let startOperationFound(flags: InstructionFlags) =
-        startFlags |> List.exists(flags.HasFlag)
+        startFlags |> List.exists(flags.HasFlag)    
 
     let encryptionOperationFound(flags: InstructionFlags) =
         encryptionFlags |> List.exists(flags.HasFlag)
@@ -84,7 +87,7 @@ module Entities =
 
     let terminatingOperationFound(flags: InstructionFlags) =
         terminationFlags |> List.exists(flags.HasFlag)
-    
+            
     type ObfuscationTrace = {
         StartAddress: UInt64
         DeobfuscateOperationAddress: UInt64
@@ -120,6 +123,7 @@ module Entities =
         member this.IsInvalidState(instruction: IntelInstruction) =            
             instruction.Info.Opcode = Opcode.CALLFar ||
             (instruction.Info.Opcode = Opcode.CALLNear && not(this.Flags.HasFlag(InstructionFlags.CallToFunctionDecrypt))) ||
+            (instruction.Info.Opcode = Opcode.CALLNear && this.Flags.HasFlag(InstructionFlags.CallToExtraneousFunction)) ||
             (this.TerminatingOperationFound && this.StartAddress = 0UL)
 
         member this.AddFlags(flags: InstructionFlags) =
@@ -130,3 +134,9 @@ module Entities =
                 {this with Flags = (this.Flags ||| flags) &&& _notTerminationFlags}
             else
                 {this with Flags = (this.Flags ||| flags) &&& _notDeobfuscationFlags &&& _notTerminationFlags}
+
+    let setResultOperationFound(func: Function, instruction: IntelInstruction, trace: ObfuscationTrace, flags: InstructionFlags) =
+        if func.Architecture = Arch.X64 then
+            encryptionFlags |> List.exists(flags.HasFlag)
+        else
+            instruction.Address > trace.DeobfuscateOperationAddress && flags.HasFlag(InstructionFlags.MovToStack)
