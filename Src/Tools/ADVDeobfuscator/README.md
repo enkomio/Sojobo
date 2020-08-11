@@ -4,7 +4,7 @@ _ADVDeobfuscator_ is tool based on the Sojobo binary analysis framework that ana
 
 ## Download
 
-A pre-compiled version is available to <a href="https://github.com/sponsors/enkomio">sponsored users</a>.
+A compiled version is available to <a href="https://github.com/sponsors/enkomio">sponsored users</a>.
 
 ## Documentation
 The below image shows an execution of ADVDeobfuscator on the <A href="https://www.carbonblack.com/blog/tau-threat-discovery-conti-ransomware/">Conti Ransomware</a>.
