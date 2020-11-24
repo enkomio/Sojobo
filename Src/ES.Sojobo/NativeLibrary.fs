@@ -10,7 +10,6 @@ open B2R2.BinFile.PE
 open System.Collections.Generic
 open ES.Sojobo.Model
 open System.Reflection
-open System.Reflection.PortableExecutable
 
 module private UnknowLibrary =
     let mutable private _currentIndex = 0

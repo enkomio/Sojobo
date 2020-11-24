@@ -53,15 +53,20 @@ type LowUIREmulator(sandbox: BaseSandbox) =
             let emuType = Helpers.getType(regType)
             let numBytes = Helpers.getSize(emuType) / 8
             let bytes = baseProcess.Memory.ReadMemory(memAddress, numBytes)
-                        
-            // convert the readed bytes to emulated value
-            match emuType with
-            | Byte -> uint32 bytes.[0] |> bigint
-            | Word -> uint32(BitConverter.ToUInt16(bytes, 0)) |> bigint
-            | DoubleWord -> uint32(BitConverter.ToUInt32(bytes, 0)) |> bigint
-            | QuadWord -> uint64(BitConverter.ToUInt64(bytes, 0)) |> bigint
-            | _ -> failwith("Unexpected emu type")
-            |> fun bi -> createVariableWithValue(String.Empty,  Helpers.getType(regType), BitVector.ofUBInt bi regType)
+                
+            let bi =
+                if bytes.Length > 0 then
+                    // convert the readed bytes to emulated value
+                    match emuType with
+                    | Byte -> uint32 bytes.[0] |> bigint
+                    | Word -> uint32(BitConverter.ToUInt16(bytes, 0)) |> bigint
+                    | DoubleWord -> uint32(BitConverter.ToUInt32(bytes, 0)) |> bigint
+                    | QuadWord -> uint64(BitConverter.ToUInt64(bytes, 0)) |> bigint
+                    | _ -> failwith("Unexpected emu type")                
+                else
+                    bigint 0
+
+            createVariableWithValue(String.Empty,  Helpers.getType(regType), BitVector.ofUBInt bi regType)
 
         | PCVar (regType, regName) ->
             baseProcess.Cpu.GetVariable(regName, Helpers.getType(regType))
@@ -169,8 +174,8 @@ type LowUIREmulator(sandbox: BaseSandbox) =
             baseProcess.Cpu.SetRegister(programCounter)
             
             // update the active memory region
-            let destMemRegion = baseProcess.Memory.GetMemoryRegion(programCounter.Value |> BitVector.toUInt64)
-            baseProcess.UpdateActiveMemoryRegion(destMemRegion)
+            baseProcess.Memory.GetMemoryRegion(programCounter.Value |> BitVector.toUInt64)
+            |> Option.iter(fun destMemRegion -> baseProcess.UpdateActiveMemoryRegion(destMemRegion))            
 
             // stop execution, see: https://github.com/B2R2-org/B2R2/issues/15#issuecomment-496872936
             state.Stop()
@@ -187,8 +192,8 @@ type LowUIREmulator(sandbox: BaseSandbox) =
             |> baseProcess.Cpu.SetRegister
 
             // update the active memory region
-            let destMemRegion = baseProcess.Memory.GetMemoryRegion(baseProcess.ProgramCounter.Value |> BitVector.toUInt64)
-            baseProcess.UpdateActiveMemoryRegion(destMemRegion)
+            baseProcess.Memory.GetMemoryRegion(baseProcess.ProgramCounter.Value |> BitVector.toUInt64)
+            |> Option.iter(fun destMemRegion -> baseProcess.UpdateActiveMemoryRegion(destMemRegion))
 
             // stop execution, see: https://github.com/B2R2-org/B2R2/issues/15#issuecomment-496872936
             state.Stop()
@@ -228,9 +233,8 @@ type LowUIREmulator(sandbox: BaseSandbox) =
         if instruction.IsBranch() |> not then
             let proc = sandbox.GetRunningProcess()    
             let size = if proc.PointerSize = 32 then 32<rt> else 64<rt>
-            let newValue = proc.ProgramCounter.As<UInt64>() + uint64(proc.GetInstruction().Length)
-
-            proc.Cpu.SetVariable(
+            let newValue = proc.ProgramCounter.As<UInt64>() + uint64(proc.GetInstruction().Length)            
+            proc.Cpu.SetRegister(
                 {proc.ProgramCounter with
                     Value = BitVector.ofUInt64 newValue size
                 })

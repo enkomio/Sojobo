@@ -8,6 +8,9 @@ open ES.Sojobo
 open B2R2.BinFile
 
 module StructuresFactory =
+    let mutable Teb32StartAddress = 0x7ff70000ul
+    let mutable Teb64StartAddress = 0x7ff70000UL
+
     let buildPeb<'T when 'T: struct>(sandbox: BaseSandbox) =
         let proc = sandbox.GetRunningProcess()
         let librariesDetails = 
@@ -224,7 +227,7 @@ module StructuresFactory =
             )
 
         let regionSize = programSize + modulesSize
-        let mutable libraryNamesRegionOffset = proc.Memory.AllocateMemory(regionSize, Permission.Readable)
+        let mutable libraryNamesRegionOffset = proc.Memory.AllocateMemory(regionSize, Permission.Readable ||| Permission.Writable)
                         
         // create the data table entries
         let dataEntries = new Dictionary<Int32, LDR_DATA_TABLE_ENTRY<UInt32>>()
@@ -345,7 +348,7 @@ module StructuresFactory =
         {Activator.CreateInstance<TEB<UInt32>>() with
             StackBase = uint32 proc.Memory.Stack.BaseAddress + uint32 proc.Memory.Stack.Content.Length
             StackLimit = uint32 proc.Memory.Stack.BaseAddress
-            Self = 0x7ff70000u
+            Self = Teb32StartAddress
             ProcessEnvironmentBlock = buildPeb32(sandbox)
         }
 
@@ -354,7 +357,7 @@ module StructuresFactory =
         {Activator.CreateInstance<TEB<UInt64>>() with
             StackBase = proc.Memory.Stack.BaseAddress + uint64 proc.Memory.Stack.Content.Length
             StackLimit = proc.Memory.Stack.BaseAddress
-            Self = 0x7ff70000UL
+            Self = Teb64StartAddress
             ProcessEnvironmentBlock = buildPeb<UInt64>(sandbox)
         }
 
@@ -370,7 +373,7 @@ module StructuresFactory =
 
         // write TEB to memory
         proc.Memory.WriteMemory(uint64 teb.Self, teb)
-        let tebRegion = {proc.Memory.GetMemoryRegion(uint64 teb.Self) with Info = "TEB"}
+        let tebRegion = {proc.Memory.GetMemoryRegion(uint64 teb.Self).Value with Info = "TEB"}
         proc.Memory.SetMemoryRegion(uint64 teb.Self, tebRegion)
         
         uint64 teb.Self
@@ -387,7 +390,7 @@ module StructuresFactory =
 
         // write TEB to memory
         proc.Memory.WriteMemory(teb.Self, teb)
-        let tebRegion = {proc.Memory.GetMemoryRegion(teb.Self) with Info = "TEB"}
+        let tebRegion = {proc.Memory.GetMemoryRegion(teb.Self).Value with Info = "TEB"}
         proc.Memory.SetMemoryRegion(teb.Self, tebRegion)
         
         teb.Self

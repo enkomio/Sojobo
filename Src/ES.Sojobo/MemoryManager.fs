@@ -27,7 +27,7 @@ type private MemoryEntry = {
 type MemoryManager(pointerSize: Int32) as this =
     let _va = new SortedDictionary<UInt64, MemoryRegion>() 
     let _memoryAccessEvent = new Event<MemoryAccessOperation>()
-    let _memoryAccessViolation = new Event<MemoryAccessOperation>()
+    let _memoryAccessViolation = new Event<MemoryAccessViolation>()
     let _isa =
         if pointerSize = 32 then "x86" else "x64"
         |> ISA.OfString
@@ -289,23 +289,43 @@ type MemoryManager(pointerSize: Int32) as this =
         this.Heap <- createHeap()
 
     member this.GetMemoryRegion(address: UInt64) =
-        _va.Values
-        |> Seq.find(fun memRegion -> 
-            let startAddr = memRegion.BaseAddress
-            let endAddr = memRegion.BaseAddress + uint64 memRegion.Content.Length
-            address >= startAddr && address < endAddr
-        )
+        let region =
+            _va.Values
+            |> Seq.tryFind(fun memRegion -> 
+                let startAddr = memRegion.BaseAddress
+                let endAddr = memRegion.BaseAddress + uint64 memRegion.Content.Length
+                address >= startAddr && address < endAddr
+            )
+
+        // check for not mapped memory
+        match region with
+        | None -> 
+            let error = {
+                Operation = MemoryAccessOperation.Read(address)
+                Error = MemoryAccessionViolationError.MemoryNotMapped
+            }
+            _memoryAccessViolation.Trigger(error)
+        | _ -> ()
+
+        region
     
     member this.ReadMemory(address: UInt64, size: Int32) =        
         _memoryAccessEvent.Trigger(MemoryAccessOperation.Read address)  
         
-        let memRegion = this.GetMemoryRegion(address)
-        if not <| memRegion.Permission.HasFlag(Permission.Readable) then
-            _memoryAccessViolation.Trigger(MemoryAccessOperation.Read address)
+        match this.GetMemoryRegion(address) with
+        | Some memRegion ->
+            if not <| memRegion.Permission.HasFlag(Permission.Readable) then
+                let error = {
+                    Operation = MemoryAccessOperation.Read address
+                    Error = MemoryAccessionViolationError.MemoryNotReadable
+                }
+                _memoryAccessViolation.Trigger(error)
         
-        let offset = address - memRegion.BaseAddress |> int32
-        let realSize = min (memRegion.Content.Length-offset) size
-        BinHandler.ReadBytes(memRegion.Handler, address, realSize)
+            let offset = address - memRegion.BaseAddress |> int32
+            let realSize = min (memRegion.Content.Length-offset) size
+            BinHandler.ReadBytes(memRegion.Handler, address, realSize)
+        | None ->            
+            Array.empty<Byte>
 
     member this.ReadMemory(address: UInt64, objectType: Type) =
         // read raw bytes
@@ -331,13 +351,19 @@ type MemoryManager(pointerSize: Int32) as this =
     member this.WriteMemory(address: UInt64, value: Byte array) =
         if value.Length > 0 then
             _memoryAccessEvent.Trigger(MemoryAccessOperation.Write (address, value))
-            let region = this.GetMemoryRegion(address)
+            match this.GetMemoryRegion(address) with
+            | Some region ->
+                if not <| region.Permission.HasFlag(Permission.Writable) then
+                    let error = {
+                        Operation = MemoryAccessOperation.Write(address, value)
+                        Error = MemoryAccessionViolationError.MemoryNotWritable
+                    }
+                    _memoryAccessViolation.Trigger(error)
 
-            if not <| region.Permission.HasFlag(Permission.Writable) then
-                _memoryAccessViolation.Trigger(MemoryAccessOperation.Write (address, value))
-
-            let offset = region.Handler.FileInfo.TranslateAddress address            
-            Array.Copy(value, 0, region.Handler.FileInfo.BinReader.Bytes, offset, value.Length)
+                let offset = region.Handler.FileInfo.TranslateAddress address            
+                Array.Copy(value, 0, region.Handler.FileInfo.BinReader.Bytes, offset, value.Length)
+            | None ->
+                ()
         
     member this.WriteMemory(address: UInt64, value: Object) =        
         let entries = new List<MemoryEntry>()
@@ -375,9 +401,17 @@ type MemoryManager(pointerSize: Int32) as this =
         |> Seq.toArray
 
     member this.FreeMemoryRegion(address: UInt64) =        
-        let region = this.GetMemoryRegion(address)
-        _memoryAccessEvent.Trigger(MemoryAccessOperation.Free region)
-        _va.Remove(region.BaseAddress) 
+        match this.GetMemoryRegion(address) with
+        | Some region ->
+            _memoryAccessEvent.Trigger(MemoryAccessOperation.Free region)
+            _va.Remove(region.BaseAddress) 
+        | None ->
+            let error = {
+                Operation = MemoryAccessOperation.Write(address, Array.empty<Byte>)
+                Error = MemoryAccessionViolationError.MemoryNotWritable
+            }
+            _memoryAccessViolation.Trigger(error)
+            false
         
     member internal this.AllocateMemory(baseAddress: UInt64, size: Int32, permission: Permission, ?regionType: String, ?regionInfo: String) : unit =
         let mutable region = createMemoryRegion(baseAddress, size, permission, _isa)

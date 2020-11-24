@@ -6,12 +6,14 @@ open System.Collections.Generic
 open System.IO
 open B2R2.BinIR
 open B2R2.FrontEnd.Intel
+open Model
 
 [<AbstractClass>]
 type BaseSandbox() =
     let _sideEffectEvent = new Event<ISandbox * SideEffect>()
     let _beforeEmulationEvent = new Event<IProcessContainer>()   
     let _afterEmulationEvent = new Event<IProcessContainer>()
+    let defaultExceptionHandler(sandbox: ISandbox, error: ExecutionException) = false
 
     abstract Load: String -> unit
     abstract Load: Byte array -> unit  
@@ -23,13 +25,14 @@ type BaseSandbox() =
     abstract GetHookAddress: Hook -> UInt64 option
 
     member this.SideEffect = _sideEffectEvent.Publish
+    member this.BeforeEmulation = _beforeEmulationEvent.Publish 
+    member this.AfterEmulation = _afterEmulationEvent.Publish 
+    member val EmulationException: ISandbox * ExecutionException -> Boolean = defaultExceptionHandler with get, set
     member val ApiEmulators = new List<ApiEmulator>() with get
     member val NativeLibraries = new List<NativeLibrary>() with get
     member val Emulator: IEmulator option = None with get, set
     member val Hooks = new List<Hook>() with get
-    member val Id = Guid.NewGuid()
-    member this.BeforeEmulation = _beforeEmulationEvent.Publish 
-    member this.AfterEmulation = _afterEmulationEvent.Publish 
+    member val Id = Guid.NewGuid()    
 
     member this.SignalBeforeEmulation() =
         _beforeEmulationEvent.Trigger(this.GetRunningProcess())

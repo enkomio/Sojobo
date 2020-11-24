@@ -16,15 +16,17 @@ type WindowsProcessContainer(pointerSize: Int32) as this =
     let mutable _lastInstruction: Instruction option = None   
 
     let setEntryPoint(handler: BinHandler) =
-        this.UpdateActiveMemoryRegion(this.Memory.GetMemoryRegion(handler.FileInfo.EntryPoint.Value))
-
-        let instructionPointer =
-            if pointerSize = 32 then        
-                createVariableWithValue(string Register.EIP, EmulatedType.DoubleWord, BitVector.ofUInt64 handler.FileInfo.EntryPoint.Value 32<rt>)
-            else
-                createVariableWithValue(string Register.RIP, EmulatedType.QuadWord, BitVector.ofUInt64 handler.FileInfo.EntryPoint.Value 64<rt>)
-
-        this.Cpu.SetRegister(instructionPointer)
+        this.Memory.GetMemoryRegion(handler.FileInfo.EntryPoint.Value)
+        |> Option.iter(fun region ->
+            this.UpdateActiveMemoryRegion(region)            
+            let instructionPointer =
+                if pointerSize = 32 then        
+                    createVariableWithValue(string Register.EIP, EmulatedType.DoubleWord, BitVector.ofUInt64 handler.FileInfo.EntryPoint.Value 32<rt>)
+                else
+                    createVariableWithValue(string Register.RIP, EmulatedType.QuadWord, BitVector.ofUInt64 handler.FileInfo.EntryPoint.Value 64<rt>)
+            
+            this.Cpu.SetRegister(instructionPointer)
+        )        
 
     let setupStackRegisters() =
         // set base address
@@ -89,8 +91,9 @@ type WindowsProcessContainer(pointerSize: Int32) as this =
             with 
                 :? IndexOutOfRangeException ->
                     // maybe the address is in another region, try to resolve the address
-                    let memRegion = this.Memory.GetMemoryRegion(address)
-                    BinHandler.ParseInstr memRegion.Handler address
+                    match this.Memory.GetMemoryRegion(address) with
+                    | Some memRegion -> BinHandler.ParseInstr memRegion.Handler address
+                    | None -> reraise()
 
     default this.GetInstruction() =
         this.GetInstruction(this.ProgramCounter.Value |> BitVector.toUInt64)

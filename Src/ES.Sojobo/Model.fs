@@ -164,6 +164,11 @@ module Model =
     } with
         member this.As<'T>() =
             BitVector.toUInt64 this.Value :> Object :?> 'T
+
+        member this.SetValue(newValue: UInt64) =
+            {this with 
+                Value = BitVector.ofUInt64 newValue (this.Type.ToRegType())
+            }
             
     let createVariableWithValue(name: String, t: EmulatedType, v: BitVector) = {
         Name = name
@@ -196,6 +201,19 @@ module Model =
         | Allocate of MemoryRegion
         | Free of MemoryRegion
 
+    type MemoryAccessionViolationError =
+        | MemoryNotMapped
+        | MemoryNotWritable
+        | MemoryNotReadable
+        
+    type MemoryAccessViolation = {
+        Operation: MemoryAccessOperation
+        Error: MemoryAccessionViolationError
+    }
+
+    type ExecutionException =
+        | MemoryAccessViolation of MemoryAccessViolation
+
     type CallingConvention =
         | Cdecl
         | Stdecl
@@ -208,9 +226,6 @@ module Model =
     let internal createVariable(name: String, t: EmulatedType) = 
         createVariableWithValue(name, t, BitVector.zero (t.ToRegType()))
 
-    let createInt32(value: Int32) =
-        createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofInt32 value 32<rt>)
-
     let createByte(value: Byte) =
         createVariableWithValue(String.Empty, EmulatedType.Byte, BitVector.ofArr [|value|])
 
@@ -220,12 +235,17 @@ module Model =
     let createUInt32(value: UInt32) =
         createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofUInt32 value 32<rt>)
 
-    let createInt64(value: Int64) =
-        createVariableWithValue(String.Empty, EmulatedType.QuadWord, BitVector.ofInt64 value 64<rt>)
-
     let createUInt64(value: UInt64) =
         createVariableWithValue(String.Empty, EmulatedType.QuadWord, BitVector.ofUInt64 value 64<rt>)
         
+    let createValue(value: Object) =        
+        match value with
+        | :? Byte -> createByte(value :?> Byte)
+        | :? UInt16 -> createUInt16(value :?> UInt16)
+        | :? UInt32 -> createUInt32(value :?> UInt32)
+        | :? UInt64 -> createUInt64(value :?> UInt64)
+        | _ -> failwith(String.Format("Unsupported type: {0}", value.GetType()))  
+                
     let createMemoryRegion(baseAddr: UInt64, size: Int32, permission: Permission, isa: ISA) = 
         let content = Array.zeroCreate<Byte>(size)
         let handler = BinHandler.Init(isa, ArchOperationMode.NoMode, false, baseAddr, content)

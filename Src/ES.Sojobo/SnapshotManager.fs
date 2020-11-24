@@ -44,7 +44,7 @@ type SnapshotManager(sandbox: BaseSandbox) =
             Registers =
                 match sandbox.GetRunningProcess() with
                 | :? BaseProcessContainer as baseProcess ->
-                    baseProcess.Cpu.GetAllVariables()
+                    baseProcess.Cpu.GetRegisters()
                     |> Seq.map(fun kv -> {
                         Name = kv.Key
                         Size = Helpers.getSize(kv.Value.Type)
@@ -87,22 +87,26 @@ type SnapshotManager(sandbox: BaseSandbox) =
                 (Enum.Parse(typeof<Permission>, memRegion.Permission.ToString()) :?> Permission)
             )
 
-            // update memory region with type and info
-            let allocatedMemoryRegion =
-                { memory.GetMemoryRegion(memRegion.BaseAddress) with
-                    Type = memRegion.Type
-                    Info = memRegion.Info
-                } 
-            memory.SetMemoryRegion(memRegion.BaseAddress, allocatedMemoryRegion)
+            match memory.GetMemoryRegion(memRegion.BaseAddress) with 
+            | Some region ->
+                // update memory region with type and info
+                let allocatedMemoryRegion =
+                    { region with
+                        Type = memRegion.Type
+                        Info = memRegion.Info
+                    } 
+                memory.SetMemoryRegion(memRegion.BaseAddress, allocatedMemoryRegion)
             
-            // write region content 
-            memory.WriteMemory(memRegion.BaseAddress, memRegion.Content)
+                // write region content 
+                memory.WriteMemory(memRegion.BaseAddress, memRegion.Content)
 
-            // check for stack or heap region
-            if memRegion.Id = snapshot.StackRegionId then
-                memory.Stack <- allocatedMemoryRegion
-            elif memRegion.Id = snapshot.HeapRegionId then
-                memory.Heap <- allocatedMemoryRegion
+                // check for stack or heap region
+                if memRegion.Id = snapshot.StackRegionId then
+                    memory.Stack <- allocatedMemoryRegion
+                elif memRegion.Id = snapshot.HeapRegionId then
+                    memory.Heap <- allocatedMemoryRegion
+            | None ->
+                ()
         )
 
         // setup loaded libraries info

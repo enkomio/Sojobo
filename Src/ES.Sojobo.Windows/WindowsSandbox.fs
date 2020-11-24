@@ -11,7 +11,6 @@ open B2R2.FrontEnd
 open B2R2.BinFile.PE
 open ES.Sojobo
 open ES.Sojobo.Model
-open WindowsStructures
 
 [<CLIMutable>]
 type WindowsSandboxSettings = {
@@ -40,8 +39,7 @@ type WindowsSandbox(pointerSize: Int32, settings: WindowsSandboxSettings) as thi
     let _cache = new InstructionCache()
     let mutable _currentProcess: WindowsProcessContainer option = None
     let mutable _stopExecution: Boolean option = None    
-    do this.Emulator <- Some(upcast new LowUIREmulator(this))
-
+    
     let setupTeb() =
         let tebAddress = 
             if this.GetRunningProcess().PointerSize = 32 then
@@ -108,13 +106,16 @@ type WindowsSandbox(pointerSize: Int32, settings: WindowsSandboxSettings) as thi
                 let (moduleName, functionName) = (items.[0].Trim(), items.[1].Trim())
                 this.NativeLibraries
                 |> Seq.iter(fun lib ->
-                    let filename = (Path.GetFileName <| lib.FileName.Value.ToLowerInvariant()).Replace(".dll", String.Empty).Trim()
-                    if moduleName.Equals(filename, StringComparison.OrdinalIgnoreCase) then
-                        // try to identify an exported function with the same name
-                        lib.Exports
-                        |> Seq.iter(fun symbol ->
-                            if symbol.Name.Equals(functionName, StringComparison.OrdinalIgnoreCase) 
-                            then _hooks.[symbol.Address] <- hook
+                    lib.FileName
+                    |> Option.iter(fun filePath ->
+                        let fileName = Path.GetFileName(filePath).Replace(".dll", String.Empty).Trim()
+                        if moduleName.Equals(fileName, StringComparison.OrdinalIgnoreCase) then
+                            // try to identify an exported function with the same name
+                            lib.Exports
+                            |> Seq.iter(fun symbol ->
+                                if symbol.Name.Equals(functionName, StringComparison.OrdinalIgnoreCase) 
+                                then _hooks.[symbol.Address] <- hook
+                        )
                     )
                 )
         ) 
@@ -140,14 +141,14 @@ type WindowsSandbox(pointerSize: Int32, settings: WindowsSandboxSettings) as thi
         |> Seq.choose id
         |> Seq.iter(this.GetRunningProcess().SetSymbol)
         
-    let mapManagedLibraries() =
+    let mapFunctionEmulationLibraries() =
         resolveEmulatedFunctions()
         removeEmptyLibraries()
         mapEmulatedFunctions()
         initializeLibraries()
         addLibrariesToSymbols()
 
-    let loadCoreLibrariesFromFilesystem() =
+    let loadFunctionEmulationLibraries() =
         Directory.GetFiles(Path.GetDirectoryName(Assembly.GetEntryAssembly().Location), "*.dll")        
         |> Array.filter(fun dllFile -> Path.GetFileName(dllFile).StartsWith("ES.Sojobo"))
         |> Array.filter(fun dllFile -> dllFile.Equals(Assembly.GetExecutingAssembly().Location) |> not)
@@ -156,16 +157,19 @@ type WindowsSandbox(pointerSize: Int32, settings: WindowsSandboxSettings) as thi
             with _ -> ()
         )
 
+    let setupExceptionHandler() =
+        // call the handler when a memory exception is raised
+        let memoryManager = this.GetRunningProcess().Memory
+        memoryManager.MemoryAccessViolation.Add(fun accessViolationError ->
+            if not <| this.EmulationException(upcast this, MemoryAccessViolation accessViolationError) then
+                this.Stop()
+        )
+
     let prepareForExecution() =        
-        loadCoreLibrariesFromFilesystem()
-            
-        // setup the emulated functions
-        mapManagedLibraries()
-
-        // setup hooks
+        setupExceptionHandler()
+        loadFunctionEmulationLibraries()
+        mapFunctionEmulationLibraries()
         resolveHooks()
-
-        // now that all libraries are mapped setup TEB and PEB
         setupTeb()
 
     let tryGetEmulationLibrary(proc: IProcessContainer) =  
@@ -252,6 +256,9 @@ type WindowsSandbox(pointerSize: Int32, settings: WindowsSandboxSettings) as thi
             match tryGetEmulationLibrary(_currentProcess.Value) with
             | Some library -> library.InvokeLibraryFunction(this)
             | _ -> emulateInstruction(_currentProcess.Value, pc)
+
+    do
+        this.Emulator <- Some(upcast new LowUIREmulator(this))        
             
     new(pointerSize: Int32) = new WindowsSandbox(pointerSize, WindowsSandboxSettings.Default) 
     
@@ -292,7 +299,7 @@ type WindowsSandbox(pointerSize: Int32, settings: WindowsSandboxSettings) as thi
                     if not stopExecution then 
                         // map library in order to place hooks for 
                         // functions exported from the just loaded lib
-                        mapManagedLibraries()
+                        mapFunctionEmulationLibraries()
 
                         // update PEB Ldr field by setup it again (yeah not very efficient)
                         let tebAddress = this.GetRunningProcess().Cpu.GetRegister(string Register.FSBase).As<UInt64>() 

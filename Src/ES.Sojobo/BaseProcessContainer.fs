@@ -12,7 +12,7 @@ type BaseProcessContainer(pointerSize: Int32) =
     let mutable _activeRegion: MemoryRegion option = None
     let mutable _fileName = String.Empty
     let _memoryManager = new MemoryManager(pointerSize)
-    let _cpu = new Cpu()
+    let _cpu = new Cpu32()
     let _symbols = new Dictionary<UInt64, Symbol>()
     let _pid = 
         let rnd = new Random()
@@ -39,7 +39,7 @@ type BaseProcessContainer(pointerSize: Int32) =
 
     abstract Cpu: Cpu with get
     default this.Cpu 
-        with get() = _cpu
+        with get() = upcast _cpu
 
     member this.SetFileName(fileName: String) =
         _fileName <- fileName

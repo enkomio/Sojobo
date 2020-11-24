@@ -12,39 +12,41 @@ open B2R2.FrontEnd.Intel
 module Utility32 = 
     let disassemble(processContainer: IProcessContainer, instruction: Instruction) =
         let mutable functionName = String.Empty
-        let handler = processContainer.Memory.GetMemoryRegion(instruction.Address).Handler
+        match processContainer.Memory.GetMemoryRegion(instruction.Address) with
+        | Some region ->
+            if instruction.IsCall() then
+                let instruction = instruction :?> IntelInstruction
+                match instruction.Info.Operands with
+                | OneOperand op ->
+                    match op with
+                    | OprMem (_, _, disp, _) when disp.IsSome ->
+                        let procAddr = 
+                            if processContainer.PointerSize = 32
+                            then processContainer.Memory.ReadMemory<UInt32>(uint64 disp.Value) |> uint64
+                            else 
+                                let effectiveValue = 
+                                    processContainer.ProgramCounter.As<UInt64>() + 
+                                    uint64 instruction.Length +
+                                    uint64 disp.Value
+                                processContainer.Memory.ReadMemory<UInt64>(effectiveValue)
 
-        if instruction.IsCall() then
-            let instruction = instruction :?> IntelInstruction
-            match instruction.Info.Operands with
-            | OneOperand op ->
-                match op with
-                | OprMem (_, _, disp, _) when disp.IsSome ->
-                    let procAddr = 
-                        if processContainer.PointerSize = 32
-                        then processContainer.Memory.ReadMemory<UInt32>(uint64 disp.Value) |> uint64
-                        else 
-                            let effectiveValue = 
-                                processContainer.ProgramCounter.As<UInt64>() + 
-                                uint64 instruction.Length +
-                                uint64 disp.Value
-                            processContainer.Memory.ReadMemory<UInt64>(effectiveValue)
-
-                    match processContainer.TryGetSymbol(procAddr) with
-                    | Some symbol -> functionName <- String.Format("; <&{0}> [{1}]", symbol.Name, symbol.LibraryName)
-                    | None -> ()
-                | OprReg reg ->
-                    let register = processContainer.Cpu.GetRegister(reg.ToString())
-                    match processContainer.TryGetSymbol(register.Value |> BitVector.toUInt64) with
-                    | Some symbol -> functionName <- String.Format("; <&{0}> [{1}]", symbol.Name, symbol.LibraryName)
-                    | None -> ()
+                        match processContainer.TryGetSymbol(procAddr) with
+                        | Some symbol -> functionName <- String.Format("; <&{0}> [{1}]", symbol.Name, symbol.LibraryName)
+                        | None -> ()
+                    | OprReg reg ->
+                        let register = processContainer.Cpu.GetRegister(reg.ToString())
+                        match processContainer.TryGetSymbol(register.Value |> BitVector.toUInt64) with
+                        | Some symbol -> functionName <- String.Format("; <&{0}> [{1}]", symbol.Name, symbol.LibraryName)
+                        | None -> ()
+                    | _ -> ()
                 | _ -> ()
-            | _ -> ()
 
-        let disassembledInstruction = BinHandler.DisasmInstr handler false true instruction 
-        let instructionBytes = BinHandler.ReadBytes(handler , instruction.Address, int32 instruction.Length)                
-        let hexBytes = BitConverter.ToString(instructionBytes).Replace("-"," ")
-        String.Format("0x{0,-10} {1, -30} {2} {3}", instruction.Address.ToString("X") + ":", hexBytes, disassembledInstruction, functionName)
+            let disassembledInstruction = BinHandler.DisasmInstr region.Handler false true instruction 
+            let instructionBytes = BinHandler.ReadBytes(region.Handler , instruction.Address, int32 instruction.Length)                
+            let hexBytes = BitConverter.ToString(instructionBytes).Replace("-"," ")
+            String.Format("0x{0,-10} {1, -30} {2} {3}", instruction.Address.ToString("X") + ":", hexBytes, disassembledInstruction, functionName)
+        | None ->
+            String.Empty
         
     let disassembleCurrentInstructionIR(processContainer: IProcessContainer) =
         let handler = processContainer.GetActiveMemoryRegion().Handler

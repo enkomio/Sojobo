@@ -3,15 +3,6 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
 
-[assembly: AssemblyTitle("Sojobo")]
-[assembly: AssemblyProduct("Sojobo")]
-[assembly: Guid("274BAD77-1F86-4CBC-A5B6-1FF724940C53")]
-[assembly: AssemblyCompany("Enkomio")]
-[assembly: AssemblyDescription("A binary analysis framework.")]
-[assembly: AssemblyVersion("1.2.493.11")]
-[assembly: AssemblyFileVersion("1.2.493.11")]
-[assembly: AssemblyInformationalVersion("1.2.493.11")]
-[assembly: AssemblyMetadata("BuildDate","2020-08-10")]
 namespace System {
     internal static class AssemblyVersionInformation {
         internal const System.String AssemblyTitle = "Sojobo";
