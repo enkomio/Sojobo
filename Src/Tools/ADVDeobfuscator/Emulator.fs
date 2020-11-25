@@ -12,227 +12,77 @@ open ES.ADVDeobfuscator.Entities
 open ES.Sojobo.MemoryUtility
 open ES.Fslog
 open ES.Sojobo
+open B2R2
 
-type Emulator(fileName: String, func: Function, binScanner: BinaryScanner, maxInstructionCount: Int32, logProvider: ILogProvider) =    
+type Emulator(id: String, fileName: String, func: Function, heuristic: HeuristicAggregator, maxInstructionCount: Int32, logProvider: ILogProvider) =    
+    let mutable _inExceptionHandler = false
     let _savedRegisters = new Dictionary<String, EmulatedValue>()
+    let _deobfuscationFlags = [
+        DeobfuscationFlag.AddWithImmediateOrRegister
+        DeobfuscationFlag.SubWithImmediateOrRegister
+        DeobfuscationFlag.XorWith8BitRegister
+        DeobfuscationFlag.XorWithStack
+    ]
     
     let _logger =
         log "Emulator"
         |> verbose "EmulateFrom" "Start emulating function 0x{0} from 0x{1} to 0x{2}"
-        |> info "ExtractedString" "Extracted string from instruction at 0x{0}: 0x{1}:{2}"
+        |> info "ExtractedString" "Extracted string from instruction at 0x{0} [0x{1} - 0x{2}]: {3}"
         |> verbose "TraceSaved" "Execution trace saved at: {0}"
-        |> error "EmulationError" "Emulation error: {0}"
-        |> error "NoStringFound" "No valid string was extracted from memory 0x{0}"
-        |> error "NoStringExtracted" "No string were extracted during emulation"
+        |> verbose "SetRegistryKey" "Set register {0} used for deobfuscation to: 0x{1}"
+        |> error "EmulationError" "Faulty address: 0x{0}, Trace: {1}, Exception: {2}"        
+        |> error "NoStringFound" "No valid string was extracted from memory 0x{0}. Trace: {1}"
         |> warning "MaxCountReached" "Reached threshold {0} for emulated instructions. Try to increase this value with --instructions argument"
-        |> buildAndAdd(logProvider)
-
-    let getVolatileRegisters() =
-        // See: https://docs.microsoft.com/en-us/cpp/build/x64-software-conventions?view=vs-2019
-        if binScanner.Functions.[0].Architecture = Arch.X86 then 
-            [
-                Register.EAX.ToString(); Register.ECX.ToString(); Register.EDX.ToString()                
-            ]
-        else 
-            [
-                Register.RAX.ToString(); Register.RCX.ToString(); Register.RDX.ToString()
-                Register.R8.ToString(); Register.R9.ToString(); Register.R10.ToString()
-                Register.R11.ToString();
-            ]
-
-    let getRegisters() =
-        if binScanner.Functions.Length > 0 then
-            if binScanner.Functions.[0].Architecture = Arch.X86 then 
-                [
-                    Register.EAX.ToString(); Register.EBX.ToString(); Register.ECX.ToString()
-                    Register.EDX.ToString(); Register.ESI.ToString(); Register.EDI.ToString()
-                    Register.ESP.ToString(); Register.EBP.ToString()
-                ]
-            else 
-                [
-                    Register.RAX.ToString(); Register.RBX.ToString(); Register.RCX.ToString()
-                    Register.RDX.ToString(); Register.RSI.ToString(); Register.RDI.ToString()
-                    Register.RSP.ToString(); Register.RBP.ToString(); Register.R15.ToString()
-                    Register.R8.ToString(); Register.R9.ToString(); Register.R10.ToString()
-                    Register.R11.ToString(); Register.R12.ToString(); Register.R13.ToString()
-                    Register.R14.ToString()
-                ]
-        else
-            List.empty
-
-    let isOperandSafeToEmulate(operand: Operand) =
-        match operand with
-        | OprMem (Some regValue, scale, Some disposition, opSize) -> 
-            regValue = Register.RBP || 
-            regValue = Register.RSP || 
-            _savedRegisters.ContainsKey(regValue.ToString())
-        | OprReg _ -> true 
-        | OprImm _ -> true
-        | _ -> false
-
-    let isInstructionSafeToEmulate(instruction: IntelInstruction) =
-        match instruction.Info.Opcode with
-        | Opcode.NOP -> true
-        | Opcode.MOV ->
-            match instruction.Info.Operands with
-            | TwoOperands (firstOp, secondOp) ->
-                [firstOp; secondOp]
-                |> List.forall(isOperandSafeToEmulate)
-            | _ -> false
-        | Opcode.ADD
-        | Opcode.SUB
-        | Opcode.POP
-        | Opcode.PUSH
-        | Opcode.LEA
-        | Opcode.XOR ->
-            match instruction.Info.Operands with
-            | TwoOperands (firstOp, secondOp) -> 
-                [firstOp; secondOp]
-                |> List.forall(isOperandSafeToEmulate)
-            | OneOperand op -> 
-                isOperandSafeToEmulate(op)
-            | NoOperand -> true
-            | _ -> false
-        | _ -> false
-
-    let adjustStartAddress(func: Function, trace: ObfuscationTrace) =
-        // this function will emulate more instruction that the one identified by the deobfuscator
-        // This allows to set to a valid value potential registers used in the deobfuscation
-        let mutable startAddress = trace.StartAddress
-        match func.TryGetInstruction(trace.StartAddress) with
-        | Some instruction ->
-            // go back until I found a branch or a MOV with a reference not the stack
-            let mutable curInstruction = instruction
-            let mutable completed = false
-            while not completed do                
-                let prevInstruction = func.GetPreviousInstruction(curInstruction)
-                completed <- 
-                    prevInstruction.Address = curInstruction.Address ||
-                    not <| isInstructionSafeToEmulate(prevInstruction)                    
-                
-                startAddress <- curInstruction.Address
-                curInstruction <- prevInstruction
-        | None -> ()
-
-        // return result
-        {trace with StartAddress = startAddress}
-
-    let adjustEndAddress(func: Function, trace: ObfuscationTrace) =
-        // this function will emulate more instruction that the one identified by the deobfuscator
-        // This allows to set to a valid value potential registers used in the deobfuscation
-        let mutable endAddress = trace.EndAddress
-        func.Instructions
-        |> Array.filter(fun instr -> 
-            instr.IsCondBranch() && 
-            uint64 instr.Address > trace.StartAddress &&
-            uint64 instr.Address < endAddress
-        )
-        |> Array.iter(fun instr ->
-            match instr.Info.Operands with            
-            | OneOperand (OprDirAddr (Relative offset)) when instr.Address + uint64 offset > endAddress ->
-                endAddress <- instr.Address + uint64 offset
-            | _ -> ()
-        )
-
-        // return result
-        {trace with EndAddress = endAddress}
-
-    let getIncrementRegisterName(func: Function, trace: ObfuscationTrace) =
-        func.Instructions
-        |> Array.filter(fun instruction -> instruction.Address >= trace.StartAddress && instruction.Address <= trace.EndAddress)
-        |> Array.choose(fun instruction ->
-            if instruction.Info.Opcode = Opcode.ADD then
-                match instruction.Info.Operands with
-                | TwoOperands (OprReg opReg1, OprReg opReg2) when opReg1 <> opReg2 -> Some (Register.toRegType(opReg2), opReg2.ToString())
-                | _ -> None
-            else
-                None
-        )
-        |> Array.tryHead
+        |> buildAndAdd(logProvider)     
 
     let saveTrace(trace: ObfuscationTrace, traceContent: String) =
-        let traceDirectory = Path.Combine(Path.GetDirectoryName(Assembly.GetEntryAssembly().Location), "Trace")
+        let traceDirectory = Path.Combine(Path.GetDirectoryName(Assembly.GetEntryAssembly().Location), "Trace", id)
         Directory.CreateDirectory(traceDirectory) |> ignore
         let traceFile = Path.Combine(traceDirectory, String.Format("0x{0}-0x{1}.txt", trace.StartAddress.ToString("X"), trace.EndAddress.ToString("X")))
         File.WriteAllText(traceFile, traceContent)
-        _logger?TraceSaved(Path.GetFileName(traceFile)) |> ignore
+        _logger?TraceSaved(Path.GetFileName(traceFile)) |> ignore 
 
-    let saveRegisters(proc: IProcessContainer) =
-        getRegisters()
-        |> List.iter(fun reg -> _savedRegisters.[reg] <- proc.Cpu.GetRegister(reg))
-
-    let trySetRegistryValue(regName: String, sandbox: WindowsSandbox, trace: ObfuscationTrace) =
-        let proc = sandbox.GetRunningProcess()
-        let mutable curInstruction = proc.GetInstruction(trace.StartAddress) :?> IntelInstruction
-        let mutable instructionFound = false
-        while not instructionFound do
-            let tmpInstruction = func.GetPreviousInstruction(curInstruction)
-            if tmpInstruction.Address = curInstruction.Address then
-                instructionFound <- true
-            else
-                curInstruction <- tmpInstruction
-                if [Opcode.MOV; Opcode.LEA] |> List.contains curInstruction.Info.Opcode then
-                    match curInstruction.Info.Operands with
-                    | TwoOperands(OprReg reg, OprMem (Some register, None, Some disp, _)) when 
-                        Opcode.LEA = curInstruction.Info.Opcode &&  
-                        register <> Register.EBP &&
-                        register <> Register.RBP
-                            -> Some reg
-                    | TwoOperands(OprReg reg, OprImm imm) -> Some reg
-                    | _ -> None
-                    |> Option.iter(fun instrReg ->
-                        if instrReg.ToString().Equals(regName, StringComparison.OrdinalIgnoreCase) then
-                            // register found, try to set its value 
-                            // by emulating the single instruction                            
-                            instructionFound <- true                            
-                            sandbox.EmulateInstruction(curInstruction)
-                    )  
-
-    let setRegisters(sandbox: WindowsSandbox, trace: ObfuscationTrace) =        
-        getRegisters()
-        |> List.iter(fun regName ->
-            match _savedRegisters.TryGetValue(regName) with
-            | (true, regValue) -> sandbox.GetRunningProcess().Cpu.SetRegister(regValue)
-            | _ -> trySetRegistryValue(regName, sandbox, trace)
-        )
-        
-    let resetVolatileRegisterIfNecessary(sandbox: WindowsSandbox, func: Function, trace: ObfuscationTrace) = 
-        // if there is a call, the volatile registers must be reset
-        func.Instructions
-        |> Array.filter(fun instruction -> instruction.Address < trace.StartAddress)
-        |> Array.exists(fun instruction -> instruction.IsCall())
-        |> function
-            | false -> ()
-            | true ->
-                let zeroValue = if func.Architecture = Arch.X64 then createUInt64(0UL) else createUInt32(0u)
-                let cpu = sandbox.GetRunningProcess().Cpu
-                getVolatileRegisters()
-                |> List.iter(fun regName ->
-                    let register = {zeroValue with Name = regName; IsTemp = false}
-                    cpu.SetRegister(register)
-                )
+    let emulationException(sandbox: ISandbox, error: ExecutionException) =  
+        if _inExceptionHandler then
+            false
+        else
+            match error with
+            | MemoryAccessViolation e -> 
+                match e.Error with
+                | MemoryAccessionViolationError.MemoryNotMapped ->
+                    _inExceptionHandler <- true
+                    // just ignore the current instruction and go to the next one
+                    let proc = sandbox.GetRunningProcess()
+                    let instruction = proc.GetInstruction()
+                    let (nextAddress, _) = instruction.GetNextInstrAddrs() |> Seq.head
+                    let eip = proc.Cpu.GetRegister("EIP")
+                    proc.Cpu.SetRegister({eip with Value = createValue(nextAddress).Value})            
+                    _inExceptionHandler <- false
+                | _ -> 
+                    ()
+                true
+            | _ -> false
 
     member this.Emulate(trace: ObfuscationTrace) =
-        let settings = {
-            InitializeEnvironment = false
-            SaveSnapshotOnException = false
-            CacheInstructions = true
-        }
-
         // create sandbox
         let pointerSize = if func.Architecture = Arch.X64 then 64 else 32
-        let sandbox = new WindowsSandbox(pointerSize, settings)
+        let sandbox = 
+            new WindowsSandbox(
+                pointerSize, 
+                {
+                    InitializeEnvironment = false
+                    SaveSnapshotOnException = false
+                    CacheInstructions = true
+                }
+            )
         sandbox.Load(fileName)
         let proc = sandbox.GetRunningProcess()
 
         // configure sandbox (do it for both x86 and x64)
-        let adjustedTrace = adjustEndAddress(func, adjustStartAddress(func, trace))
+        let adjustedTrace = EmulatorHelper.adjustStartAddress(trace, _savedRegisters)
+        let adjustedTrace = EmulatorHelper.adjustEndAddress(adjustedTrace)
 
-        // set the savedvalues from registers. This is useful to manage compiler
-        // optimization where a register value is set in a trace and reused in other trace
-        setRegisters(sandbox, trace)
-        resetVolatileRegisterIfNecessary(sandbox, func, trace)
-
+        // set start address
         if proc.PointerSize = 32 then
             let eip = {createUInt32(uint32 adjustedTrace.StartAddress) with Name = Register.EIP.ToString(); IsTemp = false}        
             proc.Cpu.SetRegister(eip)
@@ -243,36 +93,48 @@ type Emulator(fileName: String, func: Function, binScanner: BinaryScanner, maxIn
         // setup trace content log file
         let emulatedTrace = new StringBuilder()
         let traceHeader = new StringBuilder()
-        _logger?EmulateFrom(func.Address.ToString("X"), adjustedTrace.StartAddress.ToString("X"), adjustedTrace.EndAddress.ToString("X"))        
+        _logger?EmulateFrom(func.StartAddress.ToString("X"), adjustedTrace.StartAddress.ToString("X"), adjustedTrace.EndAddress.ToString("X"))        
                 
         traceHeader.AppendLine("-=[ Trace Info ]=-") |> ignore
         traceHeader.AppendFormat("Architecture: {0}", func.Architecture).AppendLine() |> ignore
-        traceHeader.AppendFormat("Function start: 0x{0}", func.Address.ToString("X")).AppendLine() |> ignore
-        traceHeader.AppendFormat("Original start: 0x{0}", trace.StartAddress.ToString("X")).AppendLine() |> ignore
-        if adjustedTrace.StartAddress <> trace.StartAddress then        
-            traceHeader.AppendFormat("Adjusted start: 0x{0}", adjustedTrace.StartAddress.ToString("X")).AppendLine() |> ignore                
-        traceHeader.AppendFormat("Deobfuscate address: 0x{0}", trace.DeobfuscateOperationAddress.ToString("X")).AppendLine() |> ignore
-        traceHeader.AppendFormat("End address: 0x{0}", trace.EndAddress.ToString("X")).AppendLine() |> ignore
-        if adjustedTrace.EndAddress <> trace.EndAddress then        
-            traceHeader.AppendFormat("Adjusted end: 0x{0}", adjustedTrace.EndAddress.ToString("X")).AppendLine() |> ignore                
+        traceHeader.AppendFormat("Function start: 0x{0}", func.StartAddress.ToString("X")).AppendLine() |> ignore
+        traceHeader.AppendFormat("Start address: 0x{0}", adjustedTrace.StartAddress.ToString("X")).AppendLine() |> ignore                
+        traceHeader.AppendFormat("Deobfuscate address: 0x{0}", trace.DeobfuscateOperationAddress.ToString("X")).AppendLine() |> ignore        
+        traceHeader.AppendFormat("End address: 0x{0}", adjustedTrace.EndAddress.ToString("X")).AppendLine() |> ignore                
         
+        // try to initialize the used registers
+        EmulatorHelper.getInitRegistersValue(trace)
+        |> Array.iter(fun (regName, value) ->
+            let register = proc.Cpu.GetRegister(regName.ToString()).SetValue(uint64 value)
+            proc.Cpu.SetRegister(register)  
+        )
+
         // try to identify the register used as index increment
-        getIncrementRegisterName(func, trace)
+        EmulatorHelper.tryGetIncrementRegisterName(trace)
         |> Option.iter(fun (size, regName) ->
-            traceHeader.AppendFormat("Using increment register: {0}", regName).AppendLine() |> ignore            
             let tmpReg = if size = 32<B2R2.rt> then createUInt32(1u) else createUInt64(1UL)
             let reg = {tmpReg with Name = regName.ToUpperInvariant(); IsTemp = false}        
             proc.Cpu.SetRegister(reg)  
         )
 
+        // for XOR obfuscation, try to identify the key
+        EmulatorHelper.tryGetObfuscationKey(adjustedTrace)
+        |> Option.iter(fun (register, value) ->
+            let keyValue = (value.Value |> BitVector.toUInt64).ToString("X")
+            _logger?SetRegistryKey(register, keyValue)
+            let keyReg = {value with Name = register.ToString(); IsTemp = false}        
+            proc.Cpu.SetRegister(keyReg)                
+        )
+
+        // write register to output
         emulatedTrace.AppendLine().AppendLine("-=[ Registers ]=-") |> ignore
-        getRegisters()
+        EmulatorHelper.getRegisters(func)
         |> List.iter(fun register ->
             let address = proc.Cpu.GetRegister(register).As<UInt64>()
             let info =
-                if proc.Memory.IsAddressMapped(address) && not(String.IsNullOrWhiteSpace(proc.Memory.GetMemoryRegion(address).Info))
-                then String.Format("; {0} ", proc.Memory.GetMemoryRegion(address).Info)
-                else String.Empty
+                match proc.Memory.GetMemoryRegion(address) with
+                | Some region when not(String.IsNullOrWhiteSpace(region.Info)) -> String.Format("; {0} ", region.Info)
+                | _ -> String.Empty
             emulatedTrace.AppendFormat("{0}=0x{1} {2}", register, address.ToString("X"), info).AppendLine() |> ignore
         )
         emulatedTrace.AppendLine().AppendLine("-=[ Instructions ]=-") |> ignore
@@ -285,15 +147,15 @@ type Emulator(fileName: String, func: Function, binScanner: BinaryScanner, maxIn
 
         proc.Memory.MemoryAccess.Add(fun memOp ->                    
             match memOp with
-            | Write (address, _) -> 
+            | Write (address, res) -> 
                 if stringBufferAddressEnd + 1UL = address then
                     // increase only
                     stringBufferAddressEnd <- address
 
                 if stringBufferAddressStart = 0UL then
                     let instruction = proc.GetInstruction() :?> IntelInstruction
-                    let flags = binScanner.AnalyzeInstruction(func, instruction)
-                    if setResultOperationFound(func, instruction, adjustedTrace, flags) then
+                    heuristic.AnalyzeInstruction(func, instruction)
+                    if _deobfuscationFlags |> List.exists(heuristic.HasFlag) then
                         traceHeader
                             .AppendFormat("Write deobfuscation result instruction at 0x{0}", instruction.Address.ToString("X"))
                             .AppendLine()
@@ -307,13 +169,9 @@ type Emulator(fileName: String, func: Function, binScanner: BinaryScanner, maxIn
         sandbox.BeforeEmulation.Add(fun proc ->         
             let instruction = proc.GetInstruction() :?> IntelInstruction
             if instruction.Info.Opcode = Opcode.CALLNear then
-                // ensure that is not a call to an extraneous function  
-                let flags = binScanner.AnalyzeInstruction(func, instruction)
-                if terminatingOperationFound(flags) then
-                    sandbox.Stop()
-                else
-                    callStack.Push(proc.ProgramCounter.As<UInt64>())
-            
+                callStack.Push(proc.ProgramCounter.As<UInt64>())   
+            elif instruction.Info.Opcode = Opcode.CALLFar then
+                sandbox.Stop()
             emulatedTrace.AppendLine(ES.Sojobo.Utility32.disassemble(proc, proc.GetInstruction())) |> ignore
         )
         
@@ -329,12 +187,13 @@ type Emulator(fileName: String, func: Function, binScanner: BinaryScanner, maxIn
                 sandbox.Stop()
         )
 
+        sandbox.EmulationException <- emulationException
         let mutable stringExtracted = false
-        try 
-            sandbox.Run()
 
+        try 
+            sandbox.Run()        
             // save the register values
-            saveRegisters(proc)
+            //saveRegisters(proc)
 
             // read the string
             if stringBufferAddressStart > 0UL then
@@ -349,17 +208,26 @@ type Emulator(fileName: String, func: Function, binScanner: BinaryScanner, maxIn
                     decodedString <- decodedString.Substring(0, addressLength)
 
                 if not(String.IsNullOrEmpty(decodedString)) then
-                    _logger?ExtractedString(trace.DeobfuscateOperationAddress.ToString("X"), stringBufferAddressStart.ToString("X"), decodedString)
+                    _logger?ExtractedString(
+                        adjustedTrace.DeobfuscateOperationAddress.ToString("X"), 
+                        adjustedTrace.StartAddress.ToString("X"), 
+                        adjustedTrace.EndAddress.ToString("X"),
+                        decodedString
+                    )
                     stringExtracted <- true
                     traceHeader.AppendFormat("Extracted string: {0}", decodedString).AppendLine() |> ignore
                 else
-                    _logger?NoStringFound(stringBufferAddressEnd.ToString("X"))
+                    _logger?NoStringFound(stringBufferAddressEnd.ToString("X"), trace)
             else
-                _logger?NoStringExtracted()
-        with e -> 
-            _logger?EmulationError(e.Message)
-            emulatedTrace.AppendLine().AppendLine("-=[ Error ]=-").AppendLine(e.ToString()) |> ignore        
+                _logger?NoStringFound(stringBufferAddressEnd.ToString("X"), trace)
 
-        // finally save the trace
-        saveTrace(adjustedTrace, (traceHeader.ToString()) + (emulatedTrace.ToString()))
+            saveTrace(adjustedTrace, (traceHeader.ToString()) + (emulatedTrace.ToString()))
+        with e -> 
+            saveTrace(adjustedTrace, (traceHeader.ToString()) + (emulatedTrace.ToString()))
+            try
+                let errorAddress = sandbox.GetRunningProcess().GetInstruction().Address
+                _logger?EmulationError(errorAddress.ToString("X"), trace, e.Message)
+            with _ -> ()
+
+        // finally save the trace        
         stringExtracted

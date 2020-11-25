@@ -11,12 +11,14 @@ module Program =
     type CLIArguments =
         | [<MainCommand; Last>] File of file: String     
         | Instructions of count:Int32
+        | [<AltCommandLine("-a")>] Address of address:String
         | Verbose
     with
         interface IArgParserTemplate with
             member s.Usage =
                 match s with
                 | File _ -> "the file to deobfuscate."
+                | Address _ -> "analyze the given address."
                 | Instructions _ -> "the number of instruction to emulate before to stop the emulation."
                 | Verbose -> "print verbose messages."
 
@@ -59,21 +61,28 @@ module Program =
                 let isVerbose = results.Contains(<@ Verbose @>)
                 let instructionCount = results.GetResult(<@ Instructions @>, 800)
                 let fileToDeobfuscate = results.GetResult(<@ File @>)
-
-                let logProvider = configureLogging(isVerbose)
                 
+                let logProvider = configureLogging(isVerbose)                
                 let logger =
                     log "ADVDeobfuscator"
                     |> info "File" "Deobfuscate file: {0}"
                     |> buildAndAdd(logProvider)
                 
                 logger?File(fileToDeobfuscate)
+
                 let deobfuscator = new Deobfuscator(fileToDeobfuscate, instructionCount, logProvider)
-                deobfuscator.Deobfuscate()
+                match results.TryGetResult(<@ Address @>) with
+                | Some address -> 
+                    let effectiveAddress =
+                        if address.StartsWith("0x") then Convert.ToUInt64(address, 16)
+                        else Convert.ToUInt64(address)
+                    deobfuscator.DeobfuscateAddress(effectiveAddress)
+                | None ->
+                    deobfuscator.Deobfuscate()
                 0
         with 
-            | :? ArguParseException ->
-                printUsage(parser.PrintUsage())   
+            | :? ArguParseException as e ->
+                printUsage(e.Message)   
                 1
             | e ->
                 printError(e.ToString())

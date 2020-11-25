@@ -2,15 +2,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net47</TargetFramework>
+    <TargetFramework>net5.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Entities.fs" />
-    <Compile Include="InstructionHeuristics.fs" />
+    <Compile Include="HeuristicHelper.fs" />
+    <Compile Include="HeuristicBase.fs" />
+    <Compile Include="ArithmeticWithStackHeuristic.fs" />
+    <Compile Include="HeuristicAggregator.fs" />
     <Compile Include="BinaryScanner.fs" />
+    <Compile Include="EmulatorHelper.fs" />
     <Compile Include="Emulator.fs" />
     <Compile Include="Deobfuscator.fs" />
     <Compile Include="Program.fs" />
+  </ItemGroup>
+  <ItemGroup>
     <None Include="paket.references" />
   </ItemGroup>
   <ItemGroup>
