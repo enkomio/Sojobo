@@ -38,7 +38,6 @@ _Sojobo_ is intended to be used as a framework to create program analysis utilit
 ## Download
 
  - [Source code][1]
- - [Download binary][2]
 
 ## Documentation
 The project is fully documented in F# (cit.) :) Joking apart, I plan to write some blog posts related to how to use Sojobo. Below a list of the current posts:
@@ -58,4 +57,3 @@ Copyright (C) 2019 Antonio Parata - <a href="https://twitter.com/s4tan">@s4tan</
 _Sojobo_ is licensed under the [Creative Commons](LICENSE.md).
 
   [1]: https://github.com/enkomio/sojobo/tree/master/Src
-  [2]: https://github.com/enkomio/sojobo/releases/latest
