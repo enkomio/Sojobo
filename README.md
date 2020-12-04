@@ -21,9 +21,13 @@ _ADVDeobfuscator_ is tool based on the Sojobo binary analysis framework that ana
 A compiled version is available to <a href="https://github.com/sponsors/enkomio">Community sponsored users</a>.
 
 ## Documentation
-The image below shows an execution of ADVDeobfuscator on the <A href="https://www.carbonblack.com/blog/tau-threat-discovery-conti-ransomware/">Conti Ransomware</a>.
+The image below shows an execution of ADVDeobfuscator on the <a href="https://www.carbonblack.com/blog/tau-threat-discovery-conti-ransomware/">Conti Ransomware</a>.
 
 <img src="https://github.com/enkomio/Sojobo/blob/master/Images/ADVDeobfuscator_Conti.gif">
+
+The image below shows an execution of ADVDeobfuscator on the <a href="https://www.zscaler.com/blogs/security-research/taurus-new-stealer-town/">Taurus Stealer</a> (see also <a href="https://fumik0.com/2019/12/25/lets-play-again-with-predator-the-thief/">Predator the thief</a>).
+
+<img src="https://github.com/enkomio/Sojobo/blob/master/Images/ADVDeobfuscator_taurus.gif">
 
 I wrote a <a href="http://antonioparata.blogspot.com/2020/06/deobfuscating-c-advobfuscator-with.html">blog post on how to deobfuscate the Team 9 binaries</a>.
 
