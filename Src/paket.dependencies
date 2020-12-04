@@ -2,12 +2,10 @@ version 5.206.0
 source https://nuget.org/api/v2
 
 nuget ES.Fslog.Core
-nuget FSharpLog
 nuget System.Reflection.Metadata
 nuget Newtonsoft.Json
 nuget Argu
-nuget FSharpLog
-nuget FSharp.Core ~> 4.7.0
+nuget FSharp.Core ~> 5.0.0
 
 group FakeBuild
 	source https://api.nuget.org/v3/index.json
