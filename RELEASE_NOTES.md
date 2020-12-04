@@ -1,4 +1,5 @@
 ### 1.2 - 04/12/2020
+* All code was ported to .NET Core
 * Added Initialize method in Library to give a chance for initialization before the emulation starts
 * Print function name in disassembly representation
 * Fixed error on Library emulation loading

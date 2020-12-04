@@ -9,18 +9,32 @@ With _Sojobo_ you can:
 * Display a disassembly of the executed code
 * Emulate functions in a managed language (C# || F#)
 
+## Tools using Sojobo
+- ADVDeobfuscator
+
+# ADV Deobfuscator - A string deobfuscator for ADVObfuscator
+
+_ADVDeobfuscator_ is tool based on the Sojobo binary analysis framework that analyzes a binary obfuscated with ADBObfuscator and decodes the identified strings.
+
+## Download
+
+A compiled version is available to <a href="https://github.com/sponsors/enkomio">Community sponsored users</a>.
+
+## Documentation
+The image below shows an execution of ADVDeobfuscator on the <A href="https://www.carbonblack.com/blog/tau-threat-discovery-conti-ransomware/">Conti Ransomware</a>.
+
+<img src="https://github.com/enkomio/Sojobo/blob/master/Images/ADVDeobfuscator_Conti.gif">
+
+I wrote a <a href="http://antonioparata.blogspot.com/2020/06/deobfuscating-c-advobfuscator-with.html">blog post on how to deobfuscate the Team 9 binaries</a>.
+
+# Using Sojobo
+
+_Sojobo_ is intended to be used as a framework to create program analysis utilities. However, various <a href="https://github.com/enkomio/Sojobo/tree/master/Src/Examples"><strong>sample utilities</strong></a> were created in order to show how to use the framework in a profitable way. 
+
 ## Download
 
  - [Source code][1]
  - [Download binary][2]
-
-## Using Sojobo
-
-_Sojobo_ is intended to be used as a framework to create program analysis utilities. However, various <a href="https://github.com/enkomio/Sojobo/tree/master/Src/Examples"><strong>sample utilities</strong></a> were created in order to show how to use the framework in a profitable way. 
-
-### Tengu
-
-_Tengu_ is an utility which is based on _Sojobo_. It allows to emulate a given process and control the execution by providing a debugger like UI (in particular it was inspired by the windbg debugger). 
 
 ## Documentation
 The project is fully documented in F# (cit.) :) Joking apart, I plan to write some blog posts related to how to use Sojobo. Below a list of the current posts:
@@ -41,20 +55,3 @@ _Sojobo_ is licensed under the [Creative Commons](LICENSE.md).
 
   [1]: https://github.com/enkomio/sojobo/tree/master/Src
   [2]: https://github.com/enkomio/sojobo/releases/latest
-
---
-
-# ADV Deobfuscator - A string deobfuscator for ADVObfuscator
-
-_ADVDeobfuscator_ is tool based on the Sojobo binary analysis framework that analyzes a binary obfuscated with ADBObfuscator and decodes the identified strings.
-
-## Download
-
-A compiled version is available to <a href="https://github.com/sponsors/enkomio">Community sponsored users</a>.
-
-## Documentation
-The image below shows an execution of ADVDeobfuscator on the <A href="https://www.carbonblack.com/blog/tau-threat-discovery-conti-ransomware/">Conti Ransomware</a>.
-
-<img src="https://github.com/enkomio/Sojobo/blob/master/Images/ADVDeobfuscator_Conti.gif">
-
-I wrote a <a href="http://antonioparata.blogspot.com/2020/06/deobfuscating-c-advobfuscator-with.html">blog post on how to deobfuscate the Team 9 binaries</a>.
