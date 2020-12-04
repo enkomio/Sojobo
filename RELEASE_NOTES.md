@@ -1,9 +1,10 @@
-### 1.2 - XX/XX/2019
+### 1.2 - 04/12/2020
 * Added Initialize method in Library to give a chance for initialization before the emulation starts
 * Print function name in disassembly representation
 * Fixed error on Library emulation loading
 * Improved snapshot creation and fixed some errors
 * Added instruction cache to speed up performance
+* Fixed bugs (PEB creation)
 * Created Tengu utility
 
 ### 1.1.0 - 10/06/2019
