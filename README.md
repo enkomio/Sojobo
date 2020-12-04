@@ -21,11 +21,11 @@ _ADVDeobfuscator_ is tool based on the Sojobo binary analysis framework that ana
 A compiled version is available to <a href="https://github.com/sponsors/enkomio">Community sponsored users</a>. If you are a sponsored user you can download the binary from: <a href="https://github.com/enkomio-sponsor/compiled_binaries">https://github.com/enkomio-sponsor/compiled_binaries</a>
 
 ## Documentation
-The image below shows an execution of ADVDeobfuscator on the <a href="https://www.carbonblack.com/blog/tau-threat-discovery-conti-ransomware/">Conti Ransomware</a>.
+The image below shows an execution of ADVDeobfuscator on the <a href="https://www.carbonblack.com/blog/tau-threat-discovery-conti-ransomware/"><b>Conti Ransomware</b></a>.
 
 <img src="https://github.com/enkomio/Sojobo/blob/master/Images/ADVDeobfuscator_Conti.gif">
 
-The image below shows an execution of ADVDeobfuscator on the <a href="https://www.zscaler.com/blogs/security-research/taurus-new-stealer-town/">Taurus Stealer</a> (see also <a href="https://fumik0.com/2019/12/25/lets-play-again-with-predator-the-thief/">Predator the thief</a>).
+The image below shows an execution of ADVDeobfuscator on the <a href="https://www.zscaler.com/blogs/security-research/taurus-new-stealer-town/"><b>Taurus Stealer</b></a> (see also <a href="https://fumik0.com/2019/12/25/lets-play-again-with-predator-the-thief/">Predator the thief</a>).
 
 <img src="https://github.com/enkomio/Sojobo/blob/master/Images/ADVDeobfuscator_taurus.gif">
 
