@@ -40,7 +40,9 @@ type internal Dumper(sandbox: ISandbox) =
     member this.MemoryAccessedHandler(proc: IProcessContainer) (operation: MemoryAccessOperation) =
         match operation with
         | Read _ -> ()
-        | Write(address, value) -> _memoryRegions.Add(proc.Memory.GetMemoryRegion(address))
+        | Write(address, value) -> 
+            proc.Memory.GetMemoryRegion(address)
+            |> Option.iter(_memoryRegions.Add)
         | Allocate memRegion -> _memoryRegions.Add(memRegion)
         | Free _ -> ()
 

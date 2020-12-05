@@ -100,9 +100,9 @@ type Debugger(sandbox: ISandbox) as this =
         |> List.iter(fun register ->
             let address = proc.Cpu.GetRegister(register).Value |> BitVector.toUInt64
             let info =
-                if proc.Memory.IsAddressMapped(address) && not(String.IsNullOrWhiteSpace(proc.Memory.GetMemoryRegion(address).Info))
-                then String.Format("; {0} ", proc.Memory.GetMemoryRegion(address).Info)
-                else String.Empty
+                match proc.Memory.GetMemoryRegion(address) with
+                | Some region when not(String.IsNullOrWhiteSpace(region.Info)) -> String.Format("; {0} ", region.Info)
+                | _ -> String.Empty
             Console.WriteLine("{0}=0x{1} {2}", register, address.ToString("X"), info)
         )
 
