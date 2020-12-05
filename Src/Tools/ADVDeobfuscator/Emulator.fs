@@ -191,9 +191,7 @@ type Emulator(id: String, fileName: String, func: Function, heuristic: Heuristic
         let mutable stringExtracted = false
 
         try 
-            sandbox.Run()        
-            // save the register values
-            //saveRegisters(proc)
+            sandbox.Run()     
 
             // read the string
             if stringBufferAddressStart > 0UL then

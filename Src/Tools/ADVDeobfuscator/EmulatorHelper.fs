@@ -115,7 +115,7 @@ module EmulatorHelper =
         
         let extendRegister =
             if trace.Function.Architecture = Arch.X86 then Register.extendRegister32
-            else Register.extendRegister32
+            else Register.extendRegister64
         
         trace.Function.Instructions
         |> Array.filter(fun instruction -> instruction.Address < trace.DeobfuscateOperationAddress)
@@ -167,7 +167,7 @@ module EmulatorHelper =
     let getInitRegistersValue(trace: ObfuscationTrace) =
         let extendRegister =
             if trace.Function.Architecture = Arch.X86 then Register.extendRegister32
-            else Register.extendRegister32
+            else Register.extendRegister64
 
         trace.Function.Instructions
         |> Array.filter(fun instruction -> instruction.Address >= trace.StartAddress && instruction.Address <= trace.EndAddress)
@@ -214,7 +214,7 @@ module EmulatorHelper =
 
         let extendFunction =
             if trace.Function.Architecture = Arch.X86 then Register.extendRegister32
-            else Register.extendRegister32
+            else Register.extendRegister64
 
         let deobfuscationInstruction = 
             trace.Function.Instructions
