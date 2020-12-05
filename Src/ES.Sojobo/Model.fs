@@ -235,6 +235,9 @@ module Model =
     let createUInt32(value: UInt32) =
         createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofUInt32 value 32<rt>)
 
+    let createInt32(value: Int32) =
+        createVariableWithValue(String.Empty, EmulatedType.DoubleWord, BitVector.ofInt32 value 32<rt>)
+
     let createUInt64(value: UInt64) =
         createVariableWithValue(String.Empty, EmulatedType.QuadWord, BitVector.ofUInt64 value 64<rt>)
         
@@ -243,6 +246,7 @@ module Model =
         | :? Byte -> createByte(value :?> Byte)
         | :? UInt16 -> createUInt16(value :?> UInt16)
         | :? UInt32 -> createUInt32(value :?> UInt32)
+        | :? Int32 -> createInt32(value :?> Int32)
         | :? UInt64 -> createUInt64(value :?> UInt64)
         | _ -> failwith(String.Format("Unsupported type: {0}", value.GetType()))  
                 

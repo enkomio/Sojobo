@@ -12,7 +12,7 @@ type BaseProcessContainer(pointerSize: Int32) =
     let mutable _activeRegion: MemoryRegion option = None
     let mutable _fileName = String.Empty
     let _memoryManager = new MemoryManager(pointerSize)
-    let _cpu = new Cpu32()
+    let _cpu: Cpu = if pointerSize = 32 then upcast new Cpu32() else upcast new Cpu64()
     let _symbols = new Dictionary<UInt64, Symbol>()
     let _pid = 
         let rnd = new Random()
