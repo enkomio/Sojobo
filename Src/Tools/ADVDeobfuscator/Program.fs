@@ -66,6 +66,7 @@ module Program =
                 let logger =
                     log "ADVDeobfuscator"
                     |> info "File" "Deobfuscate file: {0}"
+                    |> info "Address" "Deobfuscate address: 0x{0}"
                     |> buildAndAdd(logProvider)
                 
                 logger?File(fileToDeobfuscate)
@@ -76,6 +77,7 @@ module Program =
                     let effectiveAddress =
                         if address.StartsWith("0x") then Convert.ToUInt64(address, 16)
                         else Convert.ToUInt64(address)
+                    logger?Address(effectiveAddress.ToString("X"))
                     deobfuscator.DeobfuscateAddress(effectiveAddress)
                 | None ->
                     deobfuscator.Deobfuscate()
