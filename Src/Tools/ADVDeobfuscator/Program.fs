@@ -67,9 +67,11 @@ module Program =
                     log "ADVDeobfuscator"
                     |> info "File" "Deobfuscate file: {0}"
                     |> info "Address" "Deobfuscate address: 0x{0}"
+                    |> info "NumInstructions" "Emulate at max {0} instructions"
                     |> buildAndAdd(logProvider)
                 
                 logger?File(fileToDeobfuscate)
+                logger?NumInstructions(instructionCount)
 
                 let deobfuscator = new Deobfuscator(fileToDeobfuscate, instructionCount, logProvider)
                 match results.TryGetResult(<@ Address @>) with
