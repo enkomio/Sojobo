@@ -22,6 +22,7 @@ type Emulator(id: String, fileName: String, func: Function, heuristic: Heuristic
         DeobfuscationFlag.SubWithImmediateOrRegister
         DeobfuscationFlag.XorWith8BitRegister
         DeobfuscationFlag.XorWithStack
+        DeobfuscationFlag.XorBetweenDifferentRegisters
     ]
     
     let _logger =

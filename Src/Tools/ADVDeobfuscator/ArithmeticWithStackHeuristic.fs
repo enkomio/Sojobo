@@ -6,7 +6,7 @@ open Entities
 open B2R2.FrontEnd.Intel
 open ES.Fslog
 
-type ArithmeticWithStackHeuristic(functionAddresses: UInt64 array, logProvider: ILogProvider) =
+type ArithmeticWithStackHeuristic(functionAddresses: UInt64 array, logProvider: ILogProvider) as this =
     inherit HeuristicBase()
     let _jumpInstructionAddresses = new Dictionary<IntelInstruction, UInt64>()
     let mutable _analyzedInstructionCount = 0
@@ -29,7 +29,7 @@ type ArithmeticWithStackHeuristic(functionAddresses: UInt64 array, logProvider: 
         _jumpInstructionAddresses.Clear()
 
     let checkStartDeobfuscation(instruction: IntelInstruction) =
-        if _startAddress = 0UL then
+        if this.IgnorePrecondition || _startAddress = 0UL then
             if HeuristicHelper.isMoveImmutableToStack(instruction) then
                 _flags <- _flags ||| DeobfuscationFlag.MovToStack
                 _startAddress <- instruction.Address
@@ -38,7 +38,7 @@ type ArithmeticWithStackHeuristic(functionAddresses: UInt64 array, logProvider: 
                 _startAddress <- instruction.Address
 
     let checkDeobfuscationOperation(instruction: IntelInstruction) =
-        if _deobfuscationAddress = 0UL && _startAddress > 0UL then
+        if this.IgnorePrecondition || (_deobfuscationAddress = 0UL && _startAddress > 0UL) then
             if HeuristicHelper.isArithmeticStackMemoryWith8BitRegister(instruction, Opcode.XOR) then
                 _flags <- _flags ||| DeobfuscationFlag.XorWith8BitRegister
                 _deobfuscationAddress <- instruction.Address
@@ -51,9 +51,12 @@ type ArithmeticWithStackHeuristic(functionAddresses: UInt64 array, logProvider: 
             elif HeuristicHelper.isCallToFunctionWithDecryptionOperation(instruction, functionAddresses) then
                 _flags <- _flags ||| DeobfuscationFlag.CallToFunctionDecrypt
                 _deobfuscationAddress <- instruction.Address
+            elif HeuristicHelper.isArithmeticStackMemoryBetweenRegisters(instruction, Opcode.XOR) then
+                _flags <- _flags ||| DeobfuscationFlag.XorBetweenDifferentRegisters
+                _deobfuscationAddress <- instruction.Address            
 
     let checkEndOfDeobfuscation(instruction: IntelInstruction) =
-        if _endAddress = 0UL && _startAddress > 0UL && _deobfuscationAddress > 0UL then
+        if this.IgnorePrecondition || (_endAddress = 0UL && _startAddress > 0UL && _deobfuscationAddress > 0UL) then
             if HeuristicHelper.isJumpToPreviousInstruction(instruction) then
                 _flags <- _flags ||| DeobfuscationFlag.JumpToPreviousAddress
                 _endAddress <- instruction.Address
@@ -66,7 +69,7 @@ type ArithmeticWithStackHeuristic(functionAddresses: UInt64 array, logProvider: 
             resetState()  
             
     let analyzeBrach(instruction: IntelInstruction) =
-        if _startAddress > 0UL && instruction.IsBranch() then
+        if this.IgnorePrecondition || (_startAddress > 0UL && instruction.IsBranch()) then
             match instruction.Info.Operands with
             | OneOperand(OprDirAddr(Relative offset)) -> 
                 let destination = uint64(int64 instruction.Address + offset)
@@ -115,3 +118,5 @@ type ArithmeticWithStackHeuristic(functionAddresses: UInt64 array, logProvider: 
             EndAddress = _endAddress
             Function = func
         }
+
+    default val IgnorePrecondition = false with get, set

@@ -32,6 +32,7 @@ module Entities =
         | XorWith8BitRegister = 1
         | XorWithStack = 2
         | AddWithImmediateOrRegister = 4
+        | XorBetweenDifferentRegisters = 8
         | JumpToPreviousAddress = 16
         | SetByteRegisterInStack = 32
         | MovToStack = 64

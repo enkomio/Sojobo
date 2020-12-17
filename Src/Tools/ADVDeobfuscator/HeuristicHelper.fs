@@ -77,6 +77,17 @@ module HeuristicHelper =
         else 
             false
 
+    let isArithmeticStackMemoryBetweenRegisters(instruction: IntelInstruction, opCode: Opcode) =
+        if instruction.Info.Opcode = opCode then
+            match instruction.Info.Operands with
+            | TwoOperands (firstOp, secondOp) -> 
+                match (firstOp, secondOp) with
+                | (OprReg regValue1, OprReg regValue2) when regValue1 <> regValue2 -> true
+                | _ -> false
+            | _ -> false       
+        else 
+            false
+
     let isMoveImmutableToStack(instruction: IntelInstruction) =
         match instruction.Info.Opcode with
         | Opcode.MOV

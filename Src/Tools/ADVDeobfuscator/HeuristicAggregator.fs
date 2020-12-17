@@ -11,6 +11,8 @@ open ES.Fslog
 type HeuristicAggregator(functionAddresses: UInt64 array, logProvider: ILogProvider) =
     inherit HeuristicBase()
 
+    let mutable _ignorePreconditions = false
+
     let _heuristics: HeuristicBase list = [
         new ArithmeticWithStackHeuristic(functionAddresses, logProvider)
     ]        
@@ -41,3 +43,10 @@ type HeuristicAggregator(functionAddresses: UInt64 array, logProvider: ILogProvi
     default this.AnalyzeInstruction(func: Function, instruction: IntelInstruction) =    
         _heuristics
         |> List.iter(fun heuristic -> heuristic.AnalyzeInstruction(func, instruction))
+
+    default this.IgnorePrecondition
+        with get() = _ignorePreconditions
+        and set(v) =
+            _ignorePreconditions <- v
+            _heuristics
+            |> List.iter(fun heuristic -> heuristic.IgnorePrecondition <- _ignorePreconditions)

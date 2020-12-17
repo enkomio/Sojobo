@@ -65,7 +65,7 @@ type Deobfuscator(fileName: String, numInstructionsToEmulate: Int32, logProvider
         |> Option.iter(fun func -> 
             let instructions = 
                 func.Instructions
-                |> Array.filter(fun instruction -> instruction.Address >= address)
+                |> Array.skipWhile(fun instruction -> instruction.Address <> address)
 
             let numStringExtracted = analyzeInstructions(functionAddressesWithEncryption, func, address, instructions)
             totalStringExtracted <- totalStringExtracted + numStringExtracted

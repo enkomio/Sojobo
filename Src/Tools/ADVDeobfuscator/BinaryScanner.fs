@@ -45,6 +45,7 @@ type BinaryScanner(binHandler: BinHandler, logProvider: ILogProvider) =
         |> Array.filter(fun func -> func.Instructions.Length > 3)
         |> Array.filter(fun func ->
             let heuristics = new HeuristicAggregator(monitoredFunctions, logProvider)
+            heuristics.IgnorePrecondition <- true
             func.Instructions
             |> Array.exists(fun instruction -> 
                 heuristics.AnalyzeInstruction(func, instruction)

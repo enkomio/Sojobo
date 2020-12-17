@@ -6,6 +6,7 @@ open B2R2.FrontEnd.Intel
 
 [<AbstractClass>]
 type HeuristicBase() =
+    abstract IgnorePrecondition: Boolean with get, set
     abstract IsSatisfied: unit -> Boolean
     abstract AnalyzeInstruction: Function * IntelInstruction -> unit
     abstract GetTrace: Function -> ObfuscationTrace
